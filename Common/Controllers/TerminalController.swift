@@ -93,6 +93,15 @@ public class TerminalController {
 	internal var logger = Logger(subsystem: "ws.hbang.Terminal", category: "TerminalController")
 
 	public init() {
+		#if DEBUG
+		let joinCheck = Self.join([
+			TextRow(text: "12345678", usedColumns: 8),
+			TextRow(text: "next", usedColumns: 4),
+			TextRow(text: "prompt", usedColumns: 6)
+		], columns: 8)
+		assert(joinCheck.text == "12345678next\nprompt" && joinCheck.starts == [0, 8, 13])
+		#endif
+
 		let options = TerminalOptions(termName: "xterm-256color",
 																	scrollback: 10_000)
 		terminal = Terminal(delegate: self, options: options)
@@ -439,6 +448,11 @@ public class TerminalController {
 
 	// MARK: - Reading the buffer
 
+	private struct TextRow {
+		var text: String
+		var usedColumns: Int
+	}
+
 	/// One entry per terminal cell, so an index into the result is a column. The continuation cell
 	/// of a wide character (CJK, emoji) comes back as nil rather than a stray space.
 	private func cells(atScrollInvariantRow row: Int) -> [Character?] {
@@ -456,10 +470,83 @@ public class TerminalController {
 		}
 	}
 
-	/// Plain text of a row, one character per cell, so a column index can be used to index straight
-	/// into it. Used for finding links under the user’s finger.
-	public func text(atScrollInvariantRow row: Int) -> String {
-		String(cells(atScrollInvariantRow: row).map { $0 ?? " " })
+	private func textRow(atScrollInvariantRow row: Int) -> TextRow? {
+		let cells = cells(atScrollInvariantRow: row)
+		guard !cells.isEmpty else {
+			return nil
+		}
+		let usedColumns = cells.lastIndex(where: { $0 == nil || $0 != " " }).map { $0 + 1 } ?? 0
+		var text = String(cells.compactMap { $0 })
+		while text.last == " " {
+			text.removeLast()
+		}
+		return TextRow(text: text, usedColumns: usedColumns)
+	}
+
+	private static func join(_ rows: [TextRow], columns: Int) -> (text: String, starts: [Int]) {
+		var text = ""
+		var starts = [Int]()
+		for (index, row) in rows.enumerated() {
+			if index > 0 && rows[index - 1].usedColumns < columns {
+				text.append("\n")
+			}
+			starts.append(text.count)
+			text.append(row.text)
+		}
+		return (text, starts)
+	}
+
+	/// Text around a cell with terminal soft-wrapped rows joined, plus the tapped character offset.
+	/// SwiftTerm keeps its exact `isWrapped` flag internal, so a full row is the best public signal.
+	public func contiguousText(atScrollInvariantRow row: Int,
+													column: Int) -> (text: String, characterOffset: Int)? {
+		guard let terminal = terminal,
+					let tappedRow = textRow(atScrollInvariantRow: row),
+					column >= 0,
+					column < terminal.cols else {
+			return nil
+		}
+
+		var firstRow = row
+		// ponytail: 64 rows bounds detector work; raise it only for links over several thousand chars.
+		for _ in 0..<64 {
+			guard let previous = textRow(atScrollInvariantRow: firstRow - 1),
+						previous.usedColumns == terminal.cols else {
+				break
+			}
+			firstRow -= 1
+		}
+
+		var lastRow = row
+		for _ in 0..<64 {
+			guard let current = textRow(atScrollInvariantRow: lastRow),
+						current.usedColumns == terminal.cols,
+						textRow(atScrollInvariantRow: lastRow + 1) != nil else {
+				break
+			}
+			lastRow += 1
+		}
+
+		let rows = (firstRow...lastRow).compactMap(textRow(atScrollInvariantRow:))
+		let joined = Self.join(rows, columns: terminal.cols)
+		let tappedIndex = row - firstRow
+		guard tappedIndex >= 0,
+				tappedIndex < joined.starts.count else {
+			return nil
+		}
+
+		let tappedCells = cells(atScrollInvariantRow: row)
+		var tappedColumn = min(column, tappedCells.count - 1)
+		while tappedColumn > 0 && tappedCells[tappedColumn] == nil {
+			tappedColumn -= 1
+		}
+		let localOffset = String(tappedCells[..<tappedColumn].compactMap { $0 }).count
+		let offset = joined.starts[tappedIndex] + localOffset
+		guard offset < joined.text.count,
+				!tappedRow.text.isEmpty else {
+			return nil
+		}
+		return (joined.text, offset)
 	}
 
 	/// The selected text, ready for the pasteboard. Trailing blanks are trimmed per line, and a wide
@@ -473,20 +560,21 @@ public class TerminalController {
 		guard start.row <= end.row else {
 			return ""
 		}
-		return (start.row...end.row).compactMap { row -> String? in
+		let rows = (start.row...end.row).compactMap { row -> TextRow? in
 			guard let range = selection.columnRange(forRow: row, cols: terminal.cols) else {
 				return nil
 			}
 			let cells = cells(atScrollInvariantRow: row)
+			let usedColumns = cells.lastIndex(where: { $0 == nil || $0 != " " }).map { $0 + 1 } ?? 0
 			let lower = min(range.lowerBound, cells.count)
 			let upper = min(range.upperBound, cells.count)
 			var line = lower < upper ? String(cells[lower..<upper].compactMap { $0 }) : ""
 			while line.last == " " {
 				line.removeLast()
 			}
-			return line
+			return TextRow(text: line, usedColumns: usedColumns)
 		}
-			.joined(separator: "\n")
+		return Self.join(rows, columns: terminal.cols).text
 	}
 
 	/// Columns of the “word” around `column`, so press-and-hold grabs something useful in one go.

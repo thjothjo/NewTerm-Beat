@@ -460,21 +460,20 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Opens whatever is under the given cell — a URL in the browser, an existing file or directory
 	/// in Filza. Returns whether anything was opened.
 	private func openItem(atRow row: Int, column: Int) -> Bool {
-		let text = terminalController.text(atScrollInvariantRow: row)
-		guard !text.isEmpty,
-					let offset = Self.utf16Offset(ofCharacterAt: column, in: text) else {
+		guard let item = terminalController.contiguousText(atScrollInvariantRow: row, column: column),
+					let offset = Self.utf16Offset(ofCharacterAt: item.characterOffset, in: item.text) else {
 			return false
 		}
 
 		if let detector = Self.linkDetector,
-			 let url = Self.firstMatch(of: detector, in: text, covering: offset)?.url {
+			 let url = Self.firstMatch(of: detector, in: item.text, covering: offset)?.url {
 			UIApplication.shared.open(url)
 			return true
 		}
 
 		if let detector = Self.pathDetector,
-			 let match = Self.firstMatch(of: detector, in: text, covering: offset),
-			 let url = Self.filzaURL(forPath: (text as NSString).substring(with: match.range)) {
+			 let match = Self.firstMatch(of: detector, in: item.text, covering: offset),
+			 let url = Self.filzaURL(forPath: (item.text as NSString).substring(with: match.range)) {
 			UIApplication.shared.open(url)
 			return true
 		}
