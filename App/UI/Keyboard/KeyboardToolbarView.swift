@@ -23,30 +23,45 @@ fileprivate struct Key {
 enum Toolbar: CaseIterable {
 	case primary, padPrimaryLeading, padPrimaryTrailing
 	case secondary, fnKeys
+	/// Not a row of keys — rendered as a list of projects. See `ProjectPickerRow`.
+	case projects
+	/// Not a row of keys — the `[Image #N]` receipts for images attached since the last return. See
+	/// `AttachmentStrip`.
+	case attachments
+	/// Vertical strip pinned to the screen edge, used instead of the accessory bar in landscape on
+	/// iPhone where vertical space is the scarce resource and width isn’t.
+	case sideBar
 
 	var keys: [ToolbarKey] {
 		switch self {
 		case .primary:
 			return [
-				.control, .escape, .tab, .more,
+				.control, .escape, .tab, .more, .projects,
 				.variableSpace(id: 0),
 				.arrows
 			]
 
+		case .projects, .attachments:
+			return []
+
+		case .sideBar:
+			// Arrows are listed individually rather than as the `.arrows` cluster: the cluster is three
+			// keys wide, which would make the strip eat far more width than it needs to.
+			return [.control, .escape, .tab, .shiftTab, .image, .delete,
+							.up, .down, .left, .right]
+
 		case .padPrimaryLeading:
-			return [.control, .escape, .tab, .more]
+			return [.control, .escape, .tab, .more, .projects]
 
 		case .padPrimaryTrailing:
 			return [.arrows]
 
 		case .secondary:
 			return [
-				.home, .end,
+				.shiftTab,
 				.variableSpace(id: 0),
-				.pageUp, .pageDown,
+				.delete, .image,
 				.variableSpace(id: 1),
-				.delete,
-				.variableSpace(id: 2),
 				.fnKeys
 			]
 
@@ -65,10 +80,15 @@ enum ToolbarKey: Hashable {
 	case control, escape, tab, more
 	// Primary - trailing
 	case up, down, left, right
-	// Secondary - navigation
-	case home, end, pageUp, pageDown
+	/// Shift-Tab. Claude Code cycles its permission modes on this, which is the one keystroke that
+	/// stops it asking to confirm every action.
+	case shiftTab
 	// Secondary - extras
 	case delete, fnKeys
+	// Projects
+	case projects
+	// Attach an image for a CLI to read
+	case image
 	// Fn keys
 	case fnKey(index: Int)
 
@@ -113,17 +133,12 @@ enum ToolbarKey: Hashable {
 															 preferredStyle: .icons,
 															 halfHeight: true,
 															 widthRatio: 1)
-		// Secondary - navigation
-		case .home:     return Key(label: .localize("Home"),
-															 widthRatio: 1.25)
-		case .end:      return Key(label: .localize("End"),
-															 widthRatio: 1.25)
-		case .pageUp:   return Key(label: .localize("Page Up"),
-															 glyph: .localize("PgUp"),
-															 widthRatio: 1.25)
-		case .pageDown: return Key(label: .localize("Page Down"),
-															 glyph: .localize("PgDn"),
-															 widthRatio: 1.25)
+		// Secondary
+		case .shiftTab: return Key(label: .localize("Shift-Tab"),
+															 glyph: "⇧tab",
+															 imageName: .arrowRightToLine,
+															 preferredStyle: .icons,
+															 widthRatio: 1.6)
 
 		// Secondary - extras
 		case .delete:   return Key(label: .localize("Delete Forward"),
@@ -134,6 +149,19 @@ enum ToolbarKey: Hashable {
 		case .fnKeys:   return Key(label: .localize("Function Keys"),
 															 glyph: .localize("Fn"),
 															 isToggle: true,
+															 widthRatio: 1)
+
+		// Projects
+		case .projects: return Key(label: .localize("Projects"),
+															 glyph: .localize("Proj"),
+															 imageName: .folder,
+															 preferredStyle: .icons,
+															 isToggle: true)
+
+		case .image:    return Key(label: .localize("Attach Image"),
+															 glyph: .localize("Img"),
+															 imageName: .photo,
+															 preferredStyle: .icons,
 															 widthRatio: 1)
 
 		// Fn keys
@@ -149,10 +177,41 @@ protocol KeyboardToolbarViewDelegate: AnyObject {
 	func keyboardToolbarDidPressKey(_ key: ToolbarKey)
 	func keyboardToolbarDidBeginPressingKey(_ key: ToolbarKey)
 	func keyboardToolbarDidEndPressingKey(_ key: ToolbarKey)
+	func keyboardToolbarDidSelectProject(_ project: Project)
+	func keyboardToolbarDidRequestNewProject()
+	func keyboardToolbarDidRequestDeleteProject(_ project: Project)
+}
+
+/// The `[Image #N]` receipts for images attached to the line being typed.
+///
+/// The terminal line itself has to contain the real path — that’s the only thing a CLI can open —
+/// so this is what shows the friendlier name for what was attached.
+struct AttachmentStrip: View {
+	let indexes: [Int]
+
+	var body: some View {
+		ScrollView(.horizontal, showsIndicators: false) {
+			HStack(spacing: 5) {
+				ForEach(indexes, id: \.self) { index in
+					Text(verbatim: "[Image #\(index)]")
+						.font(.system(size: 13).monospacedDigit())
+						.foregroundColor(.white)
+						.padding(.horizontal, 8)
+						.padding(.vertical, 4)
+						.background(Color(.keyBackgroundNormal).cornerRadius(4))
+				}
+			}
+		}
+			.frame(height: 26)
+	}
 }
 
 class KeyboardToolbarViewState: ObservableObject {
 	@Published var toggledKeys = Set<ToolbarKey>()
+
+	/// Numbers of the images attached since the last return, newest last. Cleared on return, because
+	/// that’s when the line they were attached to gets sent.
+	@Published var imageAttachments = [Int]()
 }
 
 struct KeyboardToolbarKeyStack: View {
@@ -160,20 +219,34 @@ struct KeyboardToolbarKeyStack: View {
 
 	let toolbar: Toolbar
 	var arrowsStyle: KeyboardArrowsStyle?
+	/// Vertical for the landscape side bar, horizontal everywhere else.
+	var axis: Axis = .horizontal
 
 	@EnvironmentObject var state: KeyboardToolbarViewState
 
 	@ObservedObject private var preferences = Preferences.shared
 
+	@ViewBuilder
 	var body: some View {
-		HStack(alignment: .center, spacing: 5) {
-			ForEach(toolbar.keys, id: \.self) { key in
-				switch key {
-				case .fixedSpace:    EmptyView()
-				case .variableSpace: Spacer(minLength: 0)
-				case .arrows:        arrowsView
-				default:             button(for: key)
-				}
+		switch axis {
+		case .horizontal:
+			HStack(alignment: .center, spacing: 5) { keys }
+		case .vertical:
+			VStack(alignment: .center, spacing: 5) { keys }
+		}
+	}
+
+	@ViewBuilder
+	private var keys: some View {
+		ForEach(toolbar.keys, id: \.self) { key in
+			switch key {
+			case .fixedSpace:    EmptyView()
+			case .variableSpace: Spacer(minLength: 0)
+			case .arrows:        arrowsView
+			default:
+				// Arrows go half height in the vertical strip; at full height the seven keys don’t fit the
+				// space left over in landscape and the last one ends up scrolled out of sight.
+				button(for: key, halfHeight: axis == .vertical && key.key.halfHeight)
 			}
 		}
 	}
@@ -215,6 +288,10 @@ struct KeyboardToolbarKeyStack: View {
 					.frame(height: 14)
 
 					Text((key.key.glyph ?? key.key.label).localizedLowercase)
+						// Refuses to shrink, so a row that needs more width than it has genuinely doesn’t
+						// fit — which is what lets ViewThatFits switch it to a scrolling row instead of
+						// silently truncating `home` to `ho…`.
+						.fixedSize()
 				}
 			}
 		}
@@ -295,12 +372,108 @@ struct KeyboardToolbarKeyStack: View {
 	}
 }
 
+/// The projects row, shown above the key rows when the Projects key is toggled on.
+///
+/// Projects are directories under the projects root, so this is a plain listing — there’s nothing to
+/// keep in sync, and a project created in the shell or in Filza appears here too.
+struct ProjectPickerRow: View {
+	weak var delegate: KeyboardToolbarViewDelegate?
+
+	@State private var projects = [Project]()
+	/// Long-press to enter, same as the tab bar. Projects are folders of source, so a stray tap must
+	/// never be able to remove one.
+	@State private var isEditing = false
+
+	/// Matches `KeyboardKeyButtonStyle`’s key height. A horizontal scroll view has no intrinsic
+	/// height, so without this the row collapses to nothing and the toggle looks broken.
+	private static let rowHeight: CGFloat = 45
+
+	var body: some View {
+		ScrollView(.horizontal, showsIndicators: false) {
+			HStack(alignment: .center, spacing: 5) {
+				Button {
+					UIDevice.current.playInputClick()
+					delegate?.keyboardToolbarDidRequestNewProject()
+				} label: {
+					HStack(spacing: 3) {
+						Image(systemName: .plus)
+							.imageScale(.small)
+						Text(String.localize("New"))
+					}
+				}
+					.buttonStyle(.keyboardKey(hasShadow: true))
+					.accessibilityLabel(String.localize("New Project"))
+
+				if projects.isEmpty {
+					Text(String.localize("No projects yet — tap New"))
+						.font(.system(size: 12))
+						.foregroundColor(.secondary)
+						.padding(.horizontal, 6)
+				} else {
+					ForEach(Array(zip(projects, projects.indices)), id: \.0) { project, index in
+						// Deliberately not a Button: a Button swallows the press, and neither
+						// onLongPressGesture nor simultaneousGesture(LongPressGesture()) fires on one. The
+						// tab bar uses the same plain-view-plus-gestures shape for the same reason, so the
+						// key styling is reproduced here by hand.
+						Text(project.name)
+							.font(.system(size: isBigDevice ? 18 : 15, weight: .regular).monospacedDigit())
+							.foregroundColor(.white)
+							.padding(.horizontal, 8)
+							.padding(.vertical, 6)
+							.frame(minWidth: Self.rowHeight)
+							.frame(height: Self.rowHeight)
+							.background(
+								Color(.keyBackgroundNormal)
+									.cornerRadius(isBigDevice ? 6 : 4)
+									.shadow(color: .black.opacity(0.8), radius: 0, x: 0, y: 1)
+							)
+							.contentShape(Rectangle())
+							.onTapGesture {
+								UIDevice.current.playInputClick()
+								if isEditing {
+									isEditing = false
+								} else {
+									delegate?.keyboardToolbarDidSelectProject(project)
+								}
+							}
+							.onLongPressGesture { isEditing = true }
+							.jiggle(isActive: isEditing, index: index)
+							.deleteBadge(isVisible: isEditing,
+													 label: String(format: .localize("Delete %@"), project.name),
+													 action: {
+														 // Stays in edit mode, same as the tab bar: deleting one shouldn’t mean
+														 // long-pressing again to delete the next.
+														 delegate?.keyboardToolbarDidRequestDeleteProject(project)
+													 })
+					}
+				}
+			}
+				.padding(.horizontal, 4)
+		}
+			.frame(height: Self.rowHeight)
+			.background(
+				// Tapping the empty part of the row leaves edit mode — there’s no Done button.
+				Color.clear
+					.contentShape(Rectangle())
+					.onTapGesture { isEditing = false }
+			)
+			.onAppear {
+				projects = ProjectManager.projects()
+				isEditing = false
+			}
+			.onReceive(NotificationCenter.default.publisher(for: ProjectManager.didChangeNotification)) { _ in
+				projects = ProjectManager.projects()
+			}
+	}
+}
+
 struct KeyboardToolbarView: View {
+	/// Key height from `KeyboardKeyButtonStyle`, plus the row’s top padding.
+	private static let keyRowHeight: CGFloat = 45 + 5
+
 	weak var delegate: KeyboardToolbarViewDelegate?
 
 	let toolbars: [Toolbar]
-
-	@State private var outerSize = CGSize.zero
 
 	@EnvironmentObject var state: KeyboardToolbarViewState
 
@@ -314,35 +487,78 @@ struct KeyboardToolbarView: View {
 			return state.toggledKeys.contains(.more)
 		case .fnKeys:
 			return state.toggledKeys.contains(.fnKeys)
+		case .projects:
+			return state.toggledKeys.contains(.projects)
+		case .attachments:
+			return !state.imageAttachments.isEmpty
+		case .sideBar:
+			// Hosted separately by the view controller, never inside the accessory view.
+			return false
 		}
+	}
+
+	private func keyStack(for toolbar: Toolbar) -> some View {
+		KeyboardToolbarKeyStack(delegate: delegate, toolbar: toolbar)
+			.padding(.horizontal, 4)
+			.padding(.top, 5)
+	}
+
+	/// A row lays out to fill the width when it can, and scrolls when it can’t.
+	///
+	/// Without this a row wider than the screen doesn’t overflow — the keys just compress until their
+	/// labels truncate (`home` became `ho…` once the row reached seven keys) and the keys at each end
+	/// get clipped by the screen edge.
+	private func scrollableIfNeeded<Content: View>(_ content: Content) -> some View {
+		// The width is read inline from the proxy rather than measured into @State: the state version
+		// is what left the bar laid out at the previous orientation’s width when the measurement
+		// didn’t fire on rotation.
+		//
+		// ViewThatFits can’t do this job — the rows contain a flexible spacer, so they report as
+		// fitting any width no matter how many keys are in them.
+		GeometryReader { proxy in
+			ScrollView(.horizontal, showsIndicators: false) {
+				content
+					// Fills the bar when the keys fit, so the spacer still pushes the arrows to the
+					// trailing edge, and overflows into a scroll when they don’t.
+					.frame(minWidth: proxy.size.width, alignment: .leading)
+			}
+		}
+			// A horizontal scroll view has no intrinsic height, and neither does GeometryReader.
+			.frame(height: Self.keyRowHeight)
 	}
 
 	@ViewBuilder
 	var body: some View {
-		ZStack(alignment: .bottom) {
-			Color.black
-				.frame(height: 0)
-				.captureSize(in: $outerSize)
-
-			VStack(spacing: 0) {
-				ForEach(toolbars, id: \.self) { toolbar in
-					if isToolbarVisible(toolbar) {
-						let view = KeyboardToolbarKeyStack(delegate: delegate,
-																							 toolbar: toolbar)
+		// Rows fill whatever width the hosting view has — its leading and trailing edges are pinned to
+		// the safe area by KeyboardToolbarInputView. This used to measure the width into @State and
+		// apply it with .frame(width:), which left the rows laid out at the *previous* orientation’s
+		// width whenever the measurement didn’t fire on rotation: the bar came back from landscape
+		// still 874pt wide, centred, and clipped off both edges of a 402pt screen.
+		VStack(spacing: 0) {
+			ForEach(toolbars, id: \.self) { toolbar in
+				if isToolbarVisible(toolbar) {
+					switch toolbar {
+					case .projects:
+						ProjectPickerRow(delegate: delegate)
 							.padding(.horizontal, 4)
 							.padding(.top, 5)
+							.frame(maxWidth: .infinity)
 
-						switch toolbar {
-						case .primary, .padPrimaryLeading, .padPrimaryTrailing, .secondary:
-							view
-								.frame(width: outerSize.width)
+					case .attachments:
+						AttachmentStrip(indexes: state.imageAttachments)
+							.padding(.horizontal, 8)
+							.padding(.top, 5)
+							.frame(maxWidth: .infinity, alignment: .leading)
 
-						case .fnKeys:
-							CocoaScrollView(.horizontal, showsIndicators: false) {
-								view
-							}
-								.frame(width: outerSize.width)
+					case .fnKeys:
+						CocoaScrollView(.horizontal, showsIndicators: false) {
+							keyStack(for: toolbar)
 						}
+							.frame(maxWidth: .infinity)
+
+					case .primary, .padPrimaryLeading, .padPrimaryTrailing, .secondary, .sideBar:
+						scrollableIfNeeded(keyStack(for: toolbar))
+							.frame(maxWidth: .infinity)
 					}
 				}
 			}

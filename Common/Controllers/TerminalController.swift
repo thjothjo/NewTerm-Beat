@@ -12,7 +12,7 @@ import SwiftTerm
 import os.log
 
 public protocol TerminalControllerDelegate: AnyObject {
-	func refresh(lines: inout [AnyView])
+	func refresh(lines: [AnyView])
 	func activateBell()
 	func titleDidChange(_ title: String?, isDirty: Bool, hasBell: Bool)
 	func currentFileDidChange(_ url: URL?, inWorkingDirectory workingDirectoryURL: URL?)
@@ -25,6 +25,12 @@ public protocol TerminalControllerDelegate: AnyObject {
 }
 
 public class TerminalController {
+
+	/// Frame rate the display link drops to once the terminal has gone `idleFrameThreshold` frames
+	/// without changing. Output arriving via `readInputStream(_:)` restores the full rate straight
+	/// away, so this only costs latency on the rare paths that change the screen without feeding it.
+	private static let idleRefreshRate: TimeInterval = 10
+	private static let idleFrameThreshold = 30
 
 	public weak var delegate: TerminalControllerDelegate?
 
@@ -46,6 +52,12 @@ public class TerminalController {
 	private var processLaunchDate: Date?
 	private var updateTimer: CADisplayLink?
 	private var refreshRate: TimeInterval = 60
+	/// Rate the display link is actually running at, which may be `idleRefreshRate` rather than
+	/// `refreshRate`. Main queue only.
+	private var appliedRefreshRate: TimeInterval = 0
+	/// Consecutive frames with no change to the terminal. `terminalQueue` only.
+	private var idleFrames = 0
+	private var isIdleThrottled = false
 	private var isTabVisible = true
 	private var isWindowVisible = true
 	private var isVisible: Bool { isTabVisible && isWindowVisible }
@@ -163,11 +175,38 @@ public class TerminalController {
 		isTabVisible = false
 	}
 
+	/// Sets the base refresh rate. Lifecycle and power changes go through here, and always win over
+	/// the idle heuristic — otherwise a stale throttle would survive backgrounding and leave the
+	/// terminal stuck at the wrong rate.
 	private func startUpdateTimer(fps: TimeInterval) {
+		terminalQueue.async {
+			self.idleFrames = 0
+			self.isIdleThrottled = false
+		}
+		setUpdateTimer(fps: fps)
+	}
+
+	private func setUpdateTimer(fps: TimeInterval) {
+		appliedRefreshRate = fps
 		updateTimer?.invalidate()
 		updateTimer = CADisplayLink(target: self, selector: #selector(self.updateTimerFired))
 		updateTimer?.preferredFramesPerSecond = Int(fps)
 		updateTimer?.add(to: .main, forMode: .default)
+	}
+
+	/// Switches between the full refresh rate and the idle rate. Called from `terminalQueue` only on
+	/// transitions, so an idle terminal isn’t hopping to the main queue every frame.
+	private func applyAdaptiveRate(idle: Bool) {
+		DispatchQueue.main.async {
+			// If we’re backgrounded or the tab is hidden, whatever throttle those paths applied wins.
+			guard self.isVisible else {
+				return
+			}
+			let fps = idle ? Self.idleRefreshRate : self.refreshRate
+			if fps != self.appliedRefreshRate {
+				self.setUpdateTimer(fps: fps)
+			}
+		}
 	}
 
 	private func stopUpdatingTimer() {
@@ -177,12 +216,32 @@ public class TerminalController {
 
 	// MARK: - Sub Process
 
+	/// Directory the shell starts in. Set before `startSubProcess()`.
+	public var initialDirectory: String?
+
+	/// Command run once the shell is up. Set before `startSubProcess()`.
+	///
+	/// It’s written on the shell’s first output rather than immediately, because writing to the pty
+	/// before the shell has taken over the tty gets the bytes echoed by the tty itself, and then
+	/// echoed *again* when zsh starts and redisplays its line buffer — the same command appears
+	/// twice.
+	public var initialCommand: String?
+	private var hasFlushedInitialCommand = false
+
 	public func startSubProcess() throws {
 		subProcess = SubProcess()
 		subProcess!.delegate = self
+		// Hand the pty its real size before the shell exists, rather than opening at the 80×25 default
+		// and resizing after. A resize only reaches the shell as SIGWINCH, and at startup that races
+		// the child claiming its controlling terminal — lose the race and the shell keeps believing
+		// it has 80 columns forever, which is what left zsh’s `%` end-of-line marker on every prompt
+		// and mangled every line long enough to wrap.
+		if let screenSize = screenSize {
+			subProcess!.screenSize = screenSize
+		}
 		processLaunchDate = Date()
 		do {
-			try subProcess!.start()
+			try subProcess!.start(initialDirectory: initialDirectory)
 		} catch {
 			subProcessFailureError = error
 			throw error
@@ -199,6 +258,14 @@ public class TerminalController {
 	public func readInputStream(_ data: [UTF8Char]) {
 		terminalQueue.async {
 			self.readBuffer += data
+
+			// Come back up to speed now rather than waiting up to a frame at the idle rate, so the
+			// first character after a pause isn’t delayed.
+			if self.isIdleThrottled {
+				self.isIdleThrottled = false
+				self.idleFrames = 0
+				self.applyAdaptiveRate(idle: false)
+			}
 		}
 	}
 
@@ -231,9 +298,22 @@ public class TerminalController {
 
 			let updateRange = terminal.getScrollInvariantUpdateRange() ?? (0, 0)
 			if updateRange == (0, 0) && cursorLocation == self.lastCursorLocation {
-				// Nothing changed, nothing to do.
+				// Nothing changed, nothing to do. Once we’ve been idle long enough, throttle the display
+				// link — an idle terminal has no reason to wake the CPU 60 times a second.
+				self.idleFrames += 1
+				if self.idleFrames >= Self.idleFrameThreshold && !self.isIdleThrottled {
+					self.isIdleThrottled = true
+					self.applyAdaptiveRate(idle: true)
+				}
 				return
 			}
+
+			self.idleFrames = 0
+			if self.isIdleThrottled {
+				self.isIdleThrottled = false
+				self.applyAdaptiveRate(idle: false)
+			}
+
 			terminal.clearUpdateRange()
 
 			let scrollInvariantRows = scrollbackRows + terminal.rows
@@ -263,8 +343,14 @@ public class TerminalController {
 
 			self.lastCursorLocation = cursorLocation
 
+			// Snapshotted here, on the queue that owns `lines`. Handing `&self.lines` to the main queue
+			// instead let the next frame mutate the array from this queue while the main thread was
+			// still reading it — a data race on the array’s storage, with no bound on what it corrupts.
+			// The copy is free in practice: the delegate keeps a reference either way, so the write
+			// after this already triggered COW.
+			let snapshot = self.lines
 			DispatchQueue.main.async {
-				self.delegate?.refresh(lines: &self.lines)
+				self.delegate?.refresh(lines: snapshot)
 
 				if !self.isVisible && !self.isDirty {
 					self.isDirty = true
@@ -274,31 +360,55 @@ public class TerminalController {
 	}
 
 	public func clearTerminal() {
-		terminal?.resetToInitialState()
+		// Same reason as `updateScreenSize()`: resetting reallocates the buffers, so it can’t run on
+		// the main thread while `terminalQueue` is feeding them. Queued first, so the redraw the nudge
+		// below provokes arrives after it.
+		terminalQueue.async {
+			self.terminal?.resetToInitialState()
+		}
 
-		// To trigger a redraw, update the screen size, then update it back.
-		if let screenSize = screenSize {
-			var newScreenSize = screenSize
-			newScreenSize.cols -= 1
-			self.subProcess?.screenSize = newScreenSize
+		// To trigger a redraw, update the screen size, then update it back — on the main thread, which
+		// is where `subProcess` lives. Widening rather than narrowing: `cols` is unsigned, so
+		// subtracting from a zero-width screen would trap.
+		guard let screenSize = screenSize else {
+			return
+		}
+		var newScreenSize = screenSize
+		newScreenSize.cols += 1
+		subProcess?.screenSize = newScreenSize
 
-			DispatchQueue.main.async {
-				self.subProcess?.screenSize = screenSize
-			}
+		DispatchQueue.main.async {
+			self.subProcess?.screenSize = screenSize
 		}
 	}
 
 	private func updateScreenSize() {
-		if let screenSize = screenSize,
-			 let terminal = terminal,
-			 screenSize.cols != terminal.cols || screenSize.rows != terminal.rows {
-			subProcess?.screenSize = screenSize
+		guard let screenSize = screenSize else {
+			return
+		}
+
+		// `subProcess` and `subProcessFailureError` are created and written on the main thread, so they
+		// are read here rather than inside the block below — reaching for them from `terminalQueue`
+		// races with `startSubProcess()`.
+		subProcess?.screenSize = screenSize
+		let failureError = subProcessFailureError
+
+		// The terminal itself goes to `terminalQueue`, because resizing reallocates its buffers and
+		// this is called straight from the main thread — layout, rotation and the keyboard all land
+		// here. Reallocating underneath the `feed` running on `terminalQueue` corrupts the buffer it
+		// is writing into.
+		terminalQueue.async {
+			guard let terminal = self.terminal,
+						screenSize.cols != terminal.cols || screenSize.rows != terminal.rows else {
+				return
+			}
+
 			terminal.resize(cols: Int(screenSize.cols),
 											rows: Int(screenSize.rows))
 
-			if let error = subProcessFailureError {
+			if let error = failureError {
 				let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-				readInputStream(ColorBars.render(screenSize: screenSize, message: message))
+				self.readInputStream(ColorBars.render(screenSize: screenSize, message: message))
 			}
 		}
 	}
@@ -325,6 +435,80 @@ public class TerminalController {
 		self.delegate?.titleDidChange(newTitle,
 																	isDirty: isDirty,
 																	hasBell: hasBell)
+	}
+
+	// MARK: - Reading the buffer
+
+	/// One entry per terminal cell, so an index into the result is a column. The continuation cell
+	/// of a wide character (CJK, emoji) comes back as nil rather than a stray space.
+	private func cells(atScrollInvariantRow row: Int) -> [Character?] {
+		guard let terminal = terminal,
+					let line = terminal.getScrollInvariantLine(row: row) else {
+			return []
+		}
+		return (0..<min(line.count, terminal.cols)).map { i -> Character? in
+			let data = line[i]
+			if data.width == 0 {
+				return nil
+			}
+			let character = data.getCharacter()
+			return character == "\0" ? " " : character
+		}
+	}
+
+	/// Plain text of a row, one character per cell, so a column index can be used to index straight
+	/// into it. Used for finding links under the user’s finger.
+	public func text(atScrollInvariantRow row: Int) -> String {
+		String(cells(atScrollInvariantRow: row).map { $0 ?? " " })
+	}
+
+	/// The selected text, ready for the pasteboard. Trailing blanks are trimmed per line, and a wide
+	/// character contributes one character rather than one per cell it occupies.
+	public func text(in selection: TerminalSelection) -> String {
+		guard let terminal = terminal else {
+			return ""
+		}
+		let start = selection.start
+		let end = selection.end
+		guard start.row <= end.row else {
+			return ""
+		}
+		return (start.row...end.row).compactMap { row -> String? in
+			guard let range = selection.columnRange(forRow: row, cols: terminal.cols) else {
+				return nil
+			}
+			let cells = cells(atScrollInvariantRow: row)
+			let lower = min(range.lowerBound, cells.count)
+			let upper = min(range.upperBound, cells.count)
+			var line = lower < upper ? String(cells[lower..<upper].compactMap { $0 }) : ""
+			while line.last == " " {
+				line.removeLast()
+			}
+			return line
+		}
+			.joined(separator: "\n")
+	}
+
+	/// Columns of the “word” around `column`, so press-and-hold grabs something useful in one go.
+	/// Words break on whitespace only, so paths and URLs come out whole rather than split on dots
+	/// and slashes.
+	public func wordRange(atScrollInvariantRow row: Int, column: Int) -> Range<Int>? {
+		let cells = cells(atScrollInvariantRow: row)
+		guard column >= 0,
+					column < cells.count,
+					// nil is a wide character’s continuation cell, which is part of a word, not a break.
+					!(cells[column]?.isWhitespace ?? false) else {
+			return nil
+		}
+		var lower = column
+		while lower > 0 && !(cells[lower - 1]?.isWhitespace ?? false) {
+			lower -= 1
+		}
+		var upper = column
+		while upper < cells.count && !(cells[upper]?.isWhitespace ?? false) {
+			upper += 1
+		}
+		return lower < upper ? lower..<upper : nil
 	}
 
 	// MARK: - Object lifecycle
@@ -431,6 +615,15 @@ extension TerminalController: SubProcessDelegate {
 		// Simply forward the input stream down the VT100 processor. When it notices changes to the
 		// screen, it should invoke our refresh delegate below.
 		readInputStream(data)
+
+		if !hasFlushedInitialCommand {
+			hasFlushedInitialCommand = true
+			subProcess?.notifyWindowSizeChanged()
+			if let command = initialCommand {
+				write(Array(command.utf8) + EscapeSequences.return)
+			}
+			initialCommand = nil
+		}
 	}
 
 	func subProcess(didDisconnectWithError error: Error?) {

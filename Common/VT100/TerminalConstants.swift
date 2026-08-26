@@ -31,6 +31,58 @@ public struct ScreenSize: Hashable {
 	}
 }
 
+/// A range of cells the user has selected. Coordinates are scroll-invariant rows (the same ones
+/// `StringSupplier` renders), so a selection stays on the text it was made on as new output pushes
+/// the buffer along.
+public struct TerminalSelection: Equatable {
+
+	public struct Point: Equatable, Comparable {
+		public var row: Int
+		public var col: Int
+
+		public init(row: Int, col: Int) {
+			self.row = row
+			self.col = col
+		}
+
+		public static func < (lhs: Self, rhs: Self) -> Bool {
+			lhs.row == rhs.row ? lhs.col < rhs.col : lhs.row < rhs.row
+		}
+	}
+
+	/// Where the selection started. Stays put while the user drags the other end.
+	public var anchor: Point
+	/// The end being dragged. May be before `anchor` when selecting backwards.
+	public var head: Point
+
+	public init(anchor: Point, head: Point) {
+		self.anchor = anchor
+		self.head = head
+	}
+
+	public init(row: Int, columns: Range<Int>) {
+		self.init(anchor: Point(row: row, col: columns.lowerBound),
+							head: Point(row: row, col: columns.upperBound))
+	}
+
+	public var start: Point { Swift.min(anchor, head) }
+	public var end: Point { Swift.max(anchor, head) }
+	public var isEmpty: Bool { anchor == head }
+
+	/// Half-open range of columns covered on `row`, or nil if the row isn’t in the selection.
+	/// Rows in the middle of a multi-line selection run the full width.
+	public func columnRange(forRow row: Int, cols: Int) -> Range<Int>? {
+		let start = start
+		let end = end
+		guard row >= start.row && row <= end.row else {
+			return nil
+		}
+		let lower = row == start.row ? start.col : 0
+		let upper = row == end.row ? end.col : cols
+		return lower < upper ? lower..<upper : nil
+	}
+}
+
 public struct EscapeSequences {
 
 	// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-PC-Style-Function-Keys
@@ -38,6 +90,8 @@ public struct EscapeSequences {
 	public static let backspace = "\u{7f}".utf8Array
 	public static let meta      = "\u{1b}".utf8Array
 	public static let tab       = "\t".utf8Array
+	/// Shift-Tab. Claude Code binds it to cycling permission modes.
+	public static let backTab   = "\u{1b}[Z".utf8Array
 	public static let `return`  = "\r".utf8Array
 
 	public static let up        = "\u{1b}[A".utf8Array

@@ -36,7 +36,8 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 
 		window = UIWindow(windowScene: scene)
 		window!.tintColor = .tint
-		window!.rootViewController = UINavigationController(rootViewController: RootViewController())
+		let restored = SessionStore.shared.load(identifier: session.persistentIdentifier)
+		window!.rootViewController = UINavigationController(rootViewController: RootViewController(restoring: restored))
 		window!.makeKeyAndVisible()
 
 		scene.title = .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")

@@ -17,6 +17,10 @@ protocol TerminalSplitViewControllerDelegate: AnyObject {
 class BaseTerminalSplitViewControllerChild: UIViewController {
 	weak var delegate: TerminalSplitViewControllerDelegate?
 
+	/// Path of the project this tab belongs to, if any. Kept on the tab itself so opening a project
+	/// that already has a session goes back to it instead of stacking up duplicates.
+	var projectPath: String?
+
 	var screenSize: ScreenSize?
 	var isSplitViewResizing = false
 	var showsTitleView = false
@@ -53,7 +57,6 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 	private var selectedIndex = 0
 
-	private var keyboardVisible = false
 	private var keyboardHeight: CGFloat = 0
 
 	override func loadView() {
@@ -251,18 +254,25 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 //			}
 //		}
 
-		switch notification.name {
-		case UIResponder.keyboardWillShowNotification: keyboardVisible = true
-		case UIResponder.keyboardDidHideNotification:  keyboardVisible = false
-		default: break
-		}
-
 		// Hide toolbar popups if visible
 //		keyInput.setMoreRowVisible(false, animated: true)
 
-		// Determine the final keyboard height. We still get a height if hiding, so force it to 0 if
-		// this isn’t a show notification.
-		keyboardHeight = keyboardVisible && notification.name != UIResponder.keyboardWillHideNotification ? keyboardFrame.size.height : 0
+		// However much of the keyboard actually overlaps us, whatever the notification is called.
+		//
+		// It has to be the overlap and not the frame’s full height: with a hardware keyboard attached,
+		// iOS reports a full-height keyboard sitting almost entirely below the screen and leaves only
+		// the accessory bar visible. Taking the height as-is reserved ~300pt of dead space that nothing
+		// was ever drawn into.
+		//
+		// And it must not be forced to zero on `keyboardWillHide`, which is what used to happen. iOS
+		// reports an 84pt end frame there — the accessory bar, which stays on screen after the keys go
+		// away — and discarding it let the terminal draw underneath the toolbar. Measured on an
+		// iPhone 17 Pro Max simulator: accessory-only 84pt, keys up 402pt, and willHide reports 84pt,
+		// not 0. When the keyboard genuinely leaves, the end frame is off screen and the overlap is
+		// zero on its own.
+		keyboardHeight = view.convert(keyboardFrame, from: nil)
+			.intersection(view.bounds)
+			.height
 
 		// We update the safe areas in an animation block to force it to be animated with the exact
 		// parameters given to us in the notification.
@@ -272,8 +282,11 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		UIView.animate(withDuration: animationDuration,
 									 delay: 0,
 									 options: options) {
+			// Only the part of the keyboard the safe area doesn’t already account for. Flooring this at
+			// bottomInset instead of 0 held a home-indicator’s worth of dead space under the terminal
+			// whenever the keyboard was down — the view never came all the way back.
 			let bottomInset = self.parent?.view.safeAreaInsets.bottom ?? 0
-			self.additionalSafeAreaInsets.bottom = max(bottomInset, self.keyboardHeight - bottomInset)
+			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - bottomInset)
 		}
 	}
 

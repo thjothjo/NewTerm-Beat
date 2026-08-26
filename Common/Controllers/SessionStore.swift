@@ -1,0 +1,181 @@
+//
+//  SessionStore.swift
+//  NewTerm Common
+//
+
+import Foundation
+import CryptoKit
+import os.log
+
+public struct SessionTabState: Codable, Equatable {
+	public var projectPath: String?
+	public var title: String?
+
+	public init(projectPath: String?, title: String?) {
+		self.projectPath = projectPath
+		self.title = title
+	}
+}
+
+public struct SessionState: Codable, Equatable {
+	public var tabs: [SessionTabState]
+	public var selectedIndex: Int
+
+	public init(tabs: [SessionTabState], selectedIndex: Int) {
+		self.tabs = tabs
+		self.selectedIndex = selectedIndex
+	}
+}
+
+/// Crash-safe snapshot of a window’s tabs.
+///
+/// Deliberately not built on `stateRestorationActivity(for:)`: the system only asks for that when it
+/// is shutting us down politely, which is the one case the user didn’t ask about. A crash, or being
+/// jetsammed in the background, never gets that call — so the snapshot has to already be on disk.
+public final class SessionStore {
+
+	public static let shared = SessionStore()
+
+	private static let schemaVersion = 1
+	/// Snapshots that keep taking the app down get thrown away rather than crash-looping forever.
+	private static let maxRestoreAttempts = 3
+	/// Long enough to coalesce a burst of tab changes, short enough that the window where a crash
+	/// loses the most recent change stays small.
+	private static let debounceInterval: TimeInterval = 0.4
+
+	private struct Envelope: Codable {
+		var schemaVersion: Int
+		var restoreAttempts: Int
+		var checksum: String
+		var state: SessionState
+	}
+
+	private let queue = DispatchQueue(label: "ws.hbang.Terminal.session-store", qos: .utility)
+	private var pendingWork: DispatchWorkItem?
+	private let logger = Logger(subsystem: "ws.hbang.Terminal", category: "SessionStore")
+
+	private init() {}
+
+	// MARK: - Locations
+
+	private static var directory: URL {
+		let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+		return base.appendingPathComponent("Sessions", isDirectory: true)
+	}
+
+	/// One file per scene, so multiple windows can’t clobber each other.
+	private static func url(for identifier: String) -> URL {
+		directory.appendingPathComponent("\(identifier).json")
+	}
+
+	private static var encoder: JSONEncoder {
+		let encoder = JSONEncoder()
+		// Deterministic output: the checksum is verified by re-encoding, which only works if the same
+		// value always produces the same bytes.
+		encoder.outputFormatting = .sortedKeys
+		return encoder
+	}
+
+	private static func checksum(of data: Data) -> String {
+		SHA256.hash(data: data)
+			.map { String(format: "%02x", $0) }
+			.joined()
+	}
+
+	// MARK: - Saving
+
+	/// Coalesced save, for the frequent low-stakes changes — a tab added, a different tab selected.
+	public func setNeedsSave(_ state: SessionState, identifier: String) {
+		pendingWork?.cancel()
+
+		let work = DispatchWorkItem { [weak self] in
+			self?.write(state, identifier: identifier)
+		}
+		pendingWork = work
+		queue.asyncAfter(deadline: .now() + Self.debounceInterval, execute: work)
+	}
+
+	/// Immediate save, for the things that must not be lost: closing a tab (it must not come back from
+	/// the dead) and going to the background (jetsam gives no warning).
+	public func saveImmediately(_ state: SessionState, identifier: String) {
+		pendingWork?.cancel()
+		pendingWork = nil
+		queue.sync {
+			self.write(state, identifier: identifier)
+		}
+	}
+
+	private func write(_ state: SessionState, identifier: String) {
+		do {
+			let encoder = Self.encoder
+			let envelope = Envelope(schemaVersion: Self.schemaVersion,
+															restoreAttempts: 0,
+															checksum: Self.checksum(of: try encoder.encode(state)),
+															state: state)
+			let data = try encoder.encode(envelope)
+
+			try FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
+
+			let url = Self.url(for: identifier)
+			// `.atomic` writes to a temp file and renames, so a crash mid-write can’t leave a torn file.
+			// The backup covers the other case: a file that’s intact but somehow unusable.
+			let backupURL = url.appendingPathExtension("bak")
+			if FileManager.default.fileExists(atPath: url.path) {
+				try? FileManager.default.removeItem(at: backupURL)
+				try? FileManager.default.copyItem(at: url, to: backupURL)
+			}
+
+			try data.write(to: url, options: .atomic)
+		} catch {
+			// Failing to save must never be worse than not saving.
+			logger.error("Couldn’t save session \(identifier): \(String(describing: error))")
+		}
+	}
+
+	// MARK: - Loading
+
+	public func load(identifier: String) -> SessionState? {
+		let url = Self.url(for: identifier)
+
+		guard var envelope = Self.read(url) ?? Self.read(url.appendingPathExtension("bak")) else {
+			return nil
+		}
+		guard envelope.schemaVersion == Self.schemaVersion else {
+			// Written by a newer build. Guessing at unknown fields is worse than starting fresh.
+			return nil
+		}
+
+		if envelope.restoreAttempts >= Self.maxRestoreAttempts {
+			logger.error("Discarding session \(identifier) after \(envelope.restoreAttempts) attempts")
+			discard(identifier: identifier)
+			return nil
+		}
+
+		// Count the attempt *before* handing the state over, and get it on disk now — if restoring is
+		// itself what crashes, the raised count is the only thing that stops the loop.
+		envelope.restoreAttempts += 1
+		if let data = try? Self.encoder.encode(envelope) {
+			try? data.write(to: url, options: .atomic)
+		}
+
+		return envelope.state
+	}
+
+	private static func read(_ url: URL) -> Envelope? {
+		guard let data = try? Data(contentsOf: url),
+					let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+					let stateData = try? encoder.encode(envelope.state),
+					checksum(of: stateData) == envelope.checksum else {
+			return nil
+		}
+		return envelope
+	}
+
+	/// Called when the user actually closes a window, as opposed to the system reclaiming it.
+	public func discard(identifier: String) {
+		let url = Self.url(for: identifier)
+		try? FileManager.default.removeItem(at: url)
+		try? FileManager.default.removeItem(at: url.appendingPathExtension("bak"))
+	}
+
+}

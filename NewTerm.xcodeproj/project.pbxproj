@@ -71,6 +71,8 @@
 		CF6B3BAA244C4538000A608B /* LogoHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6B3BA9244C4537000A608B /* LogoHeaderView.swift */; };
 		CF71BC9322BB6DEA00AFB1E1 /* NewTermCommon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF71BC8422BB6DBA00AFB1E1 /* NewTermCommon.framework */; };
 		CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C322B5481B00585BE6 /* Preferences.swift */; };
+		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
+		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C222B5481B00585BE6 /* SubProcess.swift */; };
 		CF71BC9922BB6E0300AFB1E1 /* TerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C522B5481B00585BE6 /* TerminalController.swift */; };
 		CF71BC9B22BB6E0300AFB1E1 /* TerminalInputProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF71BC6222BB69EF00AFB1E1 /* TerminalInputProtocol.swift */; };
@@ -227,6 +229,8 @@
 		CFBB96C022B5481B00585BE6 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CFBB96C222B5481B00585BE6 /* SubProcess.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubProcess.swift; sourceTree = "<group>"; };
 		CFBB96C322B5481B00585BE6 /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
+		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		CFBB96C422B5481B00585BE6 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CFBB96C522B5481B00585BE6 /* TerminalController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalController.swift; sourceTree = "<group>"; };
 		CFBB96C622B5481B00585BE6 /* TerminalSceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalSceneDelegate.swift; sourceTree = "<group>"; };
@@ -356,6 +360,8 @@
 			isa = PBXGroup;
 			children = (
 				CFBB96C322B5481B00585BE6 /* Preferences.swift */,
+				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
+				4EAA10032A0100030000ABCD /* SessionStore.swift */,
 				CFBB96C222B5481B00585BE6 /* SubProcess.swift */,
 				CFBB96C522B5481B00585BE6 /* TerminalController.swift */,
 				4E2492CF26230E59002C47CB /* TerminalController+ITermExtensions.swift */,
@@ -745,6 +751,8 @@
 				4EBBCB0D2886C1BE002EAE00 /* Darwin+Additions.swift in Sources */,
 				CF71BCF122BB8AAB00AFB1E1 /* FontMetrics.swift in Sources */,
 				CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */,
+				4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */,
+				4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */,
 				CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */,
 				4E9FB97526172293005AFCC8 /* StringSupplier.swift in Sources */,
 				4E3441D327E96EA60022C957 /* String+Additions.swift in Sources */,

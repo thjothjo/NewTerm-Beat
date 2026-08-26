@@ -21,6 +21,17 @@ class RootViewController: UIViewController {
 
 	private var tabToolbar: TabToolbarViewController?
 
+	/// Snapshot handed over by the scene delegate, consumed once in viewDidLoad.
+	private var pendingRestore: SessionState?
+	/// Suppresses saving while restoring — otherwise the half-built state gets written back, and a
+	/// crash mid-restore would truncate the snapshot to whatever had been rebuilt so far.
+	private var isRestoring = false
+
+	convenience init(restoring state: SessionState?) {
+		self.init(nibName: nil, bundle: nil)
+		pendingRestore = state
+	}
+
 	override func viewDidLoad() {
 		super.viewDidLoad()
 
@@ -33,9 +44,21 @@ class RootViewController: UIViewController {
 		tabToolbar!.dataSource = self
 		addChild(tabToolbar!)
 		view.addSubview(tabToolbar!.view)
+
+		// Tapping anywhere below the tab bar leaves tab edit mode — that’s the whole dismiss gesture,
+		// there’s no Done button. It doesn’t consume the touch, so the terminal still gets it.
+		let endEditingRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.endTabEditing))
+		endEditingRecognizer.cancelsTouchesInView = false
+		endEditingRecognizer.delegate = self
+		view.addGestureRecognizer(endEditingRecognizer)
 		#endif
 
-		addTerminal()
+		if let state = pendingRestore {
+			pendingRestore = nil
+			restore(state)
+		} else {
+			addTerminal()
+		}
 
 		addKeyCommand(UIKeyCommand(title: .localize("SETTINGS", comment: "Title of Settings page."),
 															 image: UIImage(systemName: "gear"),
@@ -93,8 +116,17 @@ class RootViewController: UIViewController {
 
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.dismissSettings), name: Self.settingsViewDoneNotification, object: nil)
+		// Jetsam gives no warning, so the snapshot has to be on disk before we lose the foreground.
+		NotificationCenter.default.addObserver(self, selector: #selector(self.saveSessionImmediately), name: UIApplication.willResignActiveNotification, object: nil)
 
 		preferencesUpdated()
+	}
+
+	override func viewDidAppear(_ animated: Bool) {
+		super.viewDidAppear(animated)
+		// Onscreen without crashing, so whatever we restored is good — this write clears the
+		// restore-attempt counter that load() bumped.
+		saveSessionImmediately()
 	}
 
 	override func viewWillLayoutSubviews() {
@@ -102,14 +134,67 @@ class RootViewController: UIViewController {
 
 		// TODO: Cleanup
 		#if !targetEnvironment(macCatalyst)
-		let isWide = isBigDevice || view.frame.size.width > 450
-		let topBarHeight: CGFloat = isWide ? 33 : 66
+		let topBarHeight = TabToolbarView.preferredHeight(for: traitCollection.horizontalSizeClass)
 		tabToolbar?.view.frame = CGRect(x: 0, y: 0, width: view.frame.size.width, height: view.safeAreaInsets.top + topBarHeight)
 
 		for viewController in terminals {
 			viewController.additionalSafeAreaInsets.top = topBarHeight
 		}
 		#endif
+	}
+
+	// MARK: - Session persistence
+
+	private var sessionIdentifier: String? {
+		view.window?.windowScene?.session.persistentIdentifier
+	}
+
+	private var sessionState: SessionState {
+		SessionState(tabs: terminals.indices.map { index in
+			SessionTabState(projectPath: terminals[index].projectPath,
+											title: terminalName(at: index))
+		},
+								 selectedIndex: selectedTabIndex)
+	}
+
+	private func setNeedsSaveSession() {
+		guard !isRestoring,
+					let identifier = sessionIdentifier else {
+			return
+		}
+		SessionStore.shared.setNeedsSave(sessionState, identifier: identifier)
+	}
+
+	@objc private func saveSessionImmediately() {
+		guard !isRestoring,
+					let identifier = sessionIdentifier else {
+			return
+		}
+		SessionStore.shared.saveImmediately(sessionState, identifier: identifier)
+	}
+
+	private func restore(_ state: SessionState) {
+		isRestoring = true
+
+		for tab in state.tabs {
+			// A project whose folder has gone — deleted, or moved to .Trash — still gets its tab back,
+			// just as a plain shell. Dropping the tab would read as the restore having failed.
+			if let path = tab.projectPath,
+				 FileManager.default.fileExists(atPath: path) {
+				initialCommand = ProjectManager.openCommand(forPath: path)
+				addTerminal(projectPath: path)
+			} else {
+				addTerminal(projectPath: nil)
+			}
+		}
+
+		if terminals.isEmpty {
+			addTerminal()
+		} else {
+			selectTerminal(at: min(max(0, state.selectedIndex), terminals.count - 1))
+		}
+
+		isRestoring = false
 	}
 
 	// MARK: - Preferences
@@ -132,20 +217,26 @@ class RootViewController: UIViewController {
 	}
 
 	func addTerminal() {
-		let index = min(selectedTabIndex + 1, terminals.count)
-		addTerminal(at: index, initialCommand: initialCommand)
-		selectTerminal(at: index)
-		initialCommand = nil
+		addTerminal(projectPath: nil)
 	}
 
-	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil) {
+	func addTerminal(projectPath: String?) {
+		let index = min(selectedTabIndex + 1, terminals.count)
+		addTerminal(at: index, initialCommand: initialCommand, projectPath: projectPath)
+		selectTerminal(at: index)
+		initialCommand = nil
+		setNeedsSaveSession()
+	}
+
+	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil) {
 		let splitViewController = TerminalSplitViewController()
+		splitViewController.projectPath = projectPath
 		splitViewController.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
 		splitViewController.view.frame = view.bounds
 		splitViewController.delegate = self
 
-		let newTerminal = TerminalSessionViewController()
-		newTerminal.initialCommand = initialCommand
+		let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
+																									 initialCommand: initialCommand)
 
 		addChild(splitViewController)
 		splitViewController.willMove(toParent: self)
@@ -160,18 +251,21 @@ class RootViewController: UIViewController {
 			splitViewController.viewControllers = [newTerminal]
 			terminals.append(splitViewController)
 			tabToolbar?.didAddTab(at: index)
-		} else {
-			if let axis = axis {
-				let firstViewController = terminals[index]
-				let secondViewController = newTerminal
-				splitViewController.axis = axis
-				splitViewController.viewControllers = [firstViewController, secondViewController]
-			} else {
-				splitViewController.viewControllers = [newTerminal]
-			}
-
+		} else if let axis = axis {
+			// Splitting takes the terminal that’s already in this tab and makes it one half of the new
+			// split, so the tab is replaced by the split that now owns it. The tab count is unchanged.
+			let firstViewController = terminals[index]
+			let secondViewController = newTerminal
+			splitViewController.axis = axis
+			splitViewController.viewControllers = [firstViewController, secondViewController]
 			terminals[index] = splitViewController
 			tabToolbar?.tabDidUpdate(at: index)
+		} else {
+			// A new tab in the middle of the strip goes *between* its neighbours. Replacing here would
+			// drop whichever tab already sat at this index, along with whatever was running in it.
+			splitViewController.viewControllers = [newTerminal]
+			terminals.insert(splitViewController, at: index)
+			tabToolbar?.didAddTab(at: index)
 		}
 	}
 
@@ -198,6 +292,10 @@ class RootViewController: UIViewController {
 		} else {
 			selectTerminal(at: index >= terminals.count ? index - 1 : index)
 		}
+
+		// Immediate, not debounced: a tab the user closed must never come back because we crashed
+		// inside the debounce window.
+		saveSessionImmediately()
 	}
 
 	func removeTerminal(at index: Int) {
@@ -238,6 +336,8 @@ class RootViewController: UIViewController {
 		newViewController.beginAppearanceTransition(true, animated: false)
 		newViewController.view.isHidden = false
 		newViewController.endAppearanceTransition()
+
+		setNeedsSaveSession()
 	}
 
 	private func handleTitleChange(at index: Int) {
@@ -380,14 +480,102 @@ extension RootViewController: TabToolbarDataSource {
 
 	func terminalName(at index: Int) -> String {
 		let title = terminals[index].title
-		return title == nil || title!.isEmpty
-			? .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")
-			: title!
+		if let title = title, !title.isEmpty {
+			return title
+		}
+		// A project tab is named after its folder. Every tab reading “Terminal” tells you nothing about
+		// which AI task is running where, and the folder name is the one label that’s already
+		// meaningful and already known before anything has run.
+		if let projectPath = terminals[index].projectPath {
+			return URL(fileURLWithPath: projectPath).lastPathComponent
+		}
+		return .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")
+	}
+
+}
+
+extension RootViewController {
+
+	/// One terminal per project: if the project already has a tab, go back to it rather than piling
+	/// up duplicate sessions on the same directory.
+	/// Leaves tab edit mode. Called when a tap lands somewhere that isn’t a tab.
+	@objc func endTabEditing() {
+		tabToolbar?.endEditing()
+	}
+
+	func openProject(_ project: Project) {
+		if let index = terminals.firstIndex(where: { $0.projectPath == project.url.path }) {
+			selectTerminal(at: index)
+			return
+		}
+
+		initialCommand = ProjectManager.openCommand(for: project)
+		addTerminal(projectPath: project.url.path)
+	}
+
+	func trashProject(_ project: Project) {
+		let alertController = UIAlertController(title: String(format: .localize("Move “%@” to Trash?"), project.name),
+																						message: .localize("The folder and everything in it moves to .Trash inside your projects folder. You can put it back with a file manager."),
+																						preferredStyle: .alert)
+		alertController.addAction(UIAlertAction(title: .cancel, style: .cancel, handler: nil))
+		alertController.addAction(UIAlertAction(title: .localize("Move to Trash"), style: .destructive) { [weak self] _ in
+			do {
+				try ProjectManager.trashProject(project)
+			} catch {
+				self?.presentProjectError(title: .localize("Couldn’t Move Project"),
+																	message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+			}
+		})
+		present(alertController, animated: true)
+	}
+
+	private func presentProjectError(title: String, message: String) {
+		let alertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
+		alertController.addAction(UIAlertAction(title: .ok, style: .cancel, handler: nil))
+		present(alertController, animated: true)
 	}
 
 }
 
 extension RootViewController: TabToolbarDelegate {
+
+	func createProject() {
+		let alertController = UIAlertController(title: .localize("New Project"),
+																						message: String(format: .localize("Creates a folder in %@."),
+																														ProjectManager.rootURL.path),
+																						preferredStyle: .alert)
+		alertController.addTextField { textField in
+			textField.placeholder = .localize("Name")
+			textField.autocapitalizationType = .none
+			textField.autocorrectionType = .no
+			textField.clearButtonMode = .whileEditing
+		}
+		alertController.addAction(UIAlertAction(title: .cancel, style: .cancel, handler: nil))
+		alertController.addAction(UIAlertAction(title: .localize("Create"), style: .default) { [weak self] _ in
+			let name = alertController.textFields?.first?.text?
+				.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+			// The name becomes a path component, so anything that could climb out of the projects root
+			// or hide the result is rejected rather than quietly rewritten into something else.
+			guard !name.isEmpty,
+						!name.hasPrefix("."),
+						!name.contains("/") else {
+				self?.presentProjectError(title: .localize("Couldn’t Create Project"),
+																	message: .localize("Project names can’t be empty, start with a dot, or contain a slash."))
+				return
+			}
+
+			do {
+				let project = try ProjectManager.createProject(named: name)
+				self?.openProject(project)
+			} catch {
+				self?.presentProjectError(title: .localize("Couldn’t Create Project"),
+																	message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+			}
+		})
+		present(alertController, animated: true)
+	}
+
 
 	@objc func openSettings() {
 		if UIApplication.shared.supportsMultipleScenes {
@@ -409,6 +597,24 @@ extension RootViewController: TabToolbarDelegate {
 
 	func openPasswordManager() {
 		UIApplication.shared.sendAction(#selector(TerminalSessionViewController.activatePasswordManager), to: nil, from: self, for: nil)
+	}
+
+}
+
+extension RootViewController: UIGestureRecognizerDelegate {
+
+	func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+		// Only the dismiss-edit-mode tap goes through here, and only below the tab bar: a tap on the
+		// bar itself is either a tab or a delete badge, and both have their own meaning in edit mode.
+		guard let tabToolbar = tabToolbar else {
+			return true
+		}
+		return gestureRecognizer.location(in: view).y > tabToolbar.view.frame.maxY
+	}
+
+	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+												 shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+		true
 	}
 
 }

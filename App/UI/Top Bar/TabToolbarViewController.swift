@@ -84,6 +84,11 @@ class TabToolbarViewController: UIViewController {
 		state.selectedIndex = dataSource!.selectedTerminalIndex()
 	}
 
+	/// Leaves tab edit mode, for taps that land outside the tab bar entirely — on the terminal.
+	func endEditing() {
+		state.isEditing = false
+	}
+
 	func didAddTab(at index: Int) {
 		let terminal = TerminalTab(title: "",
 															 screenSize: .default,

@@ -16,6 +16,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 	func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
 		UIScrollView.appearance().keyboardDismissMode = .interactive
+		// The keyboard rows scroll when they hold more keys than fit, and a scroll view sits on touches
+		// for ~150ms before passing them on in case they turn into a drag. On a row of keys that reads
+		// as the key not registering, which is worse than the drag occasionally being claimed by a key.
+		UIScrollView.appearance().delaysContentTouches = false
 
 		FontMetrics.loadFonts()
 		_ = Preferences.shared
@@ -65,6 +69,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			return UISceneConfiguration(name: "About", sessionRole: .windowApplication)
 		default:
 			return UISceneConfiguration(name: "Terminal", sessionRole: .windowApplication)
+		}
+	}
+
+	func application(_ application: UIApplication, didDiscardSceneSessions sceneSessions: Set<UISceneSession>) {
+		// This is the callback that means the user actually closed the window. Cleaning up in
+		// sceneDidDisconnect instead would delete the snapshot every time the system merely reclaimed
+		// a backgrounded scene it intends to reconnect — which is exactly the case we exist to survive.
+		for session in sceneSessions {
+			SessionStore.shared.discard(identifier: session.persistentIdentifier)
 		}
 	}
 

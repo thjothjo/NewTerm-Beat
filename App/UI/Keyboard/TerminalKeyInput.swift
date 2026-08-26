@@ -7,6 +7,8 @@
 //
 
 import UIKit
+import SwiftUI
+import Combine
 import NewTermCommon
 import SwiftUIX
 
@@ -19,14 +21,11 @@ extension ToolbarKey {
 		case .down:     return EscapeSequences.down
 		case .left:     return EscapeSequences.left
 		case .right:    return EscapeSequences.right
-		case .home:     return EscapeSequences.home
-		case .end:      return EscapeSequences.end
-		case .pageUp:   return EscapeSequences.pageUp
-		case .pageDown: return EscapeSequences.pageDown
 		case .delete:   return EscapeSequences.delete
 		case .fnKey(let index): return EscapeSequences.fn[index - 1]
+		case .shiftTab: return EscapeSequences.backTab
 		case .fixedSpace, .variableSpace, .arrows,
-				 .control, .more, .fnKeys:
+				 .control, .more, .fnKeys, .projects, .image:
 			return []
 		}
 	}
@@ -59,9 +58,22 @@ class TerminalKeyInput: TextInputBase {
 
 	private var toolbar: KeyboardToolbarInputView!
 	private var passwordInputView: TerminalPasswordInputView?
+	private var accessoryHeightObservers = Set<AnyCancellable>()
 
 	private var previousFloatingCursorPoint: CGPoint? = nil
 	private var repeatTimer: Timer?
+
+	/// Set by the view controller so the system Copy command can reach the terminal’s selection. This
+	/// view is the first responder, but the selection itself lives with the terminal.
+	var copyHandler: (() -> Void)?
+	var canCopy: (() -> Bool)?
+
+	/// Set by the view controller — opening a project needs to add a tab, which is above this view’s
+	/// pay grade.
+	var openProjectHandler: ((Project) -> Void)?
+	var newProjectHandler: (() -> Void)?
+	var deleteProjectHandler: ((Project) -> Void)?
+	var attachImageHandler: (() -> Void)?
 
 	private var state = KeyboardToolbarViewState()
 	private var pressedHardwareKeys = Set<UIKey>()
@@ -77,7 +89,7 @@ class TerminalKeyInput: TextInputBase {
 		smartDashesType = .no
 		smartInsertDeleteType = .no
 
-		var toolbars: [Toolbar] = [.fnKeys, .secondary]
+		var toolbars: [Toolbar] = [.attachments, .projects, .fnKeys, .secondary]
 		if UIDevice.current.userInterfaceIdiom == .pad {
 			let leadingView = KeyboardToolbarPadItemView(delegate: self,
 																									 toolbar: .padPrimaryLeading,
@@ -110,13 +122,57 @@ class TerminalKeyInput: TextInputBase {
 		toolbar = KeyboardToolbarInputView(delegate: self,
 																			 toolbars: toolbars,
 																			 state: state)
+
+		// Each of these gates a whole row of the accessory bar, so toggling one makes the bar taller or
+		// shorter. UIKit posts no keyboard frame change when an accessory resizes itself — measured: the
+		// reported overlap stayed at 84pt after the projects row appeared — so whoever is sizing around
+		// the keyboard keeps the old height and the terminal draws underneath the taller bar, its text
+		// showing through the translucent keyboard background. Reloading makes UIKit re-measure and
+		// report the frame it ends up with.
+		let rowKeys: Set<ToolbarKey> = [.more, .fnKeys, .projects]
+		state.$toggledKeys
+			.map { $0.intersection(rowKeys) }
+			.removeDuplicates()
+			.dropFirst()
+			.sink { [weak self] _ in self?.reloadInputViews() }
+			.store(in: &accessoryHeightObservers)
+		state.$imageAttachments
+			.map(\.isEmpty)
+			.removeDuplicates()
+			.dropFirst()
+			.sink { [weak self] _ in self?.reloadInputViews() }
+			.store(in: &accessoryHeightObservers)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override var inputAccessoryView: UIView? { toolbar }
+	/// Shared with the landscape side bar so both show the same toggle state.
+	var toolbarState: KeyboardToolbarViewState { state }
+
+	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
+	/// live in the shortcuts bar rather than a row of our own.
+	/// Takes the trait collection explicitly: UIKit updates a view controller’s traits before its
+	/// subviews’, so the controller has to answer this from its own traits rather than asking this
+	/// view — otherwise it reads the pre-rotation value and never installs the side bar.
+	static func usesSideBar(for traitCollection: UITraitCollection) -> Bool {
+		UIDevice.current.userInterfaceIdiom == .phone && traitCollection.verticalSizeClass == .compact
+	}
+
+	var usesSideBar: Bool { Self.usesSideBar(for: traitCollection) }
+
+	override var inputAccessoryView: UIView? { usesSideBar ? nil : toolbar }
+
+	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+		super.traitCollectionDidChange(previousTraitCollection)
+
+		if previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass {
+			// Makes UIKit ask for inputAccessoryView again, which is how the bar appears and disappears
+			// on rotation.
+			reloadInputViews()
+		}
+	}
 
 	// MARK: - Password manager
 
@@ -152,6 +208,7 @@ class TerminalKeyInput: TextInputBase {
 		}
 
 		terminalInputDelegate!.receiveKeyboardInput(data: data)
+		clearAttachments(ifSending: data)
 
 		if isCtrlDown {
 			state.toggledKeys.remove(.control)
@@ -224,13 +281,17 @@ class TerminalKeyInput: TextInputBase {
 			// Ensure cut is never allowed
 			return false
 
+		case #selector(self.copy(_:)):
+			// Only offer Copy when the terminal actually has a selection.
+			return canCopy?() ?? false
+
 		default:
 			return super.canPerformAction(action, withSender: sender)
 		}
 	}
 
 	override func copy(_ sender: Any?) {
-//		textView?.copy(sender)
+		copyHandler?()
 	}
 
 	override func paste(_ sender: Any?) {
@@ -311,7 +372,16 @@ class TerminalKeyInput: TextInputBase {
 		}
 
 		terminalInputDelegate?.receiveKeyboardInput(data: keyData)
+		clearAttachments(ifSending: keyData)
 		return true
+	}
+
+	/// Attachments belong to the line being typed, so they go away when it’s sent.
+	private func clearAttachments(ifSending data: [UTF8Char]) {
+		if !state.imageAttachments.isEmpty,
+			 data.contains(EscapeSequences.return.first!) {
+			state.imageAttachments = []
+		}
 	}
 
 	override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -406,6 +476,9 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 				state.toggledKeys.remove(.fnKeys)
 			}
 
+		case .image:
+			attachImageHandler?()
+
 		default: break
 		}
 	}
@@ -413,7 +486,6 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	func keyboardToolbarDidBeginPressingKey(_ key: ToolbarKey) {
 		switch key {
 		case .up, .down, .left, .right,
-				 .home, .end, .pageUp, .pageDown,
 				 .delete:
 			pressedToolbarKeys.insert(key)
 			beginKeyRepeat()
@@ -424,6 +496,18 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 
 	func keyboardToolbarDidEndPressingKey(_ key: ToolbarKey) {
 		pressedToolbarKeys.remove(key)
+	}
+
+	func keyboardToolbarDidSelectProject(_ project: Project) {
+		openProjectHandler?(project)
+	}
+
+	func keyboardToolbarDidRequestNewProject() {
+		newProjectHandler?()
+	}
+
+	func keyboardToolbarDidRequestDeleteProject(_ project: Project) {
+		deleteProjectHandler?(project)
 	}
 }
 

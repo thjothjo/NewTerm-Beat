@@ -66,6 +66,21 @@ struct SettingsView: View {
 																						 value: Text(preferences.themeName)) })
 			}
 
+			PreferencesGroup(header: Text("Projects"),
+											 footer: Text("Every folder in here is a project. Currently \(ProjectManager.rootURL.path). Opening a project in tmux is what lets its session survive the app being closed.")) {
+				HStack {
+					Text("Folder")
+					Spacer()
+					TextField(ProjectManager.defaultDirectory, text: preferences.$projectsDirectory)
+						.multilineTextAlignment(.trailing)
+						.autocapitalization(.none)
+						.disableAutocorrection(true)
+						.foregroundColor(.secondary)
+				}
+
+				Toggle("Open in tmux", isOn: preferences.$useTmuxForProjects)
+			}
+
 			PreferencesGroup(header: Text("Keyboard"),
 											 footer: Text("Touch and hold the Space bar, then drag around the keyboard to move the cursor.")) {
 				PreferencesPicker(selection: preferences.$keyboardArrowsStyle,

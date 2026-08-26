@@ -171,6 +171,20 @@ public class Preferences: NSObject, ObservableObject {
 		willSet { objectWillChange.send() }
 	}
 
+	/// Directory holding one subdirectory per project. Defaults to `~/Projects`, which is outside the
+	/// app container on a jailbroken device, so it survives reinstalls.
+	@AppStorage("projectsDirectory")
+	public var projectsDirectory: String = ProjectManager.defaultDirectory {
+		willSet { objectWillChange.send() }
+	}
+
+	/// Open projects inside a tmux session named after the project. This is what makes a session
+	/// outlive the app being killed; turn it off if tmux isn’t installed and the fallback bothers you.
+	@AppStorage("useTmuxForProjects")
+	public var useTmuxForProjects: Bool = true {
+		willSet { objectWillChange.send() }
+	}
+
 	public var userInterfaceStyle: UIUserInterfaceStyle { colorMap.userInterfaceStyle }
 
 	// MARK: - Handlers
