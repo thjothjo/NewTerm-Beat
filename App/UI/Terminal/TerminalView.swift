@@ -48,6 +48,8 @@ fileprivate struct TerminalContentMetrics: Equatable {
 struct TerminalView: View {
 	static let horizontalSpacing: CGFloat = isBigDevice ? 3 : 0
 	static let verticalSpacing: CGFloat = isBigDevice ? 2 : 0
+	/// Diameter of the round grab area drawn at each end of a selection.
+	static let handleKnobSize: CGFloat = 10
 
 	private static let scrollCoordinateSpace = "terminal"
 
@@ -172,6 +174,12 @@ struct TerminalView: View {
 			 state.lineHeight > 0,
 			 cellWidth > 0 {
 			let cols = Int((viewportWidth - Self.horizontalSpacing * 2) / cellWidth)
+			let knob = Self.handleKnobSize
+			let startX = Self.horizontalSpacing + CGFloat(selection.start.col) * cellWidth
+			let startY = Self.verticalSpacing + CGFloat(selection.start.row) * state.lineHeight
+			let endX = Self.horizontalSpacing + CGFloat(selection.end.col) * cellWidth
+			let endY = Self.verticalSpacing + CGFloat(selection.end.row) * state.lineHeight
+
 			ZStack(alignment: .topLeading) {
 				ForEach(selection.start.row...selection.end.row, id: \.self) { row in
 					if let range = selection.columnRange(forRow: row, cols: cols) {
@@ -183,6 +191,27 @@ struct TerminalView: View {
 											y: Self.verticalSpacing + CGFloat(row) * state.lineHeight)
 					}
 				}
+
+				// Grab handles at each end. Without them the highlight is a rectangle the user can't do
+				// anything with once the finger lifts, which reads as a marquee dragged over an image
+				// rather than selected text.
+				Rectangle()
+					.fill(Color.accentColor)
+					.frame(width: 2, height: state.lineHeight)
+					.offset(x: startX - 1, y: startY)
+				Circle()
+					.fill(Color.accentColor)
+					.frame(width: knob, height: knob)
+					.offset(x: startX - knob / 2, y: startY - knob)
+
+				Rectangle()
+					.fill(Color.accentColor)
+					.frame(width: 2, height: state.lineHeight)
+					.offset(x: endX - 1, y: endY)
+				Circle()
+					.fill(Color.accentColor)
+					.frame(width: knob, height: knob)
+					.offset(x: endX - knob / 2, y: endY + state.lineHeight)
 			}
 				.allowsHitTesting(false)
 		}

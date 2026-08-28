@@ -31,6 +31,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var textView: TerminalHostingView!
 	private var textViewTapGestureRecognizer: UITapGestureRecognizer!
 	private var textViewLongPressGestureRecognizer: UILongPressGestureRecognizer!
+	private var selectionHandlePanGestureRecognizer: UIPanGestureRecognizer!
 	private var sideBarView: KeyboardSideBarView?
 	private var sideBarLeadingConstraint: NSLayoutConstraint?
 
@@ -51,6 +52,15 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// `UIEditMenuInteraction` on iOS 16+, held as AnyObject because stored properties can’t be
 	/// annotated with availability.
 	private var editMenuInteraction: AnyObject?
+
+	/// What the long press selected before the finger started moving. Dragging extends from this
+	/// rather than from the touch point.
+	private var selectionBase: TerminalSelection?
+	/// Which handle the current pan is moving, if it started on one.
+	private var draggingHandle: SelectionHandle?
+
+	/// How close a touch has to land to a handle to grab it. Sized for a fingertip, not the knob.
+	private static let handleGrabRadius: CGFloat = 22
 
 	private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
 	/// Absolute (`/…`) and home-relative (`~/…`) paths. Deliberately loose — false positives are
@@ -136,6 +146,12 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		textViewLongPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(self.handleTextViewLongPress(_:)))
 		textViewLongPressGestureRecognizer.minimumPressDuration = 0.35
 		textView.addGestureRecognizer(textViewLongPressGestureRecognizer)
+
+		// Only claims the touch when it lands on a selection handle (see `gestureRecognizerShouldBegin`),
+		// so scrolling the terminal is unaffected everywhere else.
+		selectionHandlePanGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(self.handleSelectionHandlePan(_:)))
+		selectionHandlePanGestureRecognizer.delegate = self
+		textView.addGestureRecognizer(selectionHandlePanGestureRecognizer)
 
 		keyInput.frame = view.bounds
 		keyInput.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -390,18 +406,81 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 		switch gestureRecognizer.state {
 		case .began:
+			let selection: TerminalSelection
 			if let range = terminalController.wordRange(atScrollInvariantRow: cell.row, column: cell.col) {
-				state.selection = TerminalSelection(row: cell.row, columns: range)
+				selection = TerminalSelection(row: cell.row, columns: range)
 			} else {
-				state.selection = TerminalSelection(anchor: cell, head: cell)
+				// No word under the finger — most of a terminal screen is blank, and anchoring an empty
+				// selection there meant the long press appeared to do nothing at all: nothing highlighted,
+				// and no menu on release because an empty selection is skipped. Take the single cell
+				// instead, which is something the user can see and drag out from.
+				selection = TerminalSelection(row: cell.row, columns: cell.col..<(cell.col + 1))
 			}
+			selectionBase = selection
+			state.selection = selection
 
 		case .changed:
-			if let selection = state.selection {
-				state.selection = TerminalSelection(anchor: selection.anchor, head: cell)
+			// Extend from the edges of what `.began` selected rather than from the touch point. Moving
+			// the head to the finger collapsed the word back to wherever inside it the press landed —
+			// and a finger never holds perfectly still, so the word selection never survived to be used.
+			guard let base = selectionBase else {
+				break
+			}
+			if cell < base.start {
+				state.selection = TerminalSelection(anchor: base.end, head: cell)
+			} else {
+				// The cell under the finger should be included, and `head` is exclusive.
+				let head = TerminalSelection.Point(row: cell.row, col: cell.col + 1)
+				state.selection = TerminalSelection(anchor: base.start, head: Swift.max(head, base.end))
 			}
 
 		case .ended, .cancelled:
+			if let selection = state.selection,
+				 !selection.isEmpty {
+				showEditMenu(at: selectionRect(for: selection))
+			}
+
+		default:
+			break
+		}
+	}
+
+	// MARK: - Selection handles
+
+	private enum SelectionHandle {
+		case start, end
+	}
+
+	/// Centres of the two handles, in `textView` coordinates. The start handle sits above the first
+	/// selected cell, the end handle below the last — matching where they’re drawn.
+	private func handleCentres(for selection: TerminalSelection) -> (start: CGPoint, end: CGPoint) {
+		let cellWidth = terminalController.fontMetrics.width
+		let originY = TerminalView.verticalSpacing + state.contentOriginY
+		let knob = TerminalView.handleKnobSize / 2
+		return (start: CGPoint(x: TerminalView.horizontalSpacing + CGFloat(selection.start.col) * cellWidth,
+													 y: originY + CGFloat(selection.start.row) * state.lineHeight - knob),
+						end: CGPoint(x: TerminalView.horizontalSpacing + CGFloat(selection.end.col) * cellWidth,
+												 y: originY + CGFloat(selection.end.row + 1) * state.lineHeight + knob))
+	}
+
+	@objc private func handleSelectionHandlePan(_ gestureRecognizer: UIPanGestureRecognizer) {
+		switch gestureRecognizer.state {
+		case .changed:
+			guard let handle = draggingHandle,
+						let selection = state.selection,
+						let cell = cell(at: gestureRecognizer.location(in: textView)) else {
+				return
+			}
+			switch handle {
+			case .start:
+				state.selection = TerminalSelection(anchor: selection.end, head: cell)
+			case .end:
+				state.selection = TerminalSelection(anchor: selection.start,
+																						head: TerminalSelection.Point(row: cell.row, col: cell.col + 1))
+			}
+
+		case .ended, .cancelled:
+			draggingHandle = nil
 			if let selection = state.selection,
 				 !selection.isEmpty {
 				showEditMenu(at: selectionRect(for: selection))
@@ -442,6 +521,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	private func clearSelection() {
 		state.selection = nil
+		selectionBase = nil
+		draggingHandle = nil
 	}
 
 	private func copySelection() {
@@ -745,6 +826,29 @@ extension TerminalSessionViewController: UIGestureRecognizerDelegate {
 		// internal text view/scroll view gestures… as much as we can avoid conflicting, at least.
 		return gestureRecognizer == textViewTapGestureRecognizer
 			&& (!(otherGestureRecognizer is UITapGestureRecognizer) || keyInput.isFirstResponder)
+	}
+
+	func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+		guard gestureRecognizer == selectionHandlePanGestureRecognizer else {
+			return true
+		}
+		// Claim the touch only when it starts on a handle; every other pan stays with the scroll view.
+		guard let selection = state.selection,
+					!selection.isEmpty,
+					state.lineHeight > 0 else {
+			return false
+		}
+		let location = gestureRecognizer.location(in: textView)
+		let centres = handleCentres(for: selection)
+		if hypot(location.x - centres.start.x, location.y - centres.start.y) <= Self.handleGrabRadius {
+			draggingHandle = .start
+			return true
+		}
+		if hypot(location.x - centres.end.x, location.y - centres.end.y) <= Self.handleGrabRadius {
+			draggingHandle = .end
+			return true
+		}
+		return false
 	}
 }
 
