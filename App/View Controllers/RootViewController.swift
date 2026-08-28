@@ -558,6 +558,9 @@ class RootViewController: UIViewController {
 		if index < selectedTabIndex {
 			selectedTabIndex -= 1
 		}
+		guard !terminals.isEmpty else {
+			return
+		}
 		selectTerminal(at: min(selectedTabIndex, terminals.count - 1))
 	}
 
@@ -581,6 +584,13 @@ class RootViewController: UIViewController {
 		let newIndex = selectedTabIndex + 1
 		let newTab = TerminalSplitViewController()
 		newTab.projectPath = container.projectPath
+		// Scrollback is filed under the tab's id, and this pane's history was written under the tab it
+		// came from. Naming the new tab after it keeps the two together — otherwise the pane goes on
+		// writing to an id nothing restores from, and its history is gone at the next launch.
+		if let session = detached as? TerminalSessionViewController,
+			 let scrollbackID = session.scrollbackID {
+			newTab.tabID = scrollbackID
+		}
 		newTab.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
 		newTab.view.frame = view.bounds
 		newTab.delegate = self
@@ -594,13 +604,17 @@ class RootViewController: UIViewController {
 		}
 		newTab.didMove(toParent: self)
 		newTab.viewControllers = [detached]
+		// The user stays where they are, so the tab this pane moved into starts out of sight. Only the
+		// tab being switched away from gets hidden on selection, and this one is neither that nor the
+		// one being switched to — left visible it sat on top of whatever tab was selected afterwards,
+		// which is what made an unsplit tab still look split.
+		newTab.view.isHidden = true
 
 		terminals.insert(newTab, at: newIndex)
 		tabToolbar?.didAddTab(at: newIndex)
 		tabToolbar?.tabDidUpdate(at: newIndex)
-		// Stay in the tab the user was already in; re-selecting also hides the new tab's view.
-		selectTerminal(at: selectedTabIndex)
 		tabToolbar?.tabDidUpdate(at: selectedTabIndex)
+		setNeedsSaveSession()
 	}
 
 }

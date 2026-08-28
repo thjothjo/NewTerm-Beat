@@ -33,6 +33,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var textViewLongPressGestureRecognizer: UILongPressGestureRecognizer!
 	private var selectionHandlePanGestureRecognizer: UIPanGestureRecognizer!
 	private var sideBarView: KeyboardSideBarView?
+	private var paneHeaderView: PaneHeaderView?
+	private var paneTitle = ""
 	private var sideBarLeadingConstraint: NSLayoutConstraint?
 	private var sideBarTopConstraint: NSLayoutConstraint?
 	private var sideBarBottomConstraint: NSLayoutConstraint?
@@ -71,9 +73,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	private static let logger = Logger(subsystem: "ws.hbang.Terminal", category: "TerminalSession")
 
-	/// Stable id used to persist and restore this tab's scrollback across app restarts. Nil for tabs
-	/// that shouldn't be remembered.
-	private let scrollbackID: String?
+	/// Which saved scrollback this pane replays, and where its own is written back. Nil for a pane
+	/// with no history to remember. Internal so a pane that moves to another tab can take its history
+	/// with it rather than leaving it behind under the old tab's name.
+	let scrollbackID: String?
 	private var hasSeededScrollback = false
 
 	init(initialDirectory: String? = nil, initialCommand: String? = nil, scrollbackID: String? = nil) {
@@ -278,6 +281,38 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// traits are identical, and the safe-area insets are symmetric so they don't change either.
 	/// Nothing asked for a relayout, so the strip kept the inset it had worked out for the side the
 	/// island used to be on — and sat under it.
+	// MARK: - Pane header
+
+	/// Names the pane while the tab is split, and marks which of the two the keys go to.
+	///
+	/// Splitting takes the terminal next door and puts it in beside this one, which means its tab is
+	/// gone from the strip along the top — so without this there is nothing left saying which terminal
+	/// either half is, or which one is listening.
+	private func updatePaneHeader() {
+		let isSplit = (tabContainer?.viewControllers?.count ?? 1) > 1
+		guard isSplit else {
+			paneHeaderView?.removeFromSuperview()
+			paneHeaderView = nil
+			return
+		}
+
+		let header: PaneHeaderView
+		if let existing = paneHeaderView {
+			header = existing
+		} else {
+			header = PaneHeaderView()
+			view.addSubview(header)
+			NSLayoutConstraint.activate([
+				header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+				header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+				header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
+			])
+			paneHeaderView = header
+		}
+		header.configure(title: paneTitle, isActive: isActivePane)
+		view.bringSubviewToFront(header)
+	}
+
 	/// Takes the strip down, for when this pane shouldn't be showing one.
 	private func discardSideBar() {
 		sideBarView?.removeFromSuperview()
@@ -329,6 +364,9 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	}
 
 	private func updateSideBar() {
+		// Before the frame maths below, which has to know whether a header is taking a strip off the top.
+		updatePaneHeader()
+
 		let usesSideBar = TerminalKeyInput.usesSideBar(for: traitCollection)
 		// One strip per tab, belonging to the pane with focus, so its keys reach the terminal the user
 		// is actually in. Each pane used to make its own, which in a split stacked two of them up.
@@ -394,10 +432,12 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		let offset = TerminalKeyInput.usesSideBar(for: traitCollection)
 			? max(0, leadingInset + Self.sideBarInset - paneOriginX)
 			: 0
+		// The header, when a split is putting one up, sits above the text rather than over it.
+		let headerHeight = paneHeaderView == nil ? 0 : PaneHeaderView.height + view.safeAreaInsets.top
 		let frame = CGRect(x: offset,
-											 y: 0,
+											 y: headerHeight,
 											 width: max(0, keyInput.bounds.width - offset),
-											 height: keyInput.bounds.height)
+											 height: max(0, keyInput.bounds.height - headerHeight))
 		if textView.frame != frame {
 			textView.autoresizingMask = []
 			textView.frame = frame
@@ -854,6 +894,8 @@ extension TerminalSessionViewController: TerminalControllerDelegate {
 
 	func titleDidChange(_ title: String?, isDirty: Bool, hasBell: Bool) {
 		let newTitle = title ?? .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")
+		paneTitle = newTitle
+		updatePaneHeader()
 		delegate?.terminal(viewController: self,
 											 titleDidChange: newTitle,
 											 isDirty: isDirty,

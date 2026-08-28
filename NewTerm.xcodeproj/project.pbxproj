@@ -75,6 +75,7 @@
 		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
 		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10052A0100050000ABCD /* ScrollbackStore.swift */; };
+		4EAA100A2A01000A0000ABCD /* PaneHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10092A0100090000ABCD /* PaneHeaderView.swift */; };
 		CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C222B5481B00585BE6 /* SubProcess.swift */; };
 		CF71BC9922BB6E0300AFB1E1 /* TerminalController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C522B5481B00585BE6 /* TerminalController.swift */; };
 		CF71BC9B22BB6E0300AFB1E1 /* TerminalInputProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF71BC6222BB69EF00AFB1E1 /* TerminalInputProtocol.swift */; };
@@ -235,6 +236,7 @@
 		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
 		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4EAA10052A0100050000ABCD /* ScrollbackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackStore.swift; sourceTree = "<group>"; };
+		4EAA10092A0100090000ABCD /* PaneHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneHeaderView.swift; sourceTree = "<group>"; };
 		CFBB96C422B5481B00585BE6 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CFBB96C522B5481B00585BE6 /* TerminalController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalController.swift; sourceTree = "<group>"; };
 		CFBB96C622B5481B00585BE6 /* TerminalSceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalSceneDelegate.swift; sourceTree = "<group>"; };
@@ -442,6 +444,7 @@
 			isa = PBXGroup;
 			children = (
 				4E85FA0027FC32D000092492 /* TerminalView.swift */,
+				4EAA10092A0100090000ABCD /* PaneHeaderView.swift */,
 				4E21B0BD2958722000494475 /* HUDView.swift */,
 			);
 			path = Terminal;
@@ -792,6 +795,7 @@
 				4E98081C261850E600E41883 /* KeyValueView.swift in Sources */,
 				4ECEE6ED25F9B87E00FAD26B /* TerminalPasswordInputView.swift in Sources */,
 				4E85FA0127FC32D000092492 /* TerminalView.swift in Sources */,
+				4EAA100A2A01000A0000ABCD /* PaneHeaderView.swift in Sources */,
 				CFBB96EE22B5481B00585BE6 /* TerminalSceneDelegate.swift in Sources */,
 				CFBB96EC22B5481B00585BE6 /* AppDelegate.swift in Sources */,
 				CF6B3BAA244C4538000A608B /* LogoHeaderView.swift in Sources */,

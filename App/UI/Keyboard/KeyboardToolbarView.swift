@@ -232,7 +232,11 @@ struct KeyboardToolbarKeyStack: View {
 		case .horizontal:
 			HStack(alignment: .center, spacing: 5) { keys }
 		case .vertical:
-			VStack(alignment: .center, spacing: 5) { keys }
+			// Tighter than the horizontal bar because the strip is height-limited and the keys are not.
+			// The ten of them want 411pt at the horizontal spacing; landscape leaves 376pt between the
+			// tab bar and the home indicator, so the last key — the right arrow — never made it on
+			// screen and there was nothing to say it was there.
+			VStack(alignment: .center, spacing: 2) { keys }
 		}
 	}
 

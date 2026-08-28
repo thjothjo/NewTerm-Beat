@@ -78,7 +78,7 @@ class KeyboardSideBarView: UIInputView {
 			// keyboard up in landscape can be very little.
 			ScrollView(.vertical, showsIndicators: false) {
 				KeyboardToolbarKeyStack(delegate: delegate, toolbar: .sideBar, axis: .vertical)
-					.padding(.vertical, 5)
+					.padding(.vertical, 2)
 					.padding(.horizontal, 4)
 			}
 				.environmentObject(state)
