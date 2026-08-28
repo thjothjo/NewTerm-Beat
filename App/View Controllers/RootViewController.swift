@@ -112,6 +112,13 @@ class RootViewController: UIViewController {
 															 action: #selector(self.splitVertically),
 															 input: "d",
 															 modifierFlags: .command))
+		// The two above only ever split. Nothing on the keyboard could put a split back — that needed
+		// typing `exit` — so this mirrors what the toolbar button does. Deliberately not ⌘⌥D: macOS
+		// claims that one for the Dock, so on a Mac keyboard it would never reach us.
+		addKeyCommand(UIKeyCommand(title: .localize("TOGGLE_SPLIT"),
+															 action: #selector(self.toggleSplit),
+															 input: "e",
+															 modifierFlags: [.command, .shift]))
 
 
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
@@ -230,9 +237,26 @@ class RootViewController: UIViewController {
 	}
 
 	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil, tabID: String? = nil) {
-		// Splitting nests: the tab's existing content becomes one half of a new split. Left unbounded
-		// that keeps going, and on a phone a third pane is a few characters wide and useful to nobody.
-		if axis != nil && isTerminalSplit(at: index) {
+		// Splitting adds a second terminal to the container the tab already has, rather than wrapping
+		// the tab in another one.
+		//
+		// Wrapping is what a tree of arbitrarily many panes needs, but a phone tops out at two, and the
+		// nesting cost real bugs: the two panes ended up at different depths, so they picked up the tab
+		// bar's safe-area inset a different number of times — one pane's text started lower than the
+		// other's — and the key strip, anchored to "my parent", hung off a different view in each and
+		// drew in the wrong place. One level deep, both panes are siblings and all of that is symmetric.
+		if let axis = axis {
+			guard terminals.indices.contains(index),
+						let container = terminals[index] as? TerminalSplitViewController,
+						container.viewControllers.count == 1 else {
+				// Already split. A third pane on a phone is a few characters wide and useful to nobody.
+				return
+			}
+			let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
+																										 initialCommand: initialCommand)
+			container.axis = axis
+			container.viewControllers = container.viewControllers + [newTerminal]
+			tabToolbar?.tabDidUpdate(at: index)
 			return
 		}
 
@@ -245,12 +269,11 @@ class RootViewController: UIViewController {
 		splitViewController.view.frame = view.bounds
 		splitViewController.delegate = self
 
-		// The pane that fills a fresh tab carries the tab's scrollback; the second pane of a split is a
-		// new terminal with no history to restore.
-		let scrollbackID = axis == nil ? splitViewController.tabID : nil
+		// The pane that fills the tab carries the tab's scrollback. A split's second pane is a fresh
+		// terminal with no history to restore, and takes the branch above.
 		let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
 																									 initialCommand: initialCommand,
-																									 scrollbackID: scrollbackID)
+																									 scrollbackID: splitViewController.tabID)
 
 		addChild(splitViewController)
 		splitViewController.willMove(toParent: self)
@@ -265,15 +288,6 @@ class RootViewController: UIViewController {
 			splitViewController.viewControllers = [newTerminal]
 			terminals.append(splitViewController)
 			tabToolbar?.didAddTab(at: index)
-		} else if let axis = axis {
-			// Splitting takes the terminal that’s already in this tab and makes it one half of the new
-			// split, so the tab is replaced by the split that now owns it. The tab count is unchanged.
-			let firstViewController = terminals[index]
-			let secondViewController = newTerminal
-			splitViewController.axis = axis
-			splitViewController.viewControllers = [firstViewController, secondViewController]
-			terminals[index] = splitViewController
-			tabToolbar?.tabDidUpdate(at: index)
 		} else {
 			// A new tab in the middle of the strip goes *between* its neighbours. Replacing here would
 			// drop whichever tab already sat at this index, along with whatever was running in it.
@@ -477,17 +491,45 @@ class RootViewController: UIViewController {
 		}
 	}
 
-	/// Drops the pane the user *isn't* in, so what they were looking at is what fills the tab.
+	/// Un-splits the tab, keeping the pane the user is in where it is and giving the other one a tab
+	/// of its own.
+	///
+	/// The other pane is a live terminal that may well have something running in it, so closing the
+	/// split moves it rather than ending it. Nothing is lost, and it's one tap away.
 	private func closeSplit() {
 		guard terminals.indices.contains(selectedTabIndex),
-					let split = terminals[selectedTabIndex] as? TerminalSplitViewController,
-					split.viewControllers.count > 1 else {
+					let container = terminals[selectedTabIndex] as? TerminalSplitViewController,
+					container.viewControllers.count > 1 else {
 			return
 		}
-		let keeping = split.selectedViewController
-		for viewController in split.viewControllers where viewController != keeping {
-			split.remove(viewController: viewController)
+		let keeping = container.selectedViewController
+		guard let moving = container.viewControllers.first(where: { $0 !== keeping }),
+					let detached = container.detach(viewController: moving) else {
+			return
 		}
+
+		let newIndex = selectedTabIndex + 1
+		let newTab = TerminalSplitViewController()
+		newTab.projectPath = container.projectPath
+		newTab.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
+		newTab.view.frame = view.bounds
+		newTab.delegate = self
+
+		addChild(newTab)
+		newTab.willMove(toParent: self)
+		if let tabToolbar = tabToolbar {
+			view.insertSubview(newTab.view, belowSubview: tabToolbar.view)
+		} else {
+			view.addSubview(newTab.view)
+		}
+		newTab.didMove(toParent: self)
+		newTab.viewControllers = [detached]
+
+		terminals.insert(newTab, at: newIndex)
+		tabToolbar?.didAddTab(at: newIndex)
+		tabToolbar?.tabDidUpdate(at: newIndex)
+		// Stay in the tab the user was already in; re-selecting also hides the new tab's view.
+		selectTerminal(at: selectedTabIndex)
 		tabToolbar?.tabDidUpdate(at: selectedTabIndex)
 	}
 

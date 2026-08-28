@@ -278,7 +278,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// traits are identical, and the safe-area insets are symmetric so they don't change either.
 	/// Nothing asked for a relayout, so the strip kept the inset it had worked out for the side the
 	/// island used to be on — and sat under it.
-	@objc private func setNeedsSideBarUpdate() {
+	@objc func setNeedsSideBarUpdate() {
 		view.setNeedsLayout()
 		parent?.viewIfLoaded?.setNeedsLayout()
 	}
@@ -298,8 +298,32 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		DisplayEdge.isIslandOnLeadingEdge(for: view.window?.windowScene?.interfaceOrientation)
 	}
 
+	/// The split container filling the whole tab, whichever pane this is.
+	///
+	/// Not simply `parent`: after a split the panes sit at different depths, so taking each pane's own
+	/// parent hosted the two strips in different views and drew them in different places, one over the
+	/// other. Every pane resolves to the same container here, so there is one place the strip can be.
+	private var tabContainer: TerminalSplitViewController? {
+		var candidate: UIViewController? = parent
+		while let current = candidate, current.parent != nil, !(current.parent is RootViewController) {
+			candidate = current.parent
+		}
+		return candidate as? TerminalSplitViewController
+	}
+
+	/// Whether this pane is the one the user is typing in, and so the one the strip belongs to.
+	private var isActivePane: Bool {
+		guard let container = tabContainer else {
+			return true
+		}
+		return container.activeLeaf === self
+	}
+
 	private func updateSideBar() {
-		let shouldShow = TerminalKeyInput.usesSideBar(for: traitCollection)
+		let usesSideBar = TerminalKeyInput.usesSideBar(for: traitCollection)
+		// One strip per tab, belonging to the pane with focus, so its keys reach the terminal the user
+		// is actually in. Each pane used to make its own, which in a split stacked two of them up.
+		let shouldShow = usesSideBar && isActivePane
 
 		// Hosted on the tab container, not on our own view.
 		//
@@ -309,7 +333,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		// draws it, but hit testing is clipped to the superview's bounds, so it never receives a single
 		// touch. That's why it looked fine and did nothing. The container's view spans the whole
 		// screen, so from there the strip can sit against the edge and still be touchable.
-		let host: UIView = parent?.viewIfLoaded ?? view
+		let host: UIView = tabContainer?.viewIfLoaded ?? parent?.viewIfLoaded ?? view
 
 		if shouldShow && sideBarView == nil {
 			let sideBar = KeyboardSideBarView(delegate: keyInput, state: keyInput.toolbarState)
@@ -350,11 +374,16 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		sideBarTopConstraint?.constant = endInset
 		sideBarBottomConstraint?.constant = -endInset
 
-		// Whatever the strip still covers of the text area, the terminal gives up. Our view already
-		// starts inside the screen by the safe-area inset, so when the strip is flush with the edge
-		// there's usually no overlap left at all — hugging the edge hands the terminal back the width
-		// the strip used to sit in.
-		let offset = shouldShow ? max(0, leadingInset + Self.sideBarInset - safeInset) : 0
+		// Whatever the strip still covers of the text area, the terminal gives up.
+		//
+		// Measured against where this pane actually starts, not against `shouldShow`: the strip sits at
+		// the tab's leading edge, so in a split it covers the leading pane and misses the trailing one
+		// entirely — and which pane owns it must not change either pane's width, or the text would
+		// reflow every time focus moved between them.
+		let paneOriginX = view.superview?.convert(view.frame.origin, to: nil).x ?? safeInset
+		let offset = TerminalKeyInput.usesSideBar(for: traitCollection)
+			? max(0, leadingInset + Self.sideBarInset - paneOriginX)
+			: 0
 		let frame = CGRect(x: offset,
 											 y: 0,
 											 width: max(0, keyInput.bounds.width - offset),

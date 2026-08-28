@@ -75,6 +75,10 @@
 	<key>SPLIT_VERTICALLY</key>
 	<string>垂直分割</string>
 
+	<!-- Menu item that splits the tab, or puts an existing split back into two tabs. -->
+	<key>TOGGLE_SPLIT</key>
+	<string>分割／取消分割</string>
+
 	<!-- Settings option to use the operating system’s locale. %@ is the user’s operating system language. -->
 	<key>LOCALE_SYSTEM</key>
 	<string>系統語言： %@</string>

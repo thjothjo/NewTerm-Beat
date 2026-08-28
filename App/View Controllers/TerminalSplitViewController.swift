@@ -66,6 +66,26 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		viewControllers.indices.contains(selectedIndex) ? viewControllers[selectedIndex] : viewControllers.first
 	}
 
+	/// The terminal the user is actually in, following the selection down through nested splits.
+	var activeLeaf: TerminalSessionViewController? {
+		switch selectedViewController {
+		case let session as TerminalSessionViewController: return session
+		case let split as TerminalSplitViewController: return split.activeLeaf
+		default: return nil
+		}
+	}
+
+	/// Re-runs every pane's side bar decision, so the strip follows focus from one pane to the other.
+	func setNeedsSideBarUpdate() {
+		for viewController in viewControllers ?? [] {
+			switch viewController {
+			case let session as TerminalSessionViewController: session.setNeedsSideBarUpdate()
+			case let split as TerminalSplitViewController: split.setNeedsSideBarUpdate()
+			default: break
+			}
+		}
+	}
+
 	private var keyboardHeight: CGFloat = 0
 
 	override func loadView() {
@@ -192,6 +212,20 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 												 multiplier: 1,
 												 constant: 0)
 		})
+	}
+
+	/// Takes a pane out of the split without ending its session, so the caller can put it somewhere
+	/// else. `remove` is the other case: that one is a terminal that has finished.
+	@discardableResult
+	func detach(viewController: BaseTerminalSplitViewControllerChild) -> BaseTerminalSplitViewControllerChild? {
+		guard let index = viewControllers.firstIndex(of: viewController) else {
+			return nil
+		}
+		viewController.willMove(toParent: nil)
+		viewController.view.removeFromSuperview()
+		viewController.removeFromParent()
+		viewControllers.remove(at: index)
+		return viewController
 	}
 
 	func remove(viewController: UIViewController) {
@@ -349,6 +383,8 @@ extension TerminalSplitViewController: TerminalSplitViewControllerDelegate {
 		}
 
 		selectedIndex = index
+		// The side bar belongs to whichever pane has focus, so moving focus moves the strip.
+		setNeedsSideBarUpdate()
 
 		if let parent = parent as? TerminalSplitViewControllerDelegate {
 			parent.terminalDidBecomeActive(viewController: self)

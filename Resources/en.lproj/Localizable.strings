@@ -75,6 +75,10 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<key>SPLIT_VERTICALLY</key>
 	<string>Split Vertically</string>
 
+	<!-- Menu item that splits the tab, or puts an existing split back into two tabs. -->
+	<key>TOGGLE_SPLIT</key>
+	<string>Split / Unsplit</string>
+
 	<!-- Settings option to use the operating system’s locale. %@ is the user’s operating system language. -->
 	<key>LOCALE_SYSTEM</key>
 	<string>System Language: %@</string>
