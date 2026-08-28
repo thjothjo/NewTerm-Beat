@@ -76,6 +76,7 @@
 		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
 		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10052A0100050000ABCD /* ScrollbackStore.swift */; };
+		4EAA10222A0100220000CAFE /* SSHConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10212A0100210000CAFE /* SSHConfig.swift */; };
 		4EAA10122A0100120000BEEF /* OrphanReaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10112A0100110000BEEF /* OrphanReaper.swift */; };
 		4EAA100A2A01000A0000ABCD /* PaneHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10092A0100090000ABCD /* PaneHeaderView.swift */; };
 		CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C222B5481B00585BE6 /* SubProcess.swift */; };
@@ -239,6 +240,7 @@
 		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
 		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4EAA10052A0100050000ABCD /* ScrollbackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackStore.swift; sourceTree = "<group>"; };
+		4EAA10212A0100210000CAFE /* SSHConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConfig.swift; sourceTree = "<group>"; };
 		4EAA10112A0100110000BEEF /* OrphanReaper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrphanReaper.swift; sourceTree = "<group>"; };
 		4EAA10092A0100090000ABCD /* PaneHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneHeaderView.swift; sourceTree = "<group>"; };
 		CFBB96C422B5481B00585BE6 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -373,6 +375,7 @@
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
 				4EAA10032A0100030000ABCD /* SessionStore.swift */,
 				4EAA10052A0100050000ABCD /* ScrollbackStore.swift */,
+				4EAA10212A0100210000CAFE /* SSHConfig.swift */,
 				4EAA10112A0100110000BEEF /* OrphanReaper.swift */,
 				CFBB96C222B5481B00585BE6 /* SubProcess.swift */,
 				CFBB96C522B5481B00585BE6 /* TerminalController.swift */,
@@ -769,6 +772,7 @@
 				4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */,
 				4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */,
 				4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */,
+				4EAA10222A0100220000CAFE /* SSHConfig.swift in Sources */,
 				4EAA10122A0100120000BEEF /* OrphanReaper.swift in Sources */,
 				CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */,
 				4E9FB97526172293005AFCC8 /* StringSupplier.swift in Sources */,

@@ -140,6 +140,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		keyInput.openProjectHandler = { [weak self] in self?.openProject($0) }
 		keyInput.newProjectHandler = { [weak self] in self?.rootViewController?.createProject() }
 		keyInput.deleteProjectHandler = { [weak self] in self?.rootViewController?.trashProject($0) }
+		keyInput.connectSSHHostHandler = { [weak self] in self?.connectSSH(to: $0) }
+		keyInput.newSSHHostHandler = { [weak self] in self?.addSSHHost() }
 		keyInput.attachImageHandler = { [weak self] in self?.attachImage() }
 
 		textViewTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.handleTextViewTap(_:)))
@@ -816,6 +818,67 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	private func openProject(_ project: Project) {
 		rootViewController?.openProject(project)
+	}
+
+	// MARK: - SSH
+
+	/// Types the connect command and runs it, in this terminal.
+	///
+	/// Deliberately typed rather than run out of sight: what lands in the scrollback is exactly the
+	/// command the user could have typed, which is the thing they can then edit, repeat with ⌃R, or
+	/// copy somewhere else.
+	private func connectSSH(to host: SSHHost) {
+		terminalController.write(Array((SSHConfig.connectCommand(for: host) + "\n").utf8))
+	}
+
+	/// Adds a host to `~/.ssh/config`.
+	///
+	/// The fields are the four that decide where a connection goes. Anything else — keys, jump hosts,
+	/// forwarding — is edited in the file itself, which stays the source of truth.
+	private func addSSHHost() {
+		let alertController = UIAlertController(title: .localize("New SSH Host"),
+																						message: .localize("Added to ~/.ssh/config. Connecting runs ssh with the name."),
+																						preferredStyle: .alert)
+		let placeholders = [
+			(String.localize("Name (e.g. server)"), UIKeyboardType.default),
+			(String.localize("Host name or IP"), .URL),
+			(String.localize("User (optional)"), .default),
+			(String.localize("Port (optional)"), .numberPad)
+		]
+		for (placeholder, keyboardType) in placeholders {
+			alertController.addTextField { textField in
+				textField.placeholder = placeholder
+				textField.keyboardType = keyboardType
+				textField.autocapitalizationType = .none
+				textField.autocorrectionType = .no
+			}
+		}
+
+		alertController.addAction(UIAlertAction(title: .cancel, style: .cancel))
+		alertController.addAction(UIAlertAction(title: .localize("Add"), style: .default) { [weak self, weak alertController] _ in
+			let fields = alertController?.textFields?.map { $0.text ?? "" } ?? []
+			let name = fields.first?.trimmingCharacters(in: .whitespaces) ?? ""
+			guard !name.isEmpty else {
+				return
+			}
+			do {
+				try SSHConfig.addHost(name: name,
+															hostName: fields.count > 1 ? fields[1].trimmingCharacters(in: .whitespaces) : "",
+															user: fields.count > 2 ? fields[2].trimmingCharacters(in: .whitespaces) : "",
+															port: fields.count > 3 ? fields[3].trimmingCharacters(in: .whitespaces) : "")
+			} catch {
+				self?.presentError(title: .localize("Couldn’t Add Host"), error: error)
+			}
+		})
+		present(alertController, animated: true)
+	}
+
+	private func presentError(title: String, error: Error) {
+		let alertController = UIAlertController(title: title,
+																						message: error.localizedDescription,
+																						preferredStyle: .alert)
+		alertController.addAction(UIAlertAction(title: .ok, style: .cancel))
+		present(alertController, animated: true)
 	}
 
 	// MARK: - Image attachments

@@ -25,6 +25,8 @@ enum Toolbar: CaseIterable {
 	case secondary, fnKeys
 	/// Not a row of keys — rendered as a list of projects. See `ProjectPickerRow`.
 	case projects
+	/// Not a row of keys — the hosts in `~/.ssh/config`. See `SSHHostPickerRow`.
+	case sshHosts
 	/// Not a row of keys — the `[Image #N]` receipts for images attached since the last return. See
 	/// `AttachmentStrip`.
 	case attachments
@@ -43,7 +45,7 @@ enum Toolbar: CaseIterable {
 				.arrows
 			]
 
-		case .projects, .attachments:
+		case .projects, .sshHosts, .attachments:
 			return []
 
 		case .sideBar:
@@ -58,7 +60,7 @@ enum Toolbar: CaseIterable {
 							.up, .down, .left, .right]
 
 		case .sideBarMore:
-			return [.delete, .image, .fnKeys]
+			return [.delete, .image, .ssh, .fnKeys]
 
 		case .padPrimaryLeading:
 			return [.control, .escape, .tab, .more, .projects]
@@ -70,7 +72,7 @@ enum Toolbar: CaseIterable {
 			return [
 				.shiftTab,
 				.variableSpace(id: 0),
-				.delete, .image,
+				.delete, .image, .ssh,
 				.variableSpace(id: 1),
 				.fnKeys
 			]
@@ -99,6 +101,8 @@ enum ToolbarKey: Hashable {
 	case projects
 	// Attach an image for a CLI to read
 	case image
+	/// The hosts in `~/.ssh/config`, to connect to one without typing it.
+	case ssh
 	// Fn keys
 	case fnKey(index: Int)
 
@@ -174,6 +178,12 @@ enum ToolbarKey: Hashable {
 															 preferredStyle: .icons,
 															 widthRatio: 1)
 
+		case .ssh:      return Key(label: .localize("SSH Hosts"),
+															 glyph: .localize("SSH"),
+															 imageName: .network,
+															 preferredStyle: .icons,
+															 isToggle: true)
+
 		// Fn keys
 		case .fnKey(let index):
 			return Key(label: "F\(index)",
@@ -190,6 +200,89 @@ protocol KeyboardToolbarViewDelegate: AnyObject {
 	func keyboardToolbarDidSelectProject(_ project: Project)
 	func keyboardToolbarDidRequestNewProject()
 	func keyboardToolbarDidRequestDeleteProject(_ project: Project)
+	func keyboardToolbarDidSelectSSHHost(_ host: SSHHost)
+	func keyboardToolbarDidRequestNewSSHHost()
+}
+
+/// The hosts in `~/.ssh/config`, to connect to one without typing its name.
+struct SSHHostPickerRow: View {
+	weak var delegate: KeyboardToolbarViewDelegate?
+
+	/// Vertical when it’s the column beside the landscape strip, horizontal as the accessory row.
+	var axis: Axis = .horizontal
+
+	@State private var hosts = [SSHHost]()
+
+	/// Matches `KeyboardKeyButtonStyle`’s key height, the same as the projects row.
+	private static let rowHeight: CGFloat = 45
+
+	@ViewBuilder
+	private func stack<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+		switch axis {
+		case .horizontal: HStack(alignment: .center, spacing: 5) { content() }
+		case .vertical:   VStack(alignment: .leading, spacing: 5) { content() }
+		}
+	}
+
+	var body: some View {
+		ScrollView(axis == .horizontal ? .horizontal : .vertical, showsIndicators: false) {
+			stack {
+				Button {
+					UIDevice.current.playInputClick()
+					delegate?.keyboardToolbarDidRequestNewSSHHost()
+				} label: {
+					HStack(spacing: 3) {
+						Image(systemName: .plus)
+							.imageScale(.small)
+						if axis == .horizontal {
+							Text(String.localize("New"))
+						}
+					}
+						.frame(maxWidth: axis == .vertical ? .infinity : nil)
+				}
+					.buttonStyle(.keyboardKey(hasShadow: true))
+					.accessibilityLabel(String.localize("New SSH Host"))
+
+				if hosts.isEmpty {
+					Text(String.localize("No hosts in ~/.ssh/config"))
+						.font(.system(size: 12))
+						.foregroundColor(.secondary)
+						.padding(.horizontal, 6)
+						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+				} else {
+					ForEach(hosts) { host in
+						Button {
+							UIDevice.current.playInputClick()
+							delegate?.keyboardToolbarDidSelectSSHHost(host)
+						} label: {
+							// The alias is what gets typed, so it leads; what it resolves to is only there to
+							// tell two similar aliases apart, and is dropped entirely in the narrow column.
+							VStack(alignment: .leading, spacing: 0) {
+								Text(host.name)
+									.font(.system(size: axis == .vertical ? 11 : 15, weight: .regular))
+								if axis == .horizontal && !host.detail.isEmpty {
+									Text(host.detail)
+										.font(.system(size: 10))
+										.opacity(0.6)
+								}
+							}
+								.lineLimit(1)
+								.truncationMode(.tail)
+								.foregroundColor(.white)
+								.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+						}
+							.buttonStyle(.keyboardKey(hasShadow: true))
+					}
+				}
+			}
+				.padding(.horizontal, 4)
+		}
+			.frame(height: axis == .horizontal ? Self.rowHeight : nil)
+			.onAppear { hosts = SSHConfig.hosts() }
+			.onReceive(NotificationCenter.default.publisher(for: SSHConfig.didChangeNotification)) { _ in
+				hosts = SSHConfig.hosts()
+			}
+	}
 }
 
 /// The `[Image #N]` receipts for images attached to the line being typed.
@@ -545,6 +638,8 @@ struct KeyboardToolbarView: View {
 			return state.toggledKeys.contains(.fnKeys)
 		case .projects:
 			return state.toggledKeys.contains(.projects)
+		case .sshHosts:
+			return state.toggledKeys.contains(.ssh)
 		case .attachments:
 			return !state.imageAttachments.isEmpty
 		case .sideBar, .sideBarMore:
@@ -596,6 +691,12 @@ struct KeyboardToolbarView: View {
 					switch toolbar {
 					case .projects:
 						ProjectPickerRow(delegate: delegate)
+							.padding(.horizontal, 4)
+							.padding(.top, 5)
+							.frame(maxWidth: .infinity)
+
+					case .sshHosts:
+						SSHHostPickerRow(delegate: delegate)
 							.padding(.horizontal, 4)
 							.padding(.top, 5)
 							.frame(maxWidth: .infinity)
