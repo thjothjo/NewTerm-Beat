@@ -25,7 +25,7 @@ extension ToolbarKey {
 		case .fnKey(let index): return EscapeSequences.fn[index - 1]
 		case .shiftTab: return EscapeSequences.backTab
 		case .fixedSpace, .variableSpace, .arrows,
-				 .control, .more, .fnKeys, .projects, .image, .ssh:
+				 .control, .more, .fnKeys, .projects, .image, .ssh, .ai:
 			return []
 		}
 	}
@@ -74,6 +74,7 @@ class TerminalKeyInput: TextInputBase {
 	var newProjectHandler: (() -> Void)?
 	var connectSSHHostHandler: ((SSHHost) -> Void)?
 	var newSSHHostHandler: (() -> Void)?
+	var aiCommandHandler: ((AICommand) -> Void)?
 	var deleteProjectHandler: ((Project) -> Void)?
 	var attachImageHandler: (() -> Void)?
 
@@ -91,7 +92,7 @@ class TerminalKeyInput: TextInputBase {
 		smartDashesType = .no
 		smartInsertDeleteType = .no
 
-		var toolbars: [Toolbar] = [.attachments, .projects, .sshHosts, .fnKeys, .secondary]
+		var toolbars: [Toolbar] = [.attachments, .projects, .sshHosts, .aiCommands, .fnKeys, .secondary]
 		if UIDevice.current.userInterfaceIdiom == .pad {
 			let leadingView = KeyboardToolbarPadItemView(delegate: self,
 																									 toolbar: .padPrimaryLeading,
@@ -131,7 +132,7 @@ class TerminalKeyInput: TextInputBase {
 		// the keyboard keeps the old height and the terminal draws underneath the taller bar, its text
 		// showing through the translucent keyboard background. Reloading makes UIKit re-measure and
 		// report the frame it ends up with.
-		let rowKeys: Set<ToolbarKey> = [.more, .fnKeys, .projects, .ssh]
+		let rowKeys: Set<ToolbarKey> = [.more, .fnKeys, .projects, .ssh, .ai]
 		state.$toggledKeys
 			.map { $0.intersection(rowKeys) }
 			.removeDuplicates()
@@ -173,7 +174,7 @@ class TerminalKeyInput: TextInputBase {
 			// What a toggle left open doesn't survive the trip: the thing it opened is a row above the
 			// keyboard in portrait and a column beside the strip in landscape, and neither is where the
 			// user left it. Closing them means the toggles agree with what's on screen either way.
-			state.toggledKeys.subtract([.more, .fnKeys, .projects, .ssh])
+			state.toggledKeys.subtract([.more, .fnKeys, .projects, .ssh, .ai])
 			// Makes UIKit ask for inputAccessoryView again, which is how the bar appears and disappears
 			// on rotation.
 			reloadInputViews()
@@ -491,6 +492,9 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 		case .ssh:
 			closeOtherPanels(keeping: .ssh)
 
+		case .ai:
+			closeOtherPanels(keeping: .ai)
+
 		case .image:
 			attachImageHandler?()
 			closeSideBarPanel()
@@ -510,7 +514,7 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	/// as there is, so it goes away by itself rather than needing a second tap on the key that opened it.
 	private func closeSideBarPanel() {
 		if usesSideBar {
-			state.toggledKeys.subtract([.more, .fnKeys, .projects, .ssh])
+			state.toggledKeys.subtract([.more, .fnKeys, .projects, .ssh, .ai])
 		}
 	}
 
@@ -526,7 +530,7 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 			return
 		}
 		// Only the other panel keys, so an armed Control survives opening a panel.
-		let others = Set<ToolbarKey>([.more, .fnKeys, .projects, .ssh]).subtracting([key])
+		let others = Set<ToolbarKey>([.more, .fnKeys, .projects, .ssh, .ai]).subtracting([key])
 		DispatchQueue.main.async { [weak self] in
 			self?.state.toggledKeys.subtract(others)
 		}
@@ -571,6 +575,13 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 
 	func keyboardToolbarDidRequestNewSSHHost() {
 		newSSHHostHandler?()
+	}
+
+	func keyboardToolbarDidSelectAICommand(_ command: AICommand) {
+		if usesSideBar {
+			state.toggledKeys.remove(.ai)
+		}
+		aiCommandHandler?(command)
 	}
 }
 

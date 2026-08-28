@@ -76,6 +76,7 @@
 		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
 		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10052A0100050000ABCD /* ScrollbackStore.swift */; };
+		4EAA10322A0100320000DEAD /* AICatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10312A0100310000DEAD /* AICatalog.swift */; };
 		4EAA10222A0100220000CAFE /* SSHConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10212A0100210000CAFE /* SSHConfig.swift */; };
 		4EAA10122A0100120000BEEF /* OrphanReaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10112A0100110000BEEF /* OrphanReaper.swift */; };
 		4EAA100A2A01000A0000ABCD /* PaneHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10092A0100090000ABCD /* PaneHeaderView.swift */; };
@@ -240,6 +241,7 @@
 		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
 		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4EAA10052A0100050000ABCD /* ScrollbackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackStore.swift; sourceTree = "<group>"; };
+		4EAA10312A0100310000DEAD /* AICatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICatalog.swift; sourceTree = "<group>"; };
 		4EAA10212A0100210000CAFE /* SSHConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConfig.swift; sourceTree = "<group>"; };
 		4EAA10112A0100110000BEEF /* OrphanReaper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrphanReaper.swift; sourceTree = "<group>"; };
 		4EAA10092A0100090000ABCD /* PaneHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneHeaderView.swift; sourceTree = "<group>"; };
@@ -375,6 +377,7 @@
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
 				4EAA10032A0100030000ABCD /* SessionStore.swift */,
 				4EAA10052A0100050000ABCD /* ScrollbackStore.swift */,
+				4EAA10312A0100310000DEAD /* AICatalog.swift */,
 				4EAA10212A0100210000CAFE /* SSHConfig.swift */,
 				4EAA10112A0100110000BEEF /* OrphanReaper.swift */,
 				CFBB96C222B5481B00585BE6 /* SubProcess.swift */,
@@ -772,6 +775,7 @@
 				4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */,
 				4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */,
 				4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */,
+				4EAA10322A0100320000DEAD /* AICatalog.swift in Sources */,
 				4EAA10222A0100220000CAFE /* SSHConfig.swift in Sources */,
 				4EAA10122A0100120000BEEF /* OrphanReaper.swift in Sources */,
 				CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */,

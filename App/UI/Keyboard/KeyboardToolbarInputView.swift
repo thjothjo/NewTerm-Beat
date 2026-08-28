@@ -175,7 +175,7 @@ class KeyboardSidePanelView: UIInputView {
 	/// sheet. `nil` when nothing is open, so the panel isn't a stray translucent box over the terminal.
 	private static func width(forToggles toggles: Set<ToolbarKey>) -> CGFloat? {
 		// Fn keys win over More, because More is what opens them and so both are on at once.
-		guard !toggles.isDisjoint(with: [.projects, .ssh, .fnKeys, .more]) else {
+		guard !toggles.isDisjoint(with: [.projects, .ssh, .ai, .fnKeys, .more]) else {
 			return nil
 		}
 		return KeyboardSideBarView.width
@@ -216,6 +216,8 @@ private struct KeyboardSidePanelContent: View {
 			ProjectPickerRow(delegate: delegate, axis: .vertical)
 		} else if state.toggledKeys.contains(.ssh) {
 			SSHHostPickerRow(delegate: delegate, axis: .vertical)
+		} else if state.toggledKeys.contains(.ai) {
+			AIPickerRow(delegate: delegate, axis: .vertical)
 		} else if state.toggledKeys.contains(.fnKeys) {
 			column { KeyboardToolbarKeyStack(delegate: delegate, toolbar: .fnKeys, axis: .vertical) }
 		} else if state.toggledKeys.contains(.more) {

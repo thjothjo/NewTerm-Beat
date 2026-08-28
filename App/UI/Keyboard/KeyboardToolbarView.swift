@@ -27,6 +27,8 @@ enum Toolbar: CaseIterable {
 	case projects
 	/// Not a row of keys — the hosts in `~/.ssh/config`. See `SSHHostPickerRow`.
 	case sshHosts
+	/// Not a row of keys — installed agent CLIs and the prompts they know. See `AIPickerRow`.
+	case aiCommands
 	/// Not a row of keys — the `[Image #N]` receipts for images attached since the last return. See
 	/// `AttachmentStrip`.
 	case attachments
@@ -45,7 +47,7 @@ enum Toolbar: CaseIterable {
 				.arrows
 			]
 
-		case .projects, .sshHosts, .attachments:
+		case .projects, .sshHosts, .aiCommands, .attachments:
 			return []
 
 		case .sideBar:
@@ -60,7 +62,7 @@ enum Toolbar: CaseIterable {
 							.up, .down, .left, .right]
 
 		case .sideBarMore:
-			return [.delete, .image, .ssh, .fnKeys]
+			return [.delete, .image, .ssh, .ai, .fnKeys]
 
 		case .padPrimaryLeading:
 			return [.control, .escape, .tab, .more, .projects]
@@ -72,7 +74,7 @@ enum Toolbar: CaseIterable {
 			return [
 				.shiftTab,
 				.variableSpace(id: 0),
-				.delete, .image, .ssh,
+				.delete, .image, .ssh, .ai,
 				.variableSpace(id: 1),
 				.fnKeys
 			]
@@ -103,6 +105,8 @@ enum ToolbarKey: Hashable {
 	case image
 	/// The hosts in `~/.ssh/config`, to connect to one without typing it.
 	case ssh
+	/// Installed agent CLIs and the prompts they know.
+	case ai
 	// Fn keys
 	case fnKey(index: Int)
 
@@ -184,6 +188,12 @@ enum ToolbarKey: Hashable {
 															 preferredStyle: .icons,
 															 isToggle: true)
 
+		case .ai:       return Key(label: .localize("AI Commands"),
+															 glyph: .localize("AI"),
+															 imageName: .sparkles,
+															 preferredStyle: .icons,
+															 isToggle: true)
+
 		// Fn keys
 		case .fnKey(let index):
 			return Key(label: "F\(index)",
@@ -202,6 +212,68 @@ protocol KeyboardToolbarViewDelegate: AnyObject {
 	func keyboardToolbarDidRequestDeleteProject(_ project: Project)
 	func keyboardToolbarDidSelectSSHHost(_ host: SSHHost)
 	func keyboardToolbarDidRequestNewSSHHost()
+	func keyboardToolbarDidSelectAICommand(_ command: AICommand)
+}
+
+/// The agent CLIs installed here, and the prompts they already know.
+struct AIPickerRow: View {
+	weak var delegate: KeyboardToolbarViewDelegate?
+
+	var axis: Axis = .horizontal
+
+	@State private var commands = [AICommand]()
+
+	private static let rowHeight: CGFloat = 45
+
+	@ViewBuilder
+	private func stack<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+		switch axis {
+		case .horizontal: HStack(alignment: .center, spacing: 5) { content() }
+		case .vertical:   VStack(alignment: .leading, spacing: 5) { content() }
+		}
+	}
+
+	var body: some View {
+		ScrollView(axis == .horizontal ? .horizontal : .vertical, showsIndicators: false) {
+			stack {
+				if commands.isEmpty {
+					Text(String.localize("No agent CLIs installed"))
+						.font(.system(size: 12))
+						.foregroundColor(.secondary)
+						.padding(.horizontal, 6)
+						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+				} else {
+					ForEach(commands) { command in
+						Button {
+							UIDevice.current.playInputClick()
+							delegate?.keyboardToolbarDidSelectAICommand(command)
+						} label: {
+							VStack(alignment: .leading, spacing: 0) {
+								Text(command.name)
+									.font(.system(size: axis == .vertical ? 11 : 15, weight: .regular))
+								if axis == .horizontal {
+									Text(command.source)
+										.font(.system(size: 10))
+										.opacity(0.6)
+								}
+							}
+								.lineLimit(1)
+								.truncationMode(.tail)
+								.foregroundColor(.white)
+								.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+						}
+							.buttonStyle(.keyboardKey(hasShadow: true))
+					}
+				}
+			}
+				.padding(.horizontal, 4)
+		}
+			.frame(height: axis == .horizontal ? Self.rowHeight : nil)
+			.onAppear { commands = AICatalog.commands() }
+			.onReceive(NotificationCenter.default.publisher(for: AICatalog.didChangeNotification)) { _ in
+				commands = AICatalog.commands()
+			}
+	}
 }
 
 /// The hosts in `~/.ssh/config`, to connect to one without typing its name.
@@ -640,6 +712,8 @@ struct KeyboardToolbarView: View {
 			return state.toggledKeys.contains(.projects)
 		case .sshHosts:
 			return state.toggledKeys.contains(.ssh)
+		case .aiCommands:
+			return state.toggledKeys.contains(.ai)
 		case .attachments:
 			return !state.imageAttachments.isEmpty
 		case .sideBar, .sideBarMore:
@@ -697,6 +771,12 @@ struct KeyboardToolbarView: View {
 
 					case .sshHosts:
 						SSHHostPickerRow(delegate: delegate)
+							.padding(.horizontal, 4)
+							.padding(.top, 5)
+							.frame(maxWidth: .infinity)
+
+					case .aiCommands:
+						AIPickerRow(delegate: delegate)
 							.padding(.horizontal, 4)
 							.padding(.top, 5)
 							.frame(maxWidth: .infinity)

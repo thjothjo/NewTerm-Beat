@@ -142,6 +142,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		keyInput.deleteProjectHandler = { [weak self] in self?.rootViewController?.trashProject($0) }
 		keyInput.connectSSHHostHandler = { [weak self] in self?.connectSSH(to: $0) }
 		keyInput.newSSHHostHandler = { [weak self] in self?.addSSHHost() }
+		keyInput.aiCommandHandler = { [weak self] in self?.insertAICommand($0) }
 		keyInput.attachImageHandler = { [weak self] in self?.attachImage() }
 
 		textViewTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.handleTextViewTap(_:)))
@@ -871,6 +872,14 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			}
 		})
 		present(alertController, animated: true)
+	}
+
+	/// Types an agent command, and leaves the return to the user.
+	///
+	/// Nothing is run automatically. Starting an agent, or sending it a prompt, is worth a glance
+	/// before committing to — and a slash command is nearly always followed by an argument anyway.
+	private func insertAICommand(_ command: AICommand) {
+		terminalController.write(Array(command.command.utf8))
 	}
 
 	private func presentError(title: String, error: Error) {
