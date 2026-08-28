@@ -13,12 +13,14 @@ protocol TabToolbarDataSource: AnyObject {
 	func numberOfTerminals() -> Int
 	func selectedTerminalIndex() -> Int
 	func terminalName(at index: Int) -> String
+	func isTerminalSplit(at index: Int) -> Bool
 }
 
 protocol TabToolbarDelegate: AnyObject {
 	func addTerminal()
 	func selectTerminal(at index: Int)
 	func removeTerminal(at index: Int)
+	func toggleSplit()
 
 	func openSettings()
 	func openPasswordManager()
@@ -156,6 +158,7 @@ class TabToolbarViewController: UIViewController {
 
 	func tabDidUpdate(at index: Int) {
 		state.terminals[index].title = dataSource?.terminalName(at: index) ?? .localize("Terminal")
+		state.terminals[index].isSplit = dataSource?.isTerminalSplit(at: index) ?? false
 	}
 
 	private func selectTerminal(at index: Int) {

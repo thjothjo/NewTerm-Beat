@@ -14,6 +14,9 @@ struct TerminalTab: Hashable {
 	var screenSize: ScreenSize
 	var isDirty: Bool
 	var hasBell: Bool
+	/// Whether this tab is showing two terminals side by side. Drives the split button, which offers
+	/// to undo the split rather than make another one.
+	var isSplit: Bool = false
 }
 
 class TabToolbarState: ObservableObject {
@@ -110,15 +113,18 @@ struct TabToolbarView: View {
 	@Environment(\.horizontalSizeClass)
 	private var horizontalSizeClass
 
+	@Environment(\.verticalSizeClass)
+	private var verticalSizeClass
+
 	var body: some View {
 		if horizontalSizeClass == .compact {
 			VStack(spacing: 2) {
 				HStack(alignment: .center, spacing: 6) {
 					leadingButtons
-					// Balances the three trailing buttons so the title stays centred: one real button on
-					// the leading side plus two buttons’ worth of empty space.
+					// Balances the trailing buttons so the title stays centred: the leading spacer is one
+					// button wide, so it needs the rest of them as empty space.
 					Color.clear
-						.frame(width: (Self.height + 6) * 2)
+						.frame(width: (Self.height + 6) * 3)
 					titleLabel
 					buttons
 				}
@@ -211,8 +217,31 @@ struct TabToolbarView: View {
 			.padding(.leading, 3)
 	}
 
+	/// Whether the selected tab is already split. Out of range while tabs are being rebuilt.
+	private var isSelectedTabSplit: Bool {
+		state.terminals.indices.contains(state.selectedIndex) && state.terminals[state.selectedIndex].isSplit
+	}
+
+	/// Splitting was reachable only from a hardware keyboard, so on a phone it may as well not have
+	/// existed. The icon shows what the tap will do: which way the split will land, or that the
+	/// second terminal is about to go away.
+	private var splitButtonImage: String {
+		if isSelectedTabSplit {
+			return "rectangle"
+		}
+		// Compact height is landscape on a phone, where there's width to spare and the split goes
+		// side by side; otherwise it stacks.
+		return verticalSizeClass == .compact ? "rectangle.split.2x1" : "rectangle.split.1x2"
+	}
+
 	private var buttons: some View {
 		HStack(spacing: 0) {
+			Button(action: { state.delegate?.toggleSplit() },
+						 label: { Image(systemName: splitButtonImage) })
+				.squareFrame(sideLength: Self.height)
+				.padding(.horizontal, 3)
+				.accessibilityLabel(isSelectedTabSplit ? "Close Split" : "Split Terminal")
+
 			Button(action: { state.delegate?.openPasswordManager() },
 						 label: { Image(systemName: "key.fill") })
 				.squareFrame(sideLength: Self.height)

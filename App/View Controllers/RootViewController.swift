@@ -230,6 +230,12 @@ class RootViewController: UIViewController {
 	}
 
 	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil, tabID: String? = nil) {
+		// Splitting nests: the tab's existing content becomes one half of a new split. Left unbounded
+		// that keeps going, and on a phone a third pane is a few characters wide and useful to nobody.
+		if axis != nil && isTerminalSplit(at: index) {
+			return
+		}
+
 		let splitViewController = TerminalSplitViewController()
 		splitViewController.projectPath = projectPath
 		if let tabID = tabID {
@@ -445,6 +451,44 @@ class RootViewController: UIViewController {
 
 	@objc func splitVertically() {
 		addTerminal(at: selectedTabIndex, axis: .horizontal)
+	}
+
+	/// Whether the tab at `index` is showing two terminals rather than one.
+	func isTerminalSplit(at index: Int) -> Bool {
+		guard terminals.indices.contains(index),
+					let split = terminals[index] as? TerminalSplitViewController else {
+			return false
+		}
+		return split.viewControllers.count > 1
+	}
+
+	/// The toolbar's split button: one tap splits, the next puts it back.
+	///
+	/// Which way it splits follows the shape of the screen — side by side where there's width to
+	/// share, stacked where there isn't — rather than being two separate commands the way the
+	/// keyboard shortcuts are. There's only ever one thing the button can do.
+	@objc func toggleSplit() {
+		if isTerminalSplit(at: selectedTabIndex) {
+			closeSplit()
+		} else if view.bounds.width > view.bounds.height {
+			splitVertically()
+		} else {
+			splitHorizontally()
+		}
+	}
+
+	/// Drops the pane the user *isn't* in, so what they were looking at is what fills the tab.
+	private func closeSplit() {
+		guard terminals.indices.contains(selectedTabIndex),
+					let split = terminals[selectedTabIndex] as? TerminalSplitViewController,
+					split.viewControllers.count > 1 else {
+			return
+		}
+		let keeping = split.selectedViewController
+		for viewController in split.viewControllers where viewController != keeping {
+			split.remove(viewController: viewController)
+		}
+		tabToolbar?.tabDidUpdate(at: selectedTabIndex)
 	}
 
 }

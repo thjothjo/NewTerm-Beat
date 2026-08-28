@@ -61,6 +61,11 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 	private var selectedIndex = 0
 
+	/// The pane the user last touched, so an action aimed at "this terminal" hits the one they're in.
+	var selectedViewController: BaseTerminalSplitViewControllerChild? {
+		viewControllers.indices.contains(selectedIndex) ? viewControllers[selectedIndex] : viewControllers.first
+	}
+
 	private var keyboardHeight: CGFloat = 0
 
 	override func loadView() {
