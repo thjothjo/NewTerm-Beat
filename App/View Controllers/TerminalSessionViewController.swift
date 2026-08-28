@@ -491,13 +491,35 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		}
 
 		if let detector = Self.pathDetector,
-			 let match = Self.firstMatch(of: detector, in: item.text, covering: offset),
-			 let url = Self.filzaURL(forPath: (item.text as NSString).substring(with: match.range)) {
-			UIApplication.shared.open(url)
-			return true
+			 let match = Self.firstMatch(of: detector, in: item.text, covering: offset) {
+			let path = (item.text as NSString).substring(with: match.range)
+			if let url = Self.filzaURL(forPath: path) {
+				// If nothing is installed to take the filza:// URL, open() fails silently and the tap does
+				// nothing. Fall back to cd-ing the terminal into the directory — useful in its own right,
+				// and it guarantees the tap always does *something* the user can see.
+				UIApplication.shared.open(url, options: [:]) { [weak self] opened in
+					if !opened {
+						self?.changeDirectory(into: path)
+					}
+				}
+				return true
+			}
 		}
 
 		return false
+	}
+
+	/// Fallback for a tapped path when nothing could open it: cd the shell into it (or its parent, if
+	/// it's a file). Types it as if the user had, so it lands in their history and they see it happen.
+	private func changeDirectory(into path: String) {
+		let resolved = (path as NSString).expandingTildeInPath
+		var isDirectory: ObjCBool = false
+		guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDirectory) else {
+			return
+		}
+		let target = isDirectory.boolValue ? resolved : (resolved as NSString).deletingLastPathComponent
+		let quoted = "'" + target.replacingOccurrences(of: "'", with: "'\\''") + "'"
+		terminalController.write(Array("cd \(quoted)\n".utf8))
 	}
 
 	/// `text` has one character per terminal cell, so a column is a character offset — but regexes
