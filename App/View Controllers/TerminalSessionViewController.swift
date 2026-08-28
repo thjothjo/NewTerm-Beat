@@ -263,28 +263,13 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Width the strip claims from the terminal: the strip itself plus a little breathing room.
 	private static let sideBarInset = KeyboardSideBarView.width + 8
 
-	/// How far in the strip sits on an edge with no Dynamic Island. Small enough to read as against
-	/// the edge, non-zero so the strip's own rounded corners don't touch the display's.
-	private static let sideBarEdgeInset: CGFloat = 8
 	/// How far the strip's ends come in when it's hugging the edge, so they clear the display's
-	/// rounded corners.
-	///
-	/// A corner of radius r has stopped intruding past `sideBarEdgeInset` at
-	/// `r - sqrt(r² - (r - inset)²)` from the end of the screen. At an 8pt inset that is 26.4pt for
-	/// the 55pt corners of the current Pro Max, 26.8pt for 55.5pt, and less for every smaller radius
-	/// Apple ships — so 28pt clears all of them. The strip scrolls, so the length this costs is
-	/// length it can scroll back.
-	private static let sideBarCornerClearance: CGFloat = 28
+	/// rounded corners. The strip scrolls, so the length this costs is length it can scroll back.
+	private static let sideBarCornerClearance = DisplayEdge.clearance(atDistance: DisplayEdge.inset)
 
 	/// Whether the Dynamic Island is on the same edge the strip is pinned to.
-	///
-	/// The trap here is that `UIInterfaceOrientation`'s landscape cases are defined as the *opposite*
-	/// `UIDeviceOrientation` — `UIInterfaceOrientationLandscapeLeft = UIDeviceOrientationLandscapeRight`.
-	/// So interface `.landscapeRight` is the device rotated left, which puts its top edge — and the
-	/// island with it — on the left, where the strip is. Reading the names at face value put the
-	/// clearance on the wrong side.
 	private var isDynamicIslandOnLeadingEdge: Bool {
-		view.window?.windowScene?.interfaceOrientation == .landscapeRight
+		DisplayEdge.isIslandOnLeadingEdge(for: view.window?.windowScene?.interfaceOrientation)
 	}
 
 	private func updateSideBar() {
@@ -331,9 +316,9 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		let safeInset = view.window?.safeAreaInsets.left ?? 0
 		// Only worth reclaiming where iOS is actually holding space back. A phone with no island and
 		// square display corners reports no inset, and there the strip is already flush.
-		let canHugEdge = !isDynamicIslandOnLeadingEdge && safeInset > Self.sideBarEdgeInset
+		let canHugEdge = !isDynamicIslandOnLeadingEdge && safeInset > DisplayEdge.inset
 
-		let leadingInset = canHugEdge ? Self.sideBarEdgeInset : safeInset
+		let leadingInset = canHugEdge ? DisplayEdge.inset : safeInset
 		let endInset = canHugEdge ? Self.sideBarCornerClearance : 4
 		sideBarLeadingConstraint?.constant = leadingInset
 		sideBarTopConstraint?.constant = endInset

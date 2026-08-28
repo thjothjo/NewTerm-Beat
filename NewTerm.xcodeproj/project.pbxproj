@@ -64,6 +64,7 @@
 		4EBBCB21288AB710002EAE00 /* UnicodeUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBCB20288AB710002EAE00 /* UnicodeUtil.swift */; };
 		4ECEE6ED25F9B87E00FAD26B /* TerminalPasswordInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEE6EC25F9B87E00FAD26B /* TerminalPasswordInputView.swift */; };
 		4ECFC23825FA3D2C007B0F51 /* LayoutGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECFC23725FA3D2C007B0F51 /* LayoutGuide.swift */; };
+		4EAA10082A0100080000ABCD /* DisplayEdge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10072A0100070000ABCD /* DisplayEdge.swift */; };
 		4ECFC24625FCA67D007B0F51 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB969622B5481B00585BE6 /* RootViewController.swift */; };
 		4ED1273125F9E8F60049F59B /* UIColor+AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED1273025F9E8F60049F59B /* UIColor+AppColors.swift */; };
 		4EDC998E26F4401B0030C1F9 /* SettingsInterfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EDC998D26F4401B0030C1F9 /* SettingsInterfaceView.swift */; };
@@ -205,6 +206,7 @@
 		4EBBCB20288AB710002EAE00 /* UnicodeUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnicodeUtil.swift; sourceTree = "<group>"; };
 		4ECEE6EC25F9B87E00FAD26B /* TerminalPasswordInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPasswordInputView.swift; sourceTree = "<group>"; };
 		4ECFC23725FA3D2C007B0F51 /* LayoutGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutGuide.swift; sourceTree = "<group>"; };
+		4EAA10072A0100070000ABCD /* DisplayEdge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayEdge.swift; sourceTree = "<group>"; };
 		4ECFC23B25FCA592007B0F51 /* NewTerm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NewTerm.entitlements; sourceTree = "<group>"; };
 		4ED1273025F9E8F60049F59B /* UIColor+AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIColor+AppColors.swift"; sourceTree = "<group>"; };
 		4EDC998D26F4401B0030C1F9 /* SettingsInterfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsInterfaceView.swift; sourceTree = "<group>"; };
@@ -408,6 +410,7 @@
 				4EA7D41026F425B00031F078 /* SwiftUI Helpers */,
 				4ED1273025F9E8F60049F59B /* UIColor+AppColors.swift */,
 				4ECFC23725FA3D2C007B0F51 /* LayoutGuide.swift */,
+				4EAA10072A0100070000ABCD /* DisplayEdge.swift */,
 				4E32378E26FB2D4400AEDA06 /* UIApplication+Additions.swift */,
 			);
 			path = UI;
@@ -785,6 +788,7 @@
 				4E98081E2618551D00E41883 /* SettingsFontView.swift in Sources */,
 				4EECEADF289A90D300AA919B /* TabToolbarView.swift in Sources */,
 				4ECFC23825FA3D2C007B0F51 /* LayoutGuide.swift in Sources */,
+				4EAA10082A0100080000ABCD /* DisplayEdge.swift in Sources */,
 				4E98081C261850E600E41883 /* KeyValueView.swift in Sources */,
 				4ECEE6ED25F9B87E00FAD26B /* TerminalPasswordInputView.swift in Sources */,
 				4E85FA0127FC32D000092492 /* TerminalView.swift in Sources */,

@@ -37,6 +37,8 @@ class TabToolbarViewController: UIViewController {
 
 	private var backdropView: UIToolbar!
 	private var hostingView: UIHostingView<AnyView>!
+	private var leadingConstraint: NSLayoutConstraint!
+	private var trailingConstraint: NSLayoutConstraint!
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -56,12 +58,38 @@ class TabToolbarViewController: UIViewController {
 		hostingView.setContentHuggingPriority(.fittingSizeLevel, for: .vertical)
 		view.addSubview(hostingView)
 
+		// Pinned to the view's own edges rather than its safe area, so the side insets can be set per
+		// edge — the safe area can't tell the Dynamic Island's side from the empty one.
+		leadingConstraint = hostingView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+		trailingConstraint = view.trailingAnchor.constraint(equalTo: hostingView.trailingAnchor)
+
 		NSLayoutConstraint.activate([
 			hostingView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-			hostingView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
 			hostingView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-			hostingView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor)
+			leadingConstraint,
+			trailingConstraint
 		])
+	}
+
+	override func viewWillLayoutSubviews() {
+		super.viewWillLayoutSubviews()
+		updateHorizontalInsets()
+	}
+
+	/// Brings the bar in only as far as each edge actually needs.
+	///
+	/// In landscape both side insets come back the same, sized for the Dynamic Island, which left the
+	/// tabs a long way in from the edge that has no island — further in than the keyboard strip below
+	/// them. The edge with the island keeps the full inset; the other one only has to clear the
+	/// display's rounded corner, and the bar's leading spacer is already wider than that corner
+	/// reaches, so nothing visible sits in it.
+	private func updateHorizontalInsets() {
+		let safeInsets = view.safeAreaInsets
+		let islandLeading = DisplayEdge.isIslandOnLeadingEdge(for: view.window?.windowScene?.interfaceOrientation)
+		// `min` so an edge that iOS isn't holding space back on — portrait, or a display with square
+		// corners — stays where it is rather than being pushed in.
+		leadingConstraint.constant = islandLeading ? safeInsets.left : min(safeInsets.left, DisplayEdge.inset)
+		trailingConstraint.constant = islandLeading ? min(safeInsets.right, DisplayEdge.inset) : safeInsets.right
 	}
 
 	@objc private func addTerminal() {
