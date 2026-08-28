@@ -8,7 +8,7 @@
 
 把 NewTerm-Beat 打造成越狱 iPhone 上跑 AI CLI（codex / claude code）的主力终端：
 选择复制、链接/Filza 跳转、项目管理、会话续接可靠可用；补齐触屏分屏、
-iCloud 项目目录、SSH 服务器管理、AI skill 面板与模型锁定、主题与中文优化、
+iCloud 项目目录、SSH 服务器管理、AI skill 面板、主题与中文优化、
 灵动岛状态显示。
 
 ## 2. 需求核实结论（2026-08-28，基于 HEAD 5b3df0e）
@@ -57,11 +57,11 @@ HEAD 编译验证：`xcodebuild -scheme "NewTerm (iOS)" -configuration Release` 
 - 终端内 / AI 输出里 `ssh 名字` 天然生效，无第二份配置
 - 完成条件：增删改查 + 一键连接真机可用；config 手工改动后列表同步
 
-### 阶段 5 · AI 面板（skill 管理 + 模型锁定）
+### 阶段 5 · AI 面板（skill 管理 + agent 调用）
 - 面板列出 `~/.claude/skills`、`~/.codex` 及项目级 skills；一键向当前终端插入调用命令
-- 模型锁定：读写 `~/.claude/settings.json`、`~/.codex/config.toml` 的 model 字段，显示当前值、一键固定
-- 边界：不做 skill 内容编辑器
-- 完成条件：列表准确、插入命令正确、模型字段写入后 CLI 实际生效（真机验证）
+- 边界：不做 skill 内容编辑器；**不含"模型锁定"功能**
+- 说明：需求 9「禁止模型降级」是用户对 AI 助手（我）的工作要求，非 app 内功能，故从本阶段移除
+- 完成条件：列表准确、插入命令正确（真机验证）
 
 ### 阶段 6 · 主题 + 中文
 - 主题选择器加预览色板；补 Dracula / Solarized / Catppuccin 等主流配色
