@@ -8,6 +8,11 @@
 	<true/>
 	<key>com.apple.private.security.no-container</key>
 	<true/>
+	<!-- The kernel guards ~/Library/Mobile Documents; without this every open of it comes back
+	     EPERM, even as root. Measured on-device: this one key is the whole difference, and the
+	     broader sandbox exemptions add nothing. -->
+	<key>com.apple.private.security.storage.MobileDocuments</key>
+	<true/>
 	<key>com.apple.security.iokit-user-client-class</key>
 	<array>
 		<string>IOUserClient</string>

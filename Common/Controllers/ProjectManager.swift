@@ -119,6 +119,99 @@ public enum ProjectManager {
 		return destination
 	}
 
+	// MARK: - iCloud Drive
+
+	/// Our folder in iCloud Drive, where copies of projects go so they can be seen from a Mac.
+	///
+	/// A literal path, not `~`-expanded: `~` for everything else here means the jailbreak's home,
+	/// and iCloud Drive only exists under the real one. Nothing in `rootURL`'s expansion applies.
+	public static let iCloudRootURL = URL(fileURLWithPath: "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/NewTerm",
+																				isDirectory: true)
+
+	/// Why iCloud Drive can't be used, or nil when it can.
+	///
+	/// Reading the folder rather than asking about the account: the entitlement that gets us in is
+	/// checked by the kernel, so the only answer that means anything is whether the open succeeded.
+	public static func iCloudUnavailableReason() -> String? {
+		let container = iCloudRootURL.deletingLastPathComponent()
+		var isDirectory: ObjCBool = false
+		guard FileManager.default.fileExists(atPath: container.path, isDirectory: &isDirectory),
+					isDirectory.boolValue else {
+			return .localize("iCloud Drive isn’t set up on this device.")
+		}
+		guard (try? FileManager.default.contentsOfDirectory(atPath: container.path)) != nil else {
+			return .localize("This build can’t reach iCloud Drive.")
+		}
+		return nil
+	}
+
+	/// Names of the project folders already copied to iCloud Drive.
+	public static func iCloudProjectNames() -> [String] {
+		((try? FileManager.default.contentsOfDirectory(atPath: iCloudRootURL.path)) ?? [])
+			.filter { !$0.hasPrefix(".") }
+			.sorted()
+	}
+
+	/// Copies a project into iCloud Drive, replacing whatever was there under the same name.
+	///
+	/// A copy, not a move or a link: the terminal's shell can't reach iCloud Drive — it's a separate
+	/// process and the exemption that lets *us* in isn't inherited across exec — so the working copy
+	/// has to stay where a shell can open it.
+	public static func exportToICloud(_ project: Project) throws {
+		try FileManager.default.createDirectory(at: iCloudRootURL, withIntermediateDirectories: true)
+		let destination = iCloudRootURL.appendingPathComponent(project.name, isDirectory: true)
+		try replaceItem(at: destination, withCopyOf: project.url)
+	}
+
+	/// Copies a project back out of iCloud Drive, replacing the local copy of the same name.
+	public static func importFromICloud(named name: String) throws {
+		let source = iCloudRootURL.appendingPathComponent(name, isDirectory: true)
+		try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+		try replaceItem(at: rootURL.appendingPathComponent(name, isDirectory: true), withCopyOf: source)
+		NotificationCenter.default.post(name: didChangeNotification, object: nil)
+	}
+
+	/// Files iCloud has evicted to save space, which are on disk as stubs rather than contents.
+	///
+	/// Copying one gives a `.icloud` placeholder, not the file — so an import that hit any of these
+	/// would look like it worked and quietly produce a project full of empty markers.
+	public static func evictedFileNames(inICloudProjectNamed name: String) -> [String] {
+		let root = iCloudRootURL.appendingPathComponent(name, isDirectory: true)
+		guard let enumerator = FileManager.default.enumerator(atPath: root.path) else {
+			return []
+		}
+		return enumerator
+			.compactMap { $0 as? String }
+			.filter { ($0 as NSString).pathExtension == "icloud" }
+			.map { path -> String in
+				// `.foo.txt.icloud` is a placeholder for `foo.txt`.
+				let file = (path as NSString).lastPathComponent
+				let stripped = (file as NSString).deletingPathExtension
+				return ((path as NSString).deletingLastPathComponent as NSString)
+					.appendingPathComponent(stripped.hasPrefix(".") ? String(stripped.dropFirst()) : stripped)
+			}
+	}
+
+	/// Copies `source` over `destination` without leaving a half-written folder behind if it fails.
+	private static func replaceItem(at destination: URL, withCopyOf source: URL) throws {
+		let staging = destination.deletingLastPathComponent()
+			.appendingPathComponent(".\(destination.lastPathComponent).incoming", isDirectory: true)
+		try? FileManager.default.removeItem(at: staging)
+		try FileManager.default.copyItem(at: source, to: staging)
+
+		do {
+			// Swapped in only once the copy is complete, so an interrupted copy can't be mistaken for
+			// the real thing.
+			if FileManager.default.fileExists(atPath: destination.path) {
+				try FileManager.default.removeItem(at: destination)
+			}
+			try FileManager.default.moveItem(at: staging, to: destination)
+		} catch {
+			try? FileManager.default.removeItem(at: staging)
+			throw error
+		}
+	}
+
 	/// The command that opens a project.
 	///
 	/// With tmux the session is named after the project and reused, which is the only way a session

@@ -79,6 +79,9 @@ struct SettingsView: View {
 				}
 
 				Toggle("Open in tmux", isOn: preferences.$useTmuxForProjects)
+
+				NavigationLink(destination: SettingsICloudView(),
+											 label: { Text("iCloud Drive") })
 			}
 
 			PreferencesGroup(header: Text("Keyboard"),

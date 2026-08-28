@@ -33,6 +33,7 @@
 		4E57499826FEE90700D94DF5 /* PreferencesGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E57499726FEE90700D94DF5 /* PreferencesGroup.swift */; };
 		4E57499A26FEED9800D94DF5 /* PreferencesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E57499926FEED9800D94DF5 /* PreferencesList.swift */; };
 		4E5E817526F2EBE000C4DB6D /* SettingsPerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5E817426F2EBE000C4DB6D /* SettingsPerformanceView.swift */; };
+		4EAA100226F2EBE000C4DB70 /* SettingsICloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA100126F2EBE000C4DB70 /* SettingsICloudView.swift */; };
 		4E69E3932951E39A00B5BD25 /* libiosexec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4E69E3922951E39A00B5BD25 /* libiosexec.xcframework */; platformFilter = ios; };
 		4E69E3992953231300B5BD25 /* SponsorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E69E3982953231300B5BD25 /* SponsorsView.swift */; };
 		4E85FA0127FC32D000092492 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E85FA0027FC32D000092492 /* TerminalView.swift */; };
@@ -174,6 +175,7 @@
 		4E57499726FEE90700D94DF5 /* PreferencesGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesGroup.swift; sourceTree = "<group>"; };
 		4E57499926FEED9800D94DF5 /* PreferencesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesList.swift; sourceTree = "<group>"; };
 		4E5E817426F2EBE000C4DB6D /* SettingsPerformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPerformanceView.swift; sourceTree = "<group>"; };
+		4EAA100126F2EBE000C4DB70 /* SettingsICloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsICloudView.swift; sourceTree = "<group>"; };
 		4E69E3862951E00F00B5BD25 /* libiosexec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libiosexec.a; path = Vendor/libiosexec.a; sourceTree = "<group>"; };
 		4E69E3892951E10C00B5BD25 /* libiosexec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libiosexec.a; path = Vendor/libiosexec/libiosexec.a; sourceTree = "<group>"; };
 		4E69E3922951E39A00B5BD25 /* libiosexec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libiosexec.xcframework; path = Vendor/libiosexec/libiosexec.xcframework; sourceTree = "<group>"; };
@@ -424,6 +426,7 @@
 				4EDC998F26F440650030C1F9 /* iOS */,
 				4EDC998C26F440090030C1F9 /* Mac */,
 				4E5E817426F2EBE000C4DB6D /* SettingsPerformanceView.swift */,
+				4EAA100126F2EBE000C4DB70 /* SettingsICloudView.swift */,
 				4E1028D0275C4BD9001A34AB /* SettingsAdvancedView.swift */,
 				4E980827261879D200E41883 /* SettingsAboutView.swift */,
 				4E0A979F2685CDE30022F569 /* SettingsAcknowledgementsView.swift */,
@@ -808,6 +811,7 @@
 				1EEB4F66262CF591005E5B79 /* SafariView.swift in Sources */,
 				4E9B32E0260C66B5006A1FBC /* Bundle+NewTermAdditions.swift in Sources */,
 				4E5E817526F2EBE000C4DB6D /* SettingsPerformanceView.swift in Sources */,
+				4EAA100226F2EBE000C4DB70 /* SettingsICloudView.swift in Sources */,
 				CFBB96CD22B5481B00585BE6 /* TerminalKeyInput.swift in Sources */,
 				4E9FB99426184356005AFCC8 /* SettingsView.swift in Sources */,
 				4E460129261FF23F004DBCC2 /* SettingsSceneDelegate.swift in Sources */,
