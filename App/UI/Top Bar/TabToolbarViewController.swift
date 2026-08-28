@@ -69,11 +69,32 @@ class TabToolbarViewController: UIViewController {
 			leadingConstraint,
 			trailingConstraint
 		])
+
+		// See `setNeedsInsetUpdate` — a 180° flip notifies nothing else.
+		UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+		NotificationCenter.default.addObserver(self, selector: #selector(self.setNeedsInsetUpdate), name: UIDevice.orientationDidChangeNotification, object: nil)
 	}
 
 	override func viewWillLayoutSubviews() {
 		super.viewWillLayoutSubviews()
 		updateHorizontalInsets()
+	}
+
+	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+		super.viewWillTransition(to: size, with: coordinator)
+		coordinator.animate(alongsideTransition: nil) { _ in
+			self.setNeedsInsetUpdate()
+		}
+	}
+
+	/// Asks for a layout pass rather than recomputing here, so the insets are worked out once UIKit
+	/// has settled the new interface orientation instead of racing it.
+	///
+	/// A 180° landscape flip moves the Dynamic Island to the other side without changing the bounds,
+	/// the traits, or the safe-area insets — those are symmetric — so no callback fires on its own and
+	/// the bar would keep the insets it worked out for the side the island used to be on.
+	@objc private func setNeedsInsetUpdate() {
+		view.setNeedsLayout()
 	}
 
 	/// Brings the bar in only as far as each edge actually needs.

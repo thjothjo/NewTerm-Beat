@@ -203,6 +203,12 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		// to be saved on iPhone too, so hang it off the app-level notification, which always fires.
 		NotificationCenter.default.addObserver(self, selector: #selector(self.appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
 
+		// Second path to the same relayout. A 180° landscape flip is the case that needs it, and it is
+		// exactly the case where `viewWillTransition` is passed an unchanged size — so don't rely on
+		// that alone. Both just mark the layout dirty, so firing twice costs nothing.
+		UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+		NotificationCenter.default.addObserver(self, selector: #selector(self.setNeedsSideBarUpdate), name: UIDevice.orientationDidChangeNotification, object: nil)
+
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
 
 		updateSideBar()
@@ -255,6 +261,26 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		super.traitCollectionDidChange(previousTraitCollection)
 		updateSideBar()
 		updateScreenSize()
+	}
+
+	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+		super.viewWillTransition(to: size, with: coordinator)
+		coordinator.animate(alongsideTransition: nil) { _ in
+			self.setNeedsSideBarUpdate()
+		}
+	}
+
+	/// Asks for a layout pass rather than recomputing here, so the inset is worked out once UIKit has
+	/// settled the new interface orientation instead of racing it.
+	///
+	/// Flipping 180° between the two landscape orientations moves the Dynamic Island to the other
+	/// side while changing nothing any of the usual callbacks watch: the bounds are identical, the
+	/// traits are identical, and the safe-area insets are symmetric so they don't change either.
+	/// Nothing asked for a relayout, so the strip kept the inset it had worked out for the side the
+	/// island used to be on — and sat under it.
+	@objc private func setNeedsSideBarUpdate() {
+		view.setNeedsLayout()
+		parent?.viewIfLoaded?.setNeedsLayout()
 	}
 
 	/// Shows the landscape key strip on the leading edge, and gives it its own space rather than
