@@ -112,7 +112,13 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 
 	@objc private func preferencesUpdated() {
 		let preferences = Preferences.shared
-		window?.overrideUserInterfaceStyle = preferences.userInterfaceStyle
+		// Following the system means leaving the window alone so it can — overriding the style would
+		// pin it, and then the "system" it's meant to follow never changes. Otherwise the window is
+		// forced to match the chosen theme's light/dark, so an SF Symbol or a sheet drawn over the
+		// terminal doesn't come up in the wrong appearance.
+		window?.overrideUserInterfaceStyle = preferences.followsSystemAppearance
+			? .unspecified
+			: preferences.userInterfaceStyle
 	}
 
 	// MARK: - Updates

@@ -106,6 +106,44 @@ public class Preferences: NSObject, ObservableObject {
 		didSet { colorMapChanged() }
 	}
 
+	/// Switch between a light and a dark theme with the system, instead of one fixed theme. With this
+	/// on, `themeName` is ignored in favour of `lightThemeName` / `darkThemeName`.
+	@AppStorage("followsSystemAppearance")
+	public var followsSystemAppearance: Bool = false {
+		willSet { objectWillChange.send() }
+		didSet { colorMapChanged() }
+	}
+
+	@AppStorage("lightThemeName")
+	public var lightThemeName: String = "Basic" {
+		willSet { objectWillChange.send() }
+		didSet { colorMapChanged() }
+	}
+
+	@AppStorage("darkThemeName")
+	public var darkThemeName: String = "Cursor" {
+		willSet { objectWillChange.send() }
+		didSet { colorMapChanged() }
+	}
+
+	/// The system light/dark setting, kept up to date by the scene so the resolved theme can follow it.
+	/// Not persisted — it's the live system state, read fresh each launch.
+	public var systemInterfaceStyle: UIUserInterfaceStyle = UITraitCollection.current.userInterfaceStyle {
+		didSet {
+			if oldValue != systemInterfaceStyle {
+				colorMapChanged()
+			}
+		}
+	}
+
+	/// The theme actually in effect, after resolving the follow-system setting.
+	public var effectiveThemeName: String {
+		guard followsSystemAppearance else {
+			return themeName
+		}
+		return systemInterfaceStyle == .dark ? darkThemeName : lightThemeName
+	}
+
 	@AppStorage("keyboardAccessoryStyle")
 	public var keyboardAccessoryStyle: KeyboardButtonStyle = .text {
 		willSet { objectWillChange.send() }
@@ -203,7 +241,7 @@ public class Preferences: NSObject, ObservableObject {
 	}
 
 	private func colorMapChanged() {
-		let theme = AppTheme.predefined[themeName] ?? AppTheme()
+		let theme = AppTheme.predefined[effectiveThemeName] ?? AppTheme()
 		objectWillChange.send()
 		colorMap = ColorMap(theme: theme)
 	}

@@ -28,7 +28,71 @@
 		<key>text</key>
 		<string>#ffffff</string>
 	</dict>
-	<key>Grass</key> <!-- tastes badddd -->
+	<key>Cursor</key>
+	<dict>
+		<key>background</key>
+		<string>#181818</string>
+		<key>boldText</key>
+		<string>#ffffff</string>
+		<key>colorTable</key>
+		<array>
+			<string>#1e1e1e</string>
+			<string>#f14c4c</string>
+			<string>#23d18b</string>
+			<string>#e5c07b</string>
+			<string>#4a9eff</string>
+			<string>#c678dd</string>
+			<string>#56b6c2</string>
+			<string>#abb2bf</string>
+			<string>#5c6370</string>
+			<string>#f14c4c</string>
+			<string>#23d18b</string>
+			<string>#e5c07b</string>
+			<string>#61afef</string>
+			<string>#c678dd</string>
+			<string>#56b6c2</string>
+			<string>#ffffff</string>
+		</array>
+		<key>cursor</key>
+		<string>#4a9eff</string>
+		<key>isDark</key>
+		<true/>
+		<key>text</key>
+		<string>#d4d4d4</string>
+	</dict>
+	<key>Graphite</key>
+	<dict>
+		<key>background</key>
+		<string>#1c1b1a</string>
+		<key>boldText</key>
+		<string>#f5f2ec</string>
+		<key>colorTable</key>
+		<array>
+			<string>#26241f</string>
+			<string>#d16b5a</string>
+			<string>#8faa6a</string>
+			<string>#d9a95b</string>
+			<string>#6a94a8</string>
+			<string>#a88bb0</string>
+			<string>#6fb0a8</string>
+			<string>#cfc9be</string>
+			<string>#57534a</string>
+			<string>#e08872</string>
+			<string>#a4c184</string>
+			<string>#efc27a</string>
+			<string>#8bb0c4</string>
+			<string>#c0a3c8</string>
+			<string>#8fccc2</string>
+			<string>#f5f2ec</string>
+		</array>
+		<key>cursor</key>
+		<string>#d9915b</string>
+		<key>isDark</key>
+		<true/>
+		<key>text</key>
+		<string>#d6d3cd</string>
+	</dict>
+	<key>Grass</key>
 	<dict>
 		<key>background</key>
 		<string>#13773d</string>
@@ -54,37 +118,37 @@
 		<key>text</key>
 		<string>#13773d</string>
 	</dict>
-	<key>kirb</key>
+	<key>Linear</key>
 	<dict>
 		<key>background</key>
-		<string>#0f0f0f</string>
+		<string>#0d0e12</string>
 		<key>boldText</key>
 		<string>#ffffff</string>
 		<key>colorTable</key>
 		<array>
-			<string>#000000</string>
-			<string>#ea2305</string>
-			<string>#63c33a</string>
-			<string>#f0d200</string>
-			<string>#0093cb</string>
-			<string>#8e65cb</string>
-			<string>#00c2ea</string>
-			<string>#cacaca</string>
-			<string>#797979</string>
-			<string>#ff290d</string>
-			<string>#00db00</string>
-			<string>#eae600</string>
-			<string>#00a9fe</string>
-			<string>#7b4ebd</string>
-			<string>#00e8ea</string>
-			<string>#eaeaea</string>
+			<string>#1a1b20</string>
+			<string>#e5484d</string>
+			<string>#3dd68c</string>
+			<string>#e2c08d</string>
+			<string>#5b8def</string>
+			<string>#8b7fff</string>
+			<string>#4cc9e0</string>
+			<string>#b4b6bd</string>
+			<string>#4a4d57</string>
+			<string>#f16a6f</string>
+			<string>#5be3a7</string>
+			<string>#f0d3a0</string>
+			<string>#7aa2f7</string>
+			<string>#a394ff</string>
+			<string>#6fd8ec</string>
+			<string>#ffffff</string>
 		</array>
 		<key>cursor</key>
-		<string>#00d900</string>
+		<string>#8b7fff</string>
 		<key>isDark</key>
 		<true/>
 		<key>text</key>
-		<string>#f2f2f2</string>
+		<string>#c9cbd1</string>
 	</dict>
 	<key>Man Page</key>
 	<dict>
@@ -195,6 +259,38 @@
 		<true/>
 		<key>text</key>
 		<string>#ffffff</string>
+	</dict>
+	<key>kirb</key>
+	<dict>
+		<key>background</key>
+		<string>#0f0f0f</string>
+		<key>boldText</key>
+		<string>#ffffff</string>
+		<key>colorTable</key>
+		<array>
+			<string>#000000</string>
+			<string>#ea2305</string>
+			<string>#63c33a</string>
+			<string>#f0d200</string>
+			<string>#0093cb</string>
+			<string>#8e65cb</string>
+			<string>#00c2ea</string>
+			<string>#cacaca</string>
+			<string>#797979</string>
+			<string>#ff290d</string>
+			<string>#00db00</string>
+			<string>#eae600</string>
+			<string>#00a9fe</string>
+			<string>#7b4ebd</string>
+			<string>#00e8ea</string>
+			<string>#eaeaea</string>
+		</array>
+		<key>cursor</key>
+		<string>#00d900</string>
+		<key>isDark</key>
+		<true/>
+		<key>text</key>
+		<string>#f2f2f2</string>
 	</dict>
 </dict>
 </plist>

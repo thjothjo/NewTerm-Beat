@@ -230,6 +230,15 @@ class RootViewController: UIViewController {
 		view.backgroundColor = preferences.colorMap.background
 	}
 
+	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+		super.traitCollectionDidChange(previousTraitCollection)
+		// The one place that reliably learns the system flipped light/dark. Handing it to Preferences
+		// is what lets a follow-system theme actually follow.
+		if previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
+			Preferences.shared.systemInterfaceStyle = traitCollection.userInterfaceStyle
+		}
+	}
+
 	// MARK: - Tab management
 
 	@objc func newTab() {
