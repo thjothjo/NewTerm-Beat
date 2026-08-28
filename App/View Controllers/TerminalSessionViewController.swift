@@ -34,6 +34,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var selectionHandlePanGestureRecognizer: UIPanGestureRecognizer!
 	private var sideBarView: KeyboardSideBarView?
 	private var sideBarLeadingConstraint: NSLayoutConstraint?
+	private var sideBarTopConstraint: NSLayoutConstraint?
+	private var sideBarBottomConstraint: NSLayoutConstraint?
 
 	private var state = TerminalState()
 
@@ -261,6 +263,28 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Width the strip claims from the terminal: the strip itself plus a little breathing room.
 	private static let sideBarInset = KeyboardSideBarView.width + 8
 
+	/// How far in the strip sits on an edge with no Dynamic Island. Small enough to read as against
+	/// the edge, non-zero so the strip's own rounded corners don't touch the display's.
+	private static let sideBarEdgeInset: CGFloat = 8
+	/// How far the strip's ends come in when it's hugging the edge, so they clear the display's
+	/// rounded corners.
+	///
+	/// A corner of radius r has stopped intruding past `sideBarEdgeInset` at
+	/// `r - sqrt(r² - (r - inset)²)` from the end of the screen. At an 8pt inset that is 26.4pt for
+	/// the 55pt corners of the current Pro Max, 26.8pt for 55.5pt, and less for every smaller radius
+	/// Apple ships — so 28pt clears all of them. The strip scrolls, so the length this costs is
+	/// length it can scroll back.
+	private static let sideBarCornerClearance: CGFloat = 28
+
+	/// Whether the Dynamic Island is on the same edge the strip is pinned to.
+	///
+	/// `landscapeLeft` puts the device's top edge — where the island is — on the left, which is where
+	/// the strip lives. In portrait the side insets are zero anyway, so treating it as the island side
+	/// keeps the strip flush, which is what it should be there.
+	private var isDynamicIslandOnLeadingEdge: Bool {
+		view.window?.windowScene?.interfaceOrientation != .landscapeRight
+	}
+
 	private func updateSideBar() {
 		let shouldShow = TerminalKeyInput.usesSideBar(for: traitCollection)
 
@@ -282,33 +306,42 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			// Top and bottom are pinned rather than centred with inequalities: those left the height up
 			// to the hosting view's intrinsic size, and without that the strip has no defined height at
 			// all — it renders wrong and won't scroll.
-			NSLayoutConstraint.activate([
-				leading,
-				sideBar.topAnchor.constraint(equalTo: host.safeAreaLayoutGuide.topAnchor, constant: 4),
-				sideBar.bottomAnchor.constraint(equalTo: host.safeAreaLayoutGuide.bottomAnchor, constant: -4)
-			])
+			let top = sideBar.topAnchor.constraint(equalTo: host.safeAreaLayoutGuide.topAnchor, constant: 4)
+			let bottom = sideBar.bottomAnchor.constraint(equalTo: host.safeAreaLayoutGuide.bottomAnchor, constant: -4)
+			sideBarTopConstraint = top
+			sideBarBottomConstraint = bottom
+			NSLayoutConstraint.activate([leading, top, bottom])
 			sideBarView = sideBar
 		} else if !shouldShow,
 							let sideBar = sideBarView {
 			sideBar.removeFromSuperview()
 			sideBarView = nil
 			sideBarLeadingConstraint = nil
+			sideBarTopConstraint = nil
+			sideBarBottomConstraint = nil
 		}
 
-		// Inside the safe area, whichever side the Dynamic Island happens to be on. Insetting only on
-		// the island side and hugging the physical edge on the other left the strip sitting entirely
-		// outside the safe area there — measured at x=0..53 against a 62pt inset — where the display's
-		// curve clips the keys. iOS reporting the same inset on both sides in landscape isn't the
-		// unhelpful quirk the old comment took it for: it is the margin that clears the island on one
-		// side and the corner radius on the other.
-		let leadingInset = view.window?.safeAreaInsets.left ?? 0
+		// In landscape iOS reports the same inset on both sides — enough to clear the Dynamic Island —
+		// so following it blindly parked the strip 59pt in even on the side with no island, a gap wider
+		// than the strip itself. On that side the only thing to clear is the display's rounded corner,
+		// and a corner only intrudes at the very ends of the strip: pulling its ends in by
+		// `cornerClearance` lets the rest of it sit against the edge.
+		let safeInset = view.window?.safeAreaInsets.left ?? 0
+		// Only worth reclaiming where iOS is actually holding space back. A phone with no island and
+		// square display corners reports no inset, and there the strip is already flush.
+		let canHugEdge = !isDynamicIslandOnLeadingEdge && safeInset > Self.sideBarEdgeInset
+
+		let leadingInset = canHugEdge ? Self.sideBarEdgeInset : safeInset
+		let endInset = canHugEdge ? Self.sideBarCornerClearance : 4
 		sideBarLeadingConstraint?.constant = leadingInset
+		sideBarTopConstraint?.constant = endInset
+		sideBarBottomConstraint?.constant = -endInset
 
 		// Whatever the strip still covers of the text area, the terminal gives up. Our view already
 		// starts inside the screen by the safe-area inset, so when the strip is flush with the edge
-		// there's usually no overlap left at all.
-		let overhang = view.window?.safeAreaInsets.left ?? 0
-		let offset = shouldShow ? max(0, leadingInset + Self.sideBarInset - overhang) : 0
+		// there's usually no overlap left at all — hugging the edge hands the terminal back the width
+		// the strip used to sit in.
+		let offset = shouldShow ? max(0, leadingInset + Self.sideBarInset - safeInset) : 0
 		let frame = CGRect(x: offset,
 											 y: 0,
 											 width: max(0, keyInput.bounds.width - offset),
