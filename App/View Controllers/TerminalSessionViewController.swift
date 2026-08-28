@@ -369,10 +369,16 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		let canHugEdge = !isDynamicIslandOnLeadingEdge && safeInset > DisplayEdge.inset
 
 		let leadingInset = canHugEdge ? DisplayEdge.inset : safeInset
-		let endInset = canHugEdge ? Self.sideBarCornerClearance : 4
+		// Only make up the shortfall. The ends are already held off the display's corners by the tab
+		// bar above and the home indicator below, and adding the full clearance on top of those cost
+		// the strip a button's worth of height for nothing.
+		let hostInsets = host.safeAreaInsets
+		let endInset = { (existing: CGFloat) -> CGFloat in
+			canHugEdge ? max(4, Self.sideBarCornerClearance - existing) : 4
+		}
 		sideBarLeadingConstraint?.constant = leadingInset
-		sideBarTopConstraint?.constant = endInset
-		sideBarBottomConstraint?.constant = -endInset
+		sideBarTopConstraint?.constant = endInset(hostInsets.top)
+		sideBarBottomConstraint?.constant = -endInset(hostInsets.bottom)
 
 		// Whatever the strip still covers of the text area, the terminal gives up.
 		//

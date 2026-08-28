@@ -484,11 +484,63 @@ class RootViewController: UIViewController {
 	@objc func toggleSplit() {
 		if isTerminalSplit(at: selectedTabIndex) {
 			closeSplit()
-		} else if view.bounds.width > view.bounds.height {
-			splitVertically()
 		} else {
-			splitHorizontally()
+			// Side by side where the screen is wide, stacked where it's tall.
+			openSplit(axis: view.bounds.width > view.bounds.height ? .horizontal : .vertical)
 		}
+	}
+
+	/// Splits the current tab, bringing in the tab next door if there is one.
+	///
+	/// Taking the neighbour rather than always making a new terminal is what makes the button an
+	/// actual toggle: closing a split puts that pane back into its own tab, and splitting again picks
+	/// the same one up. Always creating instead left a new terminal behind on every press, so going
+	/// back and forth just piled up tabs.
+	private func openSplit(axis: NSLayoutConstraint.Axis) {
+		guard terminals.indices.contains(selectedTabIndex),
+					let container = terminals[selectedTabIndex] as? TerminalSplitViewController,
+					container.viewControllers.count == 1 else {
+			return
+		}
+		container.axis = axis
+
+		let neighbourIndex = selectedTabIndex + 1 < terminals.count
+			? selectedTabIndex + 1
+			: (selectedTabIndex > 0 ? selectedTabIndex - 1 : nil)
+
+		if let neighbourIndex = neighbourIndex,
+			 let neighbour = terminals[neighbourIndex] as? TerminalSplitViewController,
+			 neighbour.viewControllers.count == 1,
+			 let pane = neighbour.viewControllers.first,
+			 let detached = neighbour.detach(viewController: pane) {
+			container.viewControllers = container.viewControllers + [detached]
+			// The neighbour is an empty shell now. Drop it without touching the scrollback, which
+			// belongs to the terminal that just moved rather than to the tab it came out of.
+			discardEmptyTab(at: neighbourIndex)
+		} else {
+			addTerminal(at: selectedTabIndex, axis: axis)
+			return
+		}
+
+		tabToolbar?.tabDidUpdate(at: selectedTabIndex)
+		setNeedsSaveSession()
+	}
+
+	/// Removes a tab whose terminal has been moved elsewhere. Unlike closing a tab, nothing ended, so
+	/// the scrollback stays where it is and no window is closed if this was the last one.
+	private func discardEmptyTab(at index: Int) {
+		guard terminals.indices.contains(index) else {
+			return
+		}
+		let tab = terminals[index]
+		tab.removeFromParent()
+		tab.view.removeFromSuperview()
+		terminals.remove(at: index)
+		tabToolbar?.didRemoveTab(at: index)
+		if index < selectedTabIndex {
+			selectedTabIndex -= 1
+		}
+		selectTerminal(at: min(selectedTabIndex, terminals.count - 1))
 	}
 
 	/// Un-splits the tab, keeping the pane the user is in where it is and giving the other one a tab
