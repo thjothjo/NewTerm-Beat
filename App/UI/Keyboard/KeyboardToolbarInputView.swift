@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import Combine
 import SwiftUIX
 
 class KeyboardToolbarInputView: UIInputView {
@@ -114,4 +115,118 @@ class KeyboardSideBarView: UIInputView {
 
 extension KeyboardSideBarView: UIInputViewAudioFeedback {
 	var enableInputClicksWhenVisible: Bool { true }
+}
+
+/// The column a side bar toggle opens, laid over the terminal alongside the strip.
+///
+/// The rows More and Projects open in portrait sit above the keyboard, which in landscape is both the
+/// wrong place — the keys that open them are at the screen edge — and the one direction there's no
+/// room in. Beside the strip they cost width, which is what landscape has spare.
+///
+/// A view of its own rather than a second column inside the strip: the strip's width is what places
+/// its keys, so growing it to make room slid every one of them sideways the moment a toggle was
+/// pressed. Separate, the strip is the same 53pt in the same place whether a panel is open or not.
+class KeyboardSidePanelView: UIInputView {
+
+	/// Gap between the strip and the panel.
+	static let spacing: CGFloat = 4
+
+	/// Project names are words, not glyphs, so their column needs room the key columns don’t.
+	private static let projectWidth: CGFloat = 150
+
+	private var hostingView: UIHostingView<AnyView>!
+	private var widthConstraint: NSLayoutConstraint!
+	private var toggleObserver: AnyCancellable?
+
+	init(delegate: KeyboardToolbarViewDelegate?, state: KeyboardToolbarViewState) {
+		super.init(frame: .zero, inputViewStyle: .keyboard)
+
+		translatesAutoresizingMaskIntoConstraints = false
+		layer.cornerRadius = 12
+		layer.cornerCurve = .continuous
+		clipsToBounds = true
+		isHidden = true
+
+		hostingView = UIHostingView(rootView: AnyView(
+			KeyboardSidePanelContent(delegate: delegate)
+				.environmentObject(state)
+		))
+		hostingView.translatesAutoresizingMaskIntoConstraints = false
+		hostingView.shouldResizeToFitContent = false
+		// Same reason as the strip: the panel is placed by hand, and SwiftUI adding the screen's side
+		// safe area again inside it lays the content out wider than the view that clips it.
+		hostingView._disableSafeAreaInsets()
+		hostingView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+		addSubview(hostingView)
+
+		widthConstraint = widthAnchor.constraint(equalToConstant: KeyboardSideBarView.width)
+		NSLayoutConstraint.activate([
+			widthConstraint,
+			hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			hostingView.topAnchor.constraint(equalTo: topAnchor),
+			hostingView.bottomAnchor.constraint(equalTo: bottomAnchor)
+		])
+
+		toggleObserver = state.$toggledKeys
+			.map { Self.width(forToggles: $0) }
+			.removeDuplicates()
+			.sink { [weak self] width in self?.apply(width: width) }
+	}
+
+	/// `nil` when nothing is open, so the panel isn't a stray translucent box over the terminal.
+	private static func width(forToggles toggles: Set<ToolbarKey>) -> CGFloat? {
+		if toggles.contains(.projects) {
+			return projectWidth
+		}
+		// Fn keys win over More, because More is what opens them and so both are on at once.
+		if toggles.contains(.fnKeys) || toggles.contains(.more) {
+			return KeyboardSideBarView.width
+		}
+		return nil
+	}
+
+	private func apply(width: CGFloat?) {
+		guard let width else {
+			isHidden = true
+			return
+		}
+		widthConstraint.constant = width
+		isHidden = false
+		superview?.layoutIfNeeded()
+	}
+
+	required init?(coder: NSCoder) {
+		fatalError("init(coder:) has not been implemented")
+	}
+
+}
+
+extension KeyboardSidePanelView: UIInputViewAudioFeedback {
+	var enableInputClicksWhenVisible: Bool { true }
+}
+
+private struct KeyboardSidePanelContent: View {
+	weak var delegate: KeyboardToolbarViewDelegate?
+
+	@EnvironmentObject private var state: KeyboardToolbarViewState
+
+	@ViewBuilder
+	var body: some View {
+		if state.toggledKeys.contains(.projects) {
+			ProjectPickerRow(delegate: delegate, axis: .vertical)
+		} else if state.toggledKeys.contains(.fnKeys) {
+			column { KeyboardToolbarKeyStack(delegate: delegate, toolbar: .fnKeys, axis: .vertical) }
+		} else if state.toggledKeys.contains(.more) {
+			column { KeyboardToolbarKeyStack(delegate: delegate, toolbar: .sideBarMore, axis: .vertical) }
+		}
+	}
+
+	private func column<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+		ScrollView(.vertical, showsIndicators: false) {
+			content()
+				.padding(.vertical, 2)
+				.padding(.horizontal, 4)
+		}
+	}
 }

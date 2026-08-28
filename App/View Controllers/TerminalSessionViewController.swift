@@ -33,6 +33,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var textViewLongPressGestureRecognizer: UILongPressGestureRecognizer!
 	private var selectionHandlePanGestureRecognizer: UIPanGestureRecognizer!
 	private var sideBarView: KeyboardSideBarView?
+	private var sidePanelView: KeyboardSidePanelView?
 	private var paneHeaderView: PaneHeaderView?
 	private var paneTitle = ""
 	private var sideBarLeadingConstraint: NSLayoutConstraint?
@@ -315,6 +316,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	/// Takes the strip down, for when this pane shouldn't be showing one.
 	private func discardSideBar() {
+		sidePanelView?.removeFromSuperview()
+		sidePanelView = nil
 		sideBarView?.removeFromSuperview()
 		sideBarView = nil
 		sideBarLeadingConstraint = nil
@@ -396,6 +399,18 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			sideBarBottomConstraint = bottom
 			NSLayoutConstraint.activate([leading, top, bottom])
 			sideBarView = sideBar
+
+			// Alongside the strip, over the terminal. It hides itself when no toggle has anything open,
+			// and its own width constraint sizes it to whichever column that is.
+			let panel = KeyboardSidePanelView(delegate: keyInput, state: keyInput.toolbarState)
+			host.addSubview(panel)
+			NSLayoutConstraint.activate([
+				panel.leadingAnchor.constraint(equalTo: sideBar.trailingAnchor,
+																			 constant: KeyboardSidePanelView.spacing),
+				panel.topAnchor.constraint(equalTo: sideBar.topAnchor),
+				panel.bottomAnchor.constraint(equalTo: sideBar.bottomAnchor)
+			])
+			sidePanelView = panel
 		} else if !shouldShow {
 			discardSideBar()
 		}

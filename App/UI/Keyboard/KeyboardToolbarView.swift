@@ -31,6 +31,8 @@ enum Toolbar: CaseIterable {
 	/// Vertical strip pinned to the screen edge, used instead of the accessory bar in landscape on
 	/// iPhone where vertical space is the scarce resource and width isn’t.
 	case sideBar
+	/// What More opens beside the strip. `.secondary` without the keys the strip already shows.
+	case sideBarMore
 
 	var keys: [ToolbarKey] {
 		switch self {
@@ -47,8 +49,16 @@ enum Toolbar: CaseIterable {
 		case .sideBar:
 			// Arrows are listed individually rather than as the `.arrows` cluster: the cluster is three
 			// keys wide, which would make the strip eat far more width than it needs to.
-			return [.control, .escape, .tab, .shiftTab, .image, .delete,
+			//
+			// Image and Delete are not here even though they used to be: they live behind More, the same
+			// place they live in portrait, which is what makes room for More and Projects without the
+			// strip growing taller than the screen. Shift-Tab stays out in the open — Claude Code cycles
+			// its permission modes on it, so it's pressed far too often to sit behind a toggle.
+			return [.control, .escape, .tab, .shiftTab, .more, .projects,
 							.up, .down, .left, .right]
+
+		case .sideBarMore:
+			return [.delete, .image, .fnKeys]
 
 		case .padPrimaryLeading:
 			return [.control, .escape, .tab, .more, .projects]
@@ -208,6 +218,7 @@ struct AttachmentStrip: View {
 
 class KeyboardToolbarViewState: ObservableObject {
 	@Published var toggledKeys = Set<ToolbarKey>()
+
 
 	/// Numbers of the images attached since the last return, newest last. Cleared on return, because
 	/// that’s when the line they were attached to gets sent.
@@ -383,6 +394,9 @@ struct KeyboardToolbarKeyStack: View {
 struct ProjectPickerRow: View {
 	weak var delegate: KeyboardToolbarViewDelegate?
 
+	/// Vertical when it’s the column beside the landscape strip, horizontal as the accessory row.
+	var axis: Axis = .horizontal
+
 	@State private var projects = [Project]()
 	/// Long-press to enter, same as the tab bar. Projects are folders of source, so a stray tap must
 	/// never be able to remove one.
@@ -392,9 +406,17 @@ struct ProjectPickerRow: View {
 	/// height, so without this the row collapses to nothing and the toggle looks broken.
 	private static let rowHeight: CGFloat = 45
 
+	@ViewBuilder
+	private func stack<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+		switch axis {
+		case .horizontal: HStack(alignment: .center, spacing: 5) { content() }
+		case .vertical:   VStack(alignment: .center, spacing: 5) { content() }
+		}
+	}
+
 	var body: some View {
-		ScrollView(.horizontal, showsIndicators: false) {
-			HStack(alignment: .center, spacing: 5) {
+		ScrollView(axis == .horizontal ? .horizontal : .vertical, showsIndicators: false) {
+			stack {
 				Button {
 					UIDevice.current.playInputClick()
 					delegate?.keyboardToolbarDidRequestNewProject()
@@ -424,7 +446,7 @@ struct ProjectPickerRow: View {
 							.foregroundColor(.white)
 							.padding(.horizontal, 8)
 							.padding(.vertical, 6)
-							.frame(minWidth: Self.rowHeight)
+							.frame(minWidth: Self.rowHeight, maxWidth: axis == .vertical ? .infinity : nil)
 							.frame(height: Self.rowHeight)
 							.background(
 								Color(.keyBackgroundNormal)
@@ -454,7 +476,9 @@ struct ProjectPickerRow: View {
 			}
 				.padding(.horizontal, 4)
 		}
-			.frame(height: Self.rowHeight)
+			// A scroll view has no intrinsic size along the axis it scrolls, so the one that isn’t the
+			// scrolling axis has to be stated or the row collapses to nothing and the toggle looks broken.
+			.frame(height: axis == .horizontal ? Self.rowHeight : nil)
 			.background(
 				// Tapping the empty part of the row leaves edit mode — there’s no Done button.
 				Color.clear
@@ -495,7 +519,7 @@ struct KeyboardToolbarView: View {
 			return state.toggledKeys.contains(.projects)
 		case .attachments:
 			return !state.imageAttachments.isEmpty
-		case .sideBar:
+		case .sideBar, .sideBarMore:
 			// Hosted separately by the view controller, never inside the accessory view.
 			return false
 		}
@@ -560,7 +584,8 @@ struct KeyboardToolbarView: View {
 						}
 							.frame(maxWidth: .infinity)
 
-					case .primary, .padPrimaryLeading, .padPrimaryTrailing, .secondary, .sideBar:
+					case .primary, .padPrimaryLeading, .padPrimaryTrailing, .secondary,
+							 .sideBar, .sideBarMore:
 						scrollableIfNeeded(keyStack(for: toolbar))
 							.frame(maxWidth: .infinity)
 					}

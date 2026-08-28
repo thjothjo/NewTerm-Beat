@@ -168,6 +168,10 @@ class TerminalKeyInput: TextInputBase {
 		super.traitCollectionDidChange(previousTraitCollection)
 
 		if previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass {
+			// What a toggle left open doesn't survive the trip: the thing it opened is a row above the
+			// keyboard in portrait and a column beside the strip in landscape, and neither is where the
+			// user left it. Closing them means the toggles agree with what's on screen either way.
+			state.toggledKeys.subtract([.more, .fnKeys, .projects])
 			// Makes UIKit ask for inputAccessoryView again, which is how the bar appears and disappears
 			// on rotation.
 			reloadInputViews()
@@ -478,8 +482,24 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 
 		case .image:
 			attachImageHandler?()
+			closeSideBarPanel()
 
-		default: break
+		// The toggles run the panel rather than use it, and Control is held for the key that comes
+		// after it — closing on either would take the panel away mid-gesture.
+		case .control, .fnKeys, .projects:
+			break
+
+		default:
+			closeSideBarPanel()
+		}
+	}
+
+	/// The landscape panel is a column laid over the terminal, so unlike the accessory row in portrait
+	/// it costs the user something to leave open. Pressing one of its keys is as clear a "done with it"
+	/// as there is, so it goes away by itself rather than needing a second tap on the key that opened it.
+	private func closeSideBarPanel() {
+		if usesSideBar {
+			state.toggledKeys.subtract([.more, .fnKeys, .projects])
 		}
 	}
 
@@ -499,6 +519,9 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	}
 
 	func keyboardToolbarDidSelectProject(_ project: Project) {
+		if usesSideBar {
+			state.toggledKeys.remove(.projects)
+		}
 		openProjectHandler?(project)
 	}
 
