@@ -278,11 +278,13 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	/// Whether the Dynamic Island is on the same edge the strip is pinned to.
 	///
-	/// `landscapeLeft` puts the device's top edge — where the island is — on the left, which is where
-	/// the strip lives. In portrait the side insets are zero anyway, so treating it as the island side
-	/// keeps the strip flush, which is what it should be there.
+	/// The trap here is that `UIInterfaceOrientation`'s landscape cases are defined as the *opposite*
+	/// `UIDeviceOrientation` — `UIInterfaceOrientationLandscapeLeft = UIDeviceOrientationLandscapeRight`.
+	/// So interface `.landscapeRight` is the device rotated left, which puts its top edge — and the
+	/// island with it — on the left, where the strip is. Reading the names at face value put the
+	/// clearance on the wrong side.
 	private var isDynamicIslandOnLeadingEdge: Bool {
-		view.window?.windowScene?.interfaceOrientation != .landscapeRight
+		view.window?.windowScene?.interfaceOrientation == .landscapeRight
 	}
 
 	private func updateSideBar() {

@@ -357,13 +357,18 @@ public class TerminalController {
 
 			let scrollInvariantRows = scrollbackRows + terminal.rows
 
-			// Remove lines that no longer exist
-			if self.lines.count > scrollInvariantRows {
-				self.lines.removeSubrange((scrollInvariantRows - 1)...)
+			// Keep exactly as many lines as exist, no more and no fewer.
+			//
+			// Trimming used to start one line early, at `scrollInvariantRows - 1`, and growing used to
+			// overshoot by one, so every frame threw away a line that was still on screen and appended a
+			// blank in its place. The blank only got drawn again if the terminal happened to report that
+			// row as changed, so a line that had finished changing — the one you just filled up, the
+			// moment the next one wrapped underneath it — stayed blank.
+			let neededCount = max(scrollInvariantRows, updateRange.endY + 1)
+			if self.lines.count > neededCount {
+				self.lines.removeSubrange(neededCount...)
 			}
-
-			// Add new lines that have been introduced
-			while self.lines.count <= max(updateRange.endY, scrollInvariantRows) {
+			while self.lines.count < neededCount {
 				self.lines.append(AnyView(EmptyView()))
 			}
 
