@@ -148,6 +148,24 @@ class RootViewController: UIViewController {
 			viewController.additionalSafeAreaInsets.top = topBarHeight
 		}
 		#endif
+
+		updateSplitAxes()
+	}
+
+	/// Keeps every split laid out the way the screen is shaped.
+	///
+	/// The axis was picked once, when the split was made, and then left alone — so a split made in
+	/// portrait stayed stacked after rotating to landscape, wasting the width, and one made in
+	/// landscape stayed side by side in portrait, squeezing both terminals into half the columns.
+	private func updateSplitAxes() {
+		let axis: NSLayoutConstraint.Axis = view.bounds.width > view.bounds.height ? .horizontal : .vertical
+		for terminal in terminals {
+			guard let split = terminal as? TerminalSplitViewController,
+						split.viewControllers?.count ?? 0 > 1 else {
+				continue
+			}
+			split.axis = axis
+		}
 	}
 
 	// MARK: - Session persistence

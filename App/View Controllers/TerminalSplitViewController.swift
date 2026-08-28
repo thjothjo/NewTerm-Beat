@@ -44,7 +44,18 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		didSet { updateViewControllers() }
 	}
 	var axis: NSLayoutConstraint.Axis = .horizontal {
-		didSet { stackView.axis = axis }
+		didSet {
+			guard axis != oldValue else {
+				return
+			}
+			stackView.axis = axis
+			// The grabbers and the per-pane size constraints are both built from the axis, so turning
+			// the stack alone left each pane pinned on the wrong dimension and the grabber dragging the
+			// wrong way. Rebuilding is what the split already does whenever its panes change.
+			if viewControllers != nil {
+				updateViewControllers()
+			}
+		}
 	}
 
 	override var isSplitViewResizing: Bool {

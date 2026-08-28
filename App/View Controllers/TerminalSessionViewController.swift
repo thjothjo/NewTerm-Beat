@@ -278,6 +278,15 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// traits are identical, and the safe-area insets are symmetric so they don't change either.
 	/// Nothing asked for a relayout, so the strip kept the inset it had worked out for the side the
 	/// island used to be on — and sat under it.
+	/// Takes the strip down, for when this pane shouldn't be showing one.
+	private func discardSideBar() {
+		sideBarView?.removeFromSuperview()
+		sideBarView = nil
+		sideBarLeadingConstraint = nil
+		sideBarTopConstraint = nil
+		sideBarBottomConstraint = nil
+	}
+
 	@objc func setNeedsSideBarUpdate() {
 		view.setNeedsLayout()
 		parent?.viewIfLoaded?.setNeedsLayout()
@@ -349,13 +358,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			sideBarBottomConstraint = bottom
 			NSLayoutConstraint.activate([leading, top, bottom])
 			sideBarView = sideBar
-		} else if !shouldShow,
-							let sideBar = sideBarView {
-			sideBar.removeFromSuperview()
-			sideBarView = nil
-			sideBarLeadingConstraint = nil
-			sideBarTopConstraint = nil
-			sideBarBottomConstraint = nil
+		} else if !shouldShow {
+			discardSideBar()
 		}
 
 		// In landscape iOS reports the same inset on both sides — enough to clear the Dynamic Island —

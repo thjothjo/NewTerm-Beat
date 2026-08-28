@@ -89,6 +89,11 @@ class KeyboardSideBarView: UIInputView {
 		// screen were simply clipped and unreachable. Pinned to the strip instead, the scroll view gets
 		// a real height and takes over.
 		hostingView.shouldResizeToFitContent = false
+		// The strip sits inside the screen's side safe area, and SwiftUI adds that inset to its own
+		// layout — so the keys were laid out 28pt wider than the 53pt strip that clips them, and every
+		// one lost its right-hand side. The strip is already placed clear of the island by hand; it
+		// doesn't want the inset applied a second time inside.
+		hostingView._disableSafeAreaInsets()
 		hostingView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
 		addSubview(hostingView)
 
