@@ -178,10 +178,10 @@ public class Preferences: NSObject, ObservableObject {
 		willSet { objectWillChange.send() }
 	}
 
-	/// Folder inside iCloud Drive that project copies go to. One folder rather than the whole drive,
-	/// so an export can never scatter directories across the top level of somebody's iCloud.
-	@AppStorage("iCloudFolderName")
-	public var iCloudFolderName: String = "NewTerm" {
+	/// Folder that project copies go to, chosen in the Files picker. Stored as a path rather than a
+	/// name so it can be anywhere the picker can reach, not only the top level of iCloud Drive.
+	@AppStorage("iCloudFolderPath")
+	public var iCloudFolderPath: String = "" {
 		willSet { objectWillChange.send() }
 	}
 

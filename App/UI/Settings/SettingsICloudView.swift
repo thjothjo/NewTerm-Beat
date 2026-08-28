@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftUIX
+import UniformTypeIdentifiers
 import NewTermCommon
 
 /// Copying projects to and from iCloud Drive, so they can be worked with from a Mac.
@@ -32,7 +33,7 @@ struct SettingsICloudView: View {
 	@ObservedObject private var preferences = Preferences.shared
 
 	@State private var projects = ProjectManager.projects()
-	@State private var folderNames = [String]()
+	@State private var isChoosingFolder = false
 	@State private var iCloudNames = [String]()
 	@State private var unavailable: String? = ProjectManager.iCloudUnavailableReason()
 	@State private var pending: PendingCopy?
@@ -41,43 +42,32 @@ struct SettingsICloudView: View {
 
 	var body: some View {
 		PreferencesList {
+			// Outside the availability check on purpose. Picking a folder is the way out of not being
+			// able to reach the default one, so hiding it exactly when the default is unreachable would
+			// leave nothing to do about it.
+			PreferencesGroup(footer: Text("Copies go into this folder. It’s created on the first copy if it isn’t there yet.")) {
+				Button {
+					isChoosingFolder = true
+				} label: {
+					HStack {
+						Text("Folder")
+							.foregroundColor(.primary)
+						Spacer()
+						Text(ProjectManager.iCloudFolderName)
+							.foregroundColor(.secondary)
+						Image(systemName: .chevronRight)
+							.foregroundColor(.secondary)
+							.imageScale(.small)
+					}
+				}
+			}
+
 			if let unavailable = unavailable {
 				PreferencesGroup(footer: Text("Projects stay on this device. Nothing is copied anywhere until you ask for it.")) {
 					Text(unavailable)
 						.foregroundColor(.secondary)
 				}
 			} else {
-				PreferencesGroup(header: Text("Folder in iCloud Drive"),
-												 footer: Text("Copies go into this folder. Pick one that’s already there, or type a name and it’s created on the first copy.")) {
-					HStack {
-						Text("Name")
-						Spacer()
-						TextField(ProjectManager.defaultICloudFolderName, text: preferences.$iCloudFolderName)
-							.multilineTextAlignment(.trailing)
-							.autocapitalization(.none)
-							.disableAutocorrection(true)
-							.foregroundColor(.secondary)
-							.onChange(of: preferences.iCloudFolderName) { _ in reload() }
-					}
-
-					ForEach(folderNames, id: \.self) { name in
-						Button {
-							preferences.iCloudFolderName = name
-							reload()
-						} label: {
-							HStack {
-								Text(name)
-									.foregroundColor(.primary)
-								Spacer()
-								if name == ProjectManager.iCloudFolderName {
-									Image(systemName: .checkmark)
-										.foregroundColor(.accentColor)
-								}
-							}
-						}
-					}
-				}
-
 				PreferencesGroup(header: Text("Copy to iCloud Drive"),
 												 footer: Text("Puts a copy in iCloud Drive/\(ProjectManager.iCloudFolderName), where it shows up on your Mac. Replaces whatever is already there under the same name.")) {
 					if projects.isEmpty {
@@ -109,6 +99,14 @@ struct SettingsICloudView: View {
 		}
 			.navigationBarTitle("iCloud Drive")
 			.onAppear(perform: reload)
+			// The system picker rather than a list of our own: it browses iCloud Drive, On My iPhone and
+			// anything else Files can see, which is more than we could enumerate ourselves.
+			.fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
+				if case .success(let url) = result {
+					preferences.iCloudFolderPath = url.path
+					reload()
+				}
+			}
 			.alert(item: $pending) { copy in confirmation(for: copy) }
 			.alert(item: $failure) { failure in
 				Alert(title: Text("Couldn’t copy"),
@@ -192,6 +190,5 @@ struct SettingsICloudView: View {
 		unavailable = ProjectManager.iCloudUnavailableReason()
 		projects = ProjectManager.projects()
 		iCloudNames = unavailable == nil ? ProjectManager.iCloudProjectNames() : []
-		folderNames = unavailable == nil ? ProjectManager.iCloudFolderNames() : []
 	}
 }

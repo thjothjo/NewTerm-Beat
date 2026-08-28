@@ -130,28 +130,21 @@ public enum ProjectManager {
 
 	public static let defaultICloudFolderName = "NewTerm"
 
-	/// Whichever folder in iCloud Drive copies go to. Falls back rather than allowing an empty name,
-	/// which would put project folders loose at the top level of the user's iCloud Drive.
-	public static var iCloudFolderName: String {
-		let name = Preferences.shared.iCloudFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
-		return name.isEmpty ? defaultICloudFolderName : name
-	}
-
-	/// Our folder in iCloud Drive, where copies of projects go so they can be seen from a Mac.
+	/// Where copies of projects go, so they can be seen from a Mac.
+	///
+	/// Whatever was chosen in the Files picker, or a folder of our own in iCloud Drive until something
+	/// is. Nothing is created until the first copy.
 	public static var iCloudRootURL: URL {
-		iCloudContainerURL.appendingPathComponent(iCloudFolderName, isDirectory: true)
+		let path = Preferences.shared.iCloudFolderPath.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !path.isEmpty else {
+			return iCloudContainerURL.appendingPathComponent(defaultICloudFolderName, isDirectory: true)
+		}
+		return URL(fileURLWithPath: path, isDirectory: true)
 	}
 
-	/// Top-level folders already in iCloud Drive, to pick one of rather than having to type its name.
-	public static func iCloudFolderNames() -> [String] {
-		let keys: [URLResourceKey] = [.isDirectoryKey]
-		let contents = (try? FileManager.default.contentsOfDirectory(at: iCloudContainerURL,
-																																 includingPropertiesForKeys: keys,
-																																 options: [.skipsHiddenFiles])) ?? []
-		return contents
-			.filter { (try? $0.resourceValues(forKeys: Set(keys)))?.isDirectory == true }
-			.map(\.lastPathComponent)
-			.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+	/// What to call the destination in the interface.
+	public static var iCloudFolderName: String {
+		iCloudRootURL.lastPathComponent
 	}
 
 	/// Why iCloud Drive can't be used, or nil when it can.
@@ -159,7 +152,9 @@ public enum ProjectManager {
 	/// Reading the folder rather than asking about the account: the entitlement that gets us in is
 	/// checked by the kernel, so the only answer that means anything is whether the open succeeded.
 	public static func iCloudUnavailableReason() -> String? {
-		let container = iCloudContainerURL
+		// The chosen folder's parent, not the folder itself — the folder is created on the first copy,
+		// so it not being there yet says nothing about whether we can get to it.
+		let container = iCloudRootURL.deletingLastPathComponent()
 		var isDirectory: ObjCBool = false
 		guard FileManager.default.fileExists(atPath: container.path, isDirectory: &isDirectory),
 					isDirectory.boolValue else {
