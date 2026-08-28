@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import NewTermCommon
 import SwiftUIX
 
 protocol TabToolbarDataSource: AnyObject {
@@ -133,11 +134,23 @@ class TabToolbarViewController: UIViewController {
 		delegate?.removeTerminal(at: button.tag)
 	}
 
+	/// The project the bar is showing on its own, or nil when it's showing every terminal grouped.
+	var visibleProjectPath: String? { state.visibleProjectPath }
+
+	func showProject(_ path: String?) {
+		state.visibleProjectPath = path
+		ProjectManager.setActiveProject(path: path)
+	}
+
 	func didSelectTab(at index: Int) {
 		state.selectedIndex = dataSource!.selectedTerminalIndex()
-		// The bar follows the selection into whichever project that tab belongs to, rather than the
-		// selection having to stay inside whatever the bar happens to be showing.
-		state.visibleProjectPath = dataSource?.terminalProjectPath(at: state.selectedIndex)
+		// A selection that lands outside the project being shown — a keyboard shortcut, or the tab
+		// that's left after closing one — drops back to showing everything rather than leaving the
+		// selected tab hidden behind a filter.
+		if let project = state.visibleProjectPath,
+			 project != dataSource?.terminalProjectPath(at: state.selectedIndex) {
+			showProject(nil)
+		}
 	}
 
 	/// Leaves tab edit mode, for taps that land outside the tab bar entirely — on the terminal.

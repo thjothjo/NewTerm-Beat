@@ -31,6 +31,25 @@ public enum ProjectManager {
 	/// rather than showing a stale snapshot.
 	public static let didChangeNotification = Notification.Name("ws.hbang.Terminal.projectsDidChange")
 
+	/// Posted when the tab bar starts or stops showing a single project's terminals.
+	public static let activeProjectDidChangeNotification = Notification.Name("ws.hbang.Terminal.activeProjectDidChange")
+
+	/// The project whose terminals the tab bar is showing on their own, or `nil` when it's showing all
+	/// of them grouped. The projects list marks this one, so it's clear which one you're inside.
+	///
+	/// Here rather than passed down because the list that needs it is inside a keyboard view, several
+	/// layers below the controller that decides it, and per-terminal state objects would each need
+	/// their own copy kept in step.
+	public private(set) static var activeProjectPath: String?
+
+	public static func setActiveProject(path: String?) {
+		guard activeProjectPath != path else {
+			return
+		}
+		activeProjectPath = path
+		NotificationCenter.default.post(name: activeProjectDidChangeNotification, object: nil)
+	}
+
 	/// Where projects live: one subdirectory per project, each holding that project’s source.
 	///
 	/// Written as `~/Documents` rather than a literal path so it also works in the Simulator. On a

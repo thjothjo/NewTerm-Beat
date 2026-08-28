@@ -701,25 +701,21 @@ extension RootViewController {
 	}
 
 	func openProject(_ project: Project) {
-		// Tapping the project you're already in goes back to the terminals that aren't in one. The bar
-		// shows a single project's terminals, so without this there'd be no way back out of a project
-		// once you were in it.
-		if selectedProjectPath == project.url.path {
-			showTerminals(forProjectPath: nil)
+		// Tapping the project you're already in goes back to showing every terminal, grouped. The bar
+		// shows a single project's terminals otherwise, so without this there'd be no way back out to
+		// the rest of them.
+		if tabToolbar?.visibleProjectPath == project.url.path {
+			tabToolbar?.showProject(nil)
 			return
 		}
-		showTerminals(forProjectPath: project.url.path,
-									initialCommand: ProjectManager.openCommand(for: project))
-	}
 
-	/// Brings a project's terminals to the front, starting one if it hasn't got any yet.
-	private func showTerminals(forProjectPath path: String?, initialCommand: String? = nil) {
-		if let index = terminals.firstIndex(where: { $0.projectPath == path }) {
+		tabToolbar?.showProject(project.url.path)
+		if let index = terminals.firstIndex(where: { $0.projectPath == project.url.path }) {
 			selectTerminal(at: index)
 			return
 		}
-		self.initialCommand = initialCommand
-		addTerminal(projectPath: path)
+		initialCommand = ProjectManager.openCommand(for: project)
+		addTerminal(projectPath: project.url.path)
 	}
 
 	func trashProject(_ project: Project) {

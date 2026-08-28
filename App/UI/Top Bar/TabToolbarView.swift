@@ -170,40 +170,52 @@ struct TabToolbarView: View {
 		}
 	}
 
-	/// The tabs of the project the selected one belongs to.
+	/// One project's terminals, side by side. Indices are into the full tab list, not positions within
+	/// a filtered copy — everything the bar hands back to the delegate is an index into the real list.
+	private struct TabRun: Identifiable {
+		var projectPath: String?
+		var indices: [Int]
+		var id: String { projectPath ?? "" }
+	}
+
+	/// What the bar shows: one project's terminals when you're inside a project, otherwise all of them
+	/// with each project's gathered together.
 	///
-	/// Indices into the full list, not positions within the filtered one — everything the bar hands
-	/// back to the delegate is an index into the real tab list.
-	private var visibleTabIndices: [Int] {
-		state.terminals.indices.filter { state.terminals[$0].projectPath == state.visibleProjectPath }
+	/// Grouped rather than in tab order even when showing everything: a project's terminals are opened
+	/// and closed over a session, so in tab order they end up interleaved with every other project's,
+	/// which is the state that made a second terminal hard to find in the first place.
+	private var tabRuns: [TabRun] {
+		if let project = state.visibleProjectPath {
+			return [TabRun(projectPath: project,
+										 indices: state.terminals.indices.filter { state.terminals[$0].projectPath == project })]
+		}
+
+		var runs = [TabRun]()
+		for index in state.terminals.indices {
+			let path = state.terminals[index].projectPath
+			if let existing = runs.firstIndex(where: { $0.projectPath == path }) {
+				runs[existing].indices.append(index)
+			} else {
+				runs.append(TabRun(projectPath: path, indices: [index]))
+			}
+		}
+		// Terminals belonging to no project last and unmarked — they're not a group, they're what's
+		// left over.
+		return runs.filter { $0.projectPath != nil } + runs.filter { $0.projectPath == nil }
 	}
 
 	private func scrollingTabs(minimumWidth: CGFloat) -> some View {
 		ScrollView(.horizontal, showsIndicators: false) {
 			HStack(spacing: 0) {
-				ForEach(visibleTabIndices, id: \.self) { index in
-					let terminal = state.terminals[index]
-					TabToolbarItemView(terminal: terminal,
-														 index: index,
-														 isSelected: state.selectedIndex == index,
-														 isEditing: state.isEditing,
-														 height: Self.height,
-														 selectTerminal: {
-															 // In edit mode a tap leaves edit mode rather than switching tabs, the
-															 // same as tapping an app icon on a jiggling home screen.
-															 if state.isEditing {
-																 state.isEditing = false
-															 } else {
-																 state.delegate?.selectTerminal(at: index)
-															 }
-														 },
-														 removeTerminal: {
-															 // Deliberately stays in edit mode. Closing several tabs in a row is the
-															 // normal case, and having to long-press again for each one after the
-															 // first is worse than the wobbling continuing until it’s dismissed.
-															 state.delegate?.removeTerminal(at: index)
-														 },
-														 beginEditing: { state.isEditing = true })
+				ForEach(tabRuns) { run in
+					HStack(spacing: 0) {
+						ForEach(run.indices, id: \.self) { index in
+							tabItem(at: index)
+						}
+					}
+						// Ties a project's terminals together as one run. Only when the bar is showing
+						// everything — filtered to one project there's nothing to tell it apart from.
+						.overlay(runUnderline(for: run), alignment: .bottom)
 				}
 
 				tabsFiller
@@ -212,6 +224,40 @@ struct TabToolbarView: View {
 				// there are more tabs than fit.
 				.frame(minWidth: minimumWidth, alignment: .leading)
 		}
+	}
+
+	@ViewBuilder
+	private func runUnderline(for run: TabRun) -> some View {
+		if run.projectPath != nil && state.visibleProjectPath == nil {
+			Capsule()
+				.fill(Color.accentColor)
+				.frame(height: 2)
+				.padding(.horizontal, 4)
+		}
+	}
+
+	private func tabItem(at index: Int) -> some View {
+		TabToolbarItemView(terminal: state.terminals[index],
+											 index: index,
+											 isSelected: state.selectedIndex == index,
+											 isEditing: state.isEditing,
+											 height: Self.height,
+											 selectTerminal: {
+												 // In edit mode a tap leaves edit mode rather than switching tabs, the
+												 // same as tapping an app icon on a jiggling home screen.
+												 if state.isEditing {
+													 state.isEditing = false
+												 } else {
+													 state.delegate?.selectTerminal(at: index)
+												 }
+											 },
+											 removeTerminal: {
+												 // Deliberately stays in edit mode. Closing several tabs in a row is the
+												 // normal case, and having to long-press again for each one after the
+												 // first is worse than the wobbling continuing until it’s dismissed.
+												 state.delegate?.removeTerminal(at: index)
+											 },
+											 beginEditing: { state.isEditing = true })
 	}
 
 	private var titleLabel: some View {

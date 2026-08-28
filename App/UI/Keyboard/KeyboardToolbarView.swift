@@ -398,6 +398,9 @@ struct ProjectPickerRow: View {
 	var axis: Axis = .horizontal
 
 	@State private var projects = [Project]()
+	/// The project whose terminals the tab bar is showing on their own. Marked in the list so it's
+	/// clear which one you're inside, and that tapping it again is what gets you back out.
+	@State private var activePath = ProjectManager.activeProjectPath
 	/// Long-press to enter, same as the tab bar. Projects are folders of source, so a stray tap must
 	/// never be able to remove one.
 	@State private var isEditing = false
@@ -457,7 +460,7 @@ struct ProjectPickerRow: View {
 							// characters before the ellipsis, which is no name at all.
 							.font(.system(size: axis == .vertical ? 11 : (isBigDevice ? 18 : 15),
 														weight: .regular).monospacedDigit())
-							.foregroundColor(.white)
+							.foregroundColor(project.url.path == activePath ? .black : .white)
 							// A long name has to end in an ellipsis rather than wrap: the key is a fixed
 							// height, so a second line has nowhere to go but outside it.
 							.lineLimit(1)
@@ -468,7 +471,9 @@ struct ProjectPickerRow: View {
 										 maxWidth: axis == .vertical ? .infinity : nil)
 							.frame(height: Self.rowHeight)
 							.background(
-								Color(.keyBackgroundNormal)
+								// Same lit look a toggled key gets, because that's what it is: the one project
+								// currently being shown on its own.
+								Color(project.url.path == activePath ? .keyBackgroundSelected : .keyBackgroundNormal)
 									.cornerRadius(isBigDevice ? 6 : 4)
 									.shadow(color: .black.opacity(0.8), radius: 0, x: 0, y: 1)
 							)
@@ -506,10 +511,14 @@ struct ProjectPickerRow: View {
 			)
 			.onAppear {
 				projects = ProjectManager.projects()
+				activePath = ProjectManager.activeProjectPath
 				isEditing = false
 			}
 			.onReceive(NotificationCenter.default.publisher(for: ProjectManager.didChangeNotification)) { _ in
 				projects = ProjectManager.projects()
+			}
+			.onReceive(NotificationCenter.default.publisher(for: ProjectManager.activeProjectDidChangeNotification)) { _ in
+				activePath = ProjectManager.activeProjectPath
 			}
 	}
 }
