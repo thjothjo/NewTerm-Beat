@@ -181,6 +181,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			NotificationCenter.default.addObserver(self, selector: #selector(self.sceneWillEnterForeground), name: UIWindowScene.willEnterForegroundNotification, object: nil)
 		}
 
+		// The scene notifications above only register on multi-scene devices (iPad/Mac). Scrollback has
+		// to be saved on iPhone too, so hang it off the app-level notification, which always fires.
+		NotificationCenter.default.addObserver(self, selector: #selector(self.appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
 
 		updateSideBar()
@@ -590,6 +594,11 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			// get the scrollback on disk now.
 			saveScrollback()
 		}
+	}
+
+	@objc private func appDidEnterBackground(_ notification: Notification) {
+		// Fires on every device when the app backgrounds — the last guaranteed point before jetsam.
+		saveScrollback()
 	}
 
 	/// Persist this tab's scrollback so it can be replayed after the app is killed.
