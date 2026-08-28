@@ -180,11 +180,20 @@ struct TerminalView: View {
 			let endX = Self.horizontalSpacing + CGFloat(selection.end.col) * cellWidth
 			let endY = Self.verticalSpacing + CGFloat(selection.end.row) * state.lineHeight
 
+			// Neutral rather than tinted. In a terminal the text colour carries meaning — red for an
+			// error, green for success — and a coloured wash shifts every one of them at once. An
+			// overlay picked to contrast with the background marks the cells without repainting what
+			// is in them.
+			let fill = state.colorMap.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.15)
+			// Rounded ends only when the selection is a single row: two full-width rows meeting would
+			// otherwise show a scalloped notch where their rounded corners abut.
+			let radius: CGFloat = selection.start.row == selection.end.row ? 3 : 0
+
 			ZStack(alignment: .topLeading) {
 				ForEach(selection.start.row...selection.end.row, id: \.self) { row in
 					if let range = selection.columnRange(forRow: row, cols: cols) {
-						Rectangle()
-							.fill(Color.accentColor.opacity(0.35))
+						RoundedRectangle(cornerRadius: radius)
+							.fill(fill)
 							.frame(width: CGFloat(range.count) * cellWidth,
 										 height: state.lineHeight)
 							.offset(x: Self.horizontalSpacing + CGFloat(range.lowerBound) * cellWidth,
