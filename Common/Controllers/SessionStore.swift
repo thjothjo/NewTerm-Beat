@@ -8,12 +8,25 @@ import CryptoKit
 import os.log
 
 public struct SessionTabState: Codable, Equatable {
+	/// Stable across restarts, so a tab's saved scrollback can be matched back to it even after tabs
+	/// have been added or closed and the plain index would point somewhere else.
+	public var id: String
 	public var projectPath: String?
 	public var title: String?
 
-	public init(projectPath: String?, title: String?) {
+	public init(id: String = UUID().uuidString, projectPath: String?, title: String?) {
+		self.id = id
 		self.projectPath = projectPath
 		self.title = title
+	}
+
+	// Snapshots written before tabs had ids still decode: a missing id becomes a fresh one, which just
+	// means that tab starts without restored scrollback the first time.
+	public init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+		self.projectPath = try container.decodeIfPresent(String.self, forKey: .projectPath)
+		self.title = try container.decodeIfPresent(String.self, forKey: .title)
 	}
 }
 

@@ -151,7 +151,8 @@ class RootViewController: UIViewController {
 
 	private var sessionState: SessionState {
 		SessionState(tabs: terminals.indices.map { index in
-			SessionTabState(projectPath: terminals[index].projectPath,
+			SessionTabState(id: terminals[index].tabID,
+											projectPath: terminals[index].projectPath,
 											title: terminalName(at: index))
 		},
 								 selectedIndex: selectedTabIndex)
@@ -182,9 +183,9 @@ class RootViewController: UIViewController {
 			if let path = tab.projectPath,
 				 FileManager.default.fileExists(atPath: path) {
 				initialCommand = ProjectManager.openCommand(forPath: path)
-				addTerminal(projectPath: path)
+				addTerminal(projectPath: path, tabID: tab.id)
 			} else {
-				addTerminal(projectPath: nil)
+				addTerminal(projectPath: nil, tabID: tab.id)
 			}
 		}
 
@@ -220,23 +221,30 @@ class RootViewController: UIViewController {
 		addTerminal(projectPath: nil)
 	}
 
-	func addTerminal(projectPath: String?) {
+	func addTerminal(projectPath: String?, tabID: String? = nil) {
 		let index = min(selectedTabIndex + 1, terminals.count)
-		addTerminal(at: index, initialCommand: initialCommand, projectPath: projectPath)
+		addTerminal(at: index, initialCommand: initialCommand, projectPath: projectPath, tabID: tabID)
 		selectTerminal(at: index)
 		initialCommand = nil
 		setNeedsSaveSession()
 	}
 
-	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil) {
+	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil, tabID: String? = nil) {
 		let splitViewController = TerminalSplitViewController()
 		splitViewController.projectPath = projectPath
+		if let tabID = tabID {
+			splitViewController.tabID = tabID
+		}
 		splitViewController.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
 		splitViewController.view.frame = view.bounds
 		splitViewController.delegate = self
 
+		// The pane that fills a fresh tab carries the tab's scrollback; the second pane of a split is a
+		// new terminal with no history to restore.
+		let scrollbackID = axis == nil ? splitViewController.tabID : nil
 		let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
-																									 initialCommand: initialCommand)
+																									 initialCommand: initialCommand,
+																									 scrollbackID: scrollbackID)
 
 		addChild(splitViewController)
 		splitViewController.willMove(toParent: self)
@@ -274,6 +282,10 @@ class RootViewController: UIViewController {
 			NSLog("asked to remove terminal that doesn’t exist? %@", viewController)
 			return
 		}
+
+		// Closing a tab is deliberate, so its saved scrollback shouldn't linger to be replayed into some
+		// unrelated future tab — drop it with the tab.
+		ScrollbackStore.shared.discard(id: viewController.tabID)
 
 		viewController.removeFromParent()
 		viewController.view.removeFromSuperview()

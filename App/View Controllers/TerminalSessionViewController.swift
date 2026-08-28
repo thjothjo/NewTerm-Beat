@@ -59,7 +59,13 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	private static let logger = Logger(subsystem: "ws.hbang.Terminal", category: "TerminalSession")
 
-	init(initialDirectory: String? = nil, initialCommand: String? = nil) {
+	/// Stable id used to persist and restore this tab's scrollback across app restarts. Nil for tabs
+	/// that shouldn't be remembered.
+	private let scrollbackID: String?
+	private var hasSeededScrollback = false
+
+	init(initialDirectory: String? = nil, initialCommand: String? = nil, scrollbackID: String? = nil) {
+		self.scrollbackID = scrollbackID
 		super.init(nibName: nil, bundle: nil)
 
 		terminalController.delegate = self
@@ -80,6 +86,15 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 					// back empty, and it falls back to terminfo’s 80×24 and stays there.
 					screenSize.cols > 0, screenSize.rows > 0 else {
 			return
+		}
+		// Replay saved output before the shell starts, so the history is already on screen when the new
+		// prompt appears. Once only, and only before the first start.
+		if !hasSeededScrollback {
+			hasSeededScrollback = true
+			if let scrollbackID = scrollbackID,
+				 let saved = ScrollbackStore.shared.load(id: scrollbackID) {
+				terminalController.seedScrollback(saved)
+			}
 		}
 		do {
 			try terminalController.startSubProcess()
@@ -571,7 +586,18 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	@objc private func sceneDidEnterBackground(_ notification: Notification) {
 		if notification.object as? UIWindowScene == view.window?.windowScene {
 			terminalController.windowDidEnterBackground()
+			// Backgrounding is the last guaranteed callback before jetsam can take us with no warning, so
+			// get the scrollback on disk now.
+			saveScrollback()
 		}
+	}
+
+	/// Persist this tab's scrollback so it can be replayed after the app is killed.
+	private func saveScrollback() {
+		guard let scrollbackID = scrollbackID else {
+			return
+		}
+		ScrollbackStore.shared.save(terminalController.snapshotScrollback(), id: scrollbackID)
 	}
 
 	@objc private func sceneWillEnterForeground(_ notification: Notification) {

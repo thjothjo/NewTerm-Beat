@@ -21,6 +21,10 @@ class BaseTerminalSplitViewControllerChild: UIViewController {
 	/// that already has a session goes back to it instead of stacking up duplicates.
 	var projectPath: String?
 
+	/// Stable id for this tab, persisted in the session snapshot so its scrollback can be matched back
+	/// to it after a restart.
+	var tabID = UUID().uuidString
+
 	var screenSize: ScreenSize?
 	var isSplitViewResizing = false
 	var showsTitleView = false

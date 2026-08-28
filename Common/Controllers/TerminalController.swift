@@ -69,6 +69,12 @@ public class TerminalController {
 	}
 	private var readBuffer = [UTF8Char]()
 
+	/// Rolling tail of raw output, kept so it can be persisted and replayed after the app is killed.
+	/// `terminalQueue` only, same as `readBuffer`. Capped by dropping from the front — the tail is what
+	/// survives replay anyway.
+	private static let scrollbackCaptureCap = 256 * 1024
+	private var scrollbackCapture = [UTF8Char]()
+
 	internal var terminalQueue = DispatchQueue(label: "ws.hbang.Terminal.terminal-queue")
 
 	public var screenSize: ScreenSize? {
@@ -268,6 +274,11 @@ public class TerminalController {
 		terminalQueue.async {
 			self.readBuffer += data
 
+			self.scrollbackCapture += data
+			if self.scrollbackCapture.count > Self.scrollbackCaptureCap {
+				self.scrollbackCapture.removeFirst(self.scrollbackCapture.count - Self.scrollbackCaptureCap)
+			}
+
 			// Come back up to speed now rather than waiting up to a frame at the idle rate, so the
 			// first character after a pause isn’t delayed.
 			if self.isIdleThrottled {
@@ -280,6 +291,25 @@ public class TerminalController {
 
 	private func readInputStream(_ data: Data) {
 		readInputStream([UTF8Char](data))
+	}
+
+	/// The captured output tail, for persisting. Synchronous so the caller (going to the background)
+	/// gets a consistent snapshot before it hands off.
+	public func snapshotScrollback() -> Data {
+		terminalQueue.sync { Data(scrollbackCapture) }
+	}
+
+	/// Replay previously-saved output before the live shell starts, reconstructing the last visual
+	/// state, and prime the capture buffer so the next save still carries this history. Feed it through
+	/// the normal input path so it renders and re-captures exactly as live output would.
+	public func seedScrollback(_ data: Data) {
+		guard !data.isEmpty else {
+			return
+		}
+		readInputStream([UTF8Char](data))
+		// A newline so the restored shell's first prompt starts cleanly below the history rather than
+		// merged onto its last line.
+		readInputStream([UInt8]("\r\n".utf8))
 	}
 
 	public func write(_ data: [UTF8Char]) {
