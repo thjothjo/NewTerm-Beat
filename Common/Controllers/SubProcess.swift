@@ -52,7 +52,7 @@ protocol SubProcessDelegate: AnyObject {
 	func subProcess(didReceiveError error: Error)
 }
 
-class SubProcess {
+public class SubProcess {
 
 	static let loginHelper: String = Bundle.main.path(forAuxiliaryExecutable: "NewTermLoginHelper")!
 
@@ -75,7 +75,9 @@ class SubProcess {
 	/// The app bundle is inside that directory, so its own path is the one dependable way to find it.
 	/// On a rootless jailbreak this comes out as `/var/jb`, and on a rootful one as empty — which is
 	/// exactly right in both cases.
-	static let jbRoot: String? = {
+	/// The jailbreak root the shell runs inside, when there is one. Public because paths printed by the
+	/// shell have to be resolved against it before this process can open them.
+	public static let jbRoot: String? = {
 		let path = Bundle.main.bundlePath
 		guard let range = path.range(of: "/Applications/", options: .backwards) else {
 			return nil

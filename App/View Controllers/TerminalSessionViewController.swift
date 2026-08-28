@@ -512,12 +512,16 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Fallback for a tapped path when nothing could open it: cd the shell into it (or its parent, if
 	/// it's a file). Types it as if the user had, so it lands in their history and they see it happen.
 	private func changeDirectory(into path: String) {
-		let resolved = (path as NSString).expandingTildeInPath
-		var isDirectory: ObjCBool = false
-		guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDirectory) else {
+		// Existence is checked against the resolved path (which may live inside the jbroot), but what
+		// gets typed is the path as written — the shell is already in that root and would not find the
+		// resolved form.
+		guard let resolved = Self.resolveExistingPath(path) else {
 			return
 		}
-		let target = isDirectory.boolValue ? resolved : (resolved as NSString).deletingLastPathComponent
+		var isDirectory: ObjCBool = false
+		_ = FileManager.default.fileExists(atPath: resolved, isDirectory: &isDirectory)
+		let asWritten = path.hasPrefix("~") ? path : (path as NSString).standardizingPath
+		let target = isDirectory.boolValue ? asWritten : (asWritten as NSString).deletingLastPathComponent
 		let quoted = "'" + target.replacingOccurrences(of: "'", with: "'\\''") + "'"
 		terminalController.write(Array("cd \(quoted)\n".utf8))
 	}
@@ -540,11 +544,30 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			.first { NSLocationInRange(utf16Offset, $0.range) }
 	}
 
-	/// Filza opens paths with `filza://view/<path>`. Only paths that exist are offered, which also
-	/// throws out the false positives the loose path pattern picks up.
+	/// Turns a path as the *shell* printed it into one this process can actually open.
+	///
+	/// On roothide the shell runs inside the jailbreak root, so what it prints as `/usr/bin` is really
+	/// a directory inside the jbroot — a different one from the `/usr/bin` we see. Checking the bare
+	/// path therefore fails for everything the jailbreak provides, and the tap did nothing at all.
+	/// Returns nil when neither reading exists, which is also what throws out the false positives the
+	/// loose path pattern picks up.
+	private static func resolveExistingPath(_ path: String) -> String? {
+		let expanded = path.hasPrefix("~") ? NSString(string: path).expandingTildeInPath : path
+		if FileManager.default.fileExists(atPath: expanded) {
+			return expanded
+		}
+		if let jbRoot = SubProcess.jbRoot {
+			let inJail = (jbRoot as NSString).appendingPathComponent(expanded)
+			if FileManager.default.fileExists(atPath: inJail) {
+				return inJail
+			}
+		}
+		return nil
+	}
+
+	/// Filza opens paths with `filza://view/<path>`.
 	private static func filzaURL(forPath path: String) -> URL? {
-		let resolved = path.hasPrefix("~") ? NSString(string: path).expandingTildeInPath : path
-		guard FileManager.default.fileExists(atPath: resolved) else {
+		guard let resolved = resolveExistingPath(path) else {
 			return nil
 		}
 		let encoded = resolved.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? resolved
