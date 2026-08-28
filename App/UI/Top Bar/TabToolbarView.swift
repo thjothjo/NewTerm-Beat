@@ -17,12 +17,18 @@ struct TerminalTab: Hashable {
 	/// Whether this tab is showing two terminals side by side. Drives the split button, which offers
 	/// to undo the split rather than make another one.
 	var isSplit: Bool = false
+	/// The project this terminal belongs to, or `nil` for one opened outside any project. The bar shows
+	/// one project's terminals at a time.
+	var projectPath: String?
 }
 
 class TabToolbarState: ObservableObject {
 	@Published var delegate: TabToolbarDelegate?
 	@Published var terminals = [TerminalTab]()
 	@Published var selectedIndex = 0
+	/// Which project's terminals the bar is showing — always the selected tab's, so the selected tab is
+	/// never one of the hidden ones.
+	@Published var visibleProjectPath: String?
 	/// Home-screen style edit mode. Closing a tab used to be a single tap on the icon that also acted
 	/// as the activity indicator, which made it far too easy to close a session by accident.
 	@Published var isEditing = false
@@ -164,10 +170,19 @@ struct TabToolbarView: View {
 		}
 	}
 
+	/// The tabs of the project the selected one belongs to.
+	///
+	/// Indices into the full list, not positions within the filtered one — everything the bar hands
+	/// back to the delegate is an index into the real tab list.
+	private var visibleTabIndices: [Int] {
+		state.terminals.indices.filter { state.terminals[$0].projectPath == state.visibleProjectPath }
+	}
+
 	private func scrollingTabs(minimumWidth: CGFloat) -> some View {
 		ScrollView(.horizontal, showsIndicators: false) {
 			HStack(spacing: 0) {
-				ForEach(Array(zip(state.terminals, state.terminals.indices)), id: \.1) { terminal, index in
+				ForEach(visibleTabIndices, id: \.self) { index in
+					let terminal = state.terminals[index]
 					TabToolbarItemView(terminal: terminal,
 														 index: index,
 														 isSelected: state.selectedIndex == index,

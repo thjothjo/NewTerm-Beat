@@ -14,6 +14,8 @@ protocol TabToolbarDataSource: AnyObject {
 	func selectedTerminalIndex() -> Int
 	func terminalName(at index: Int) -> String
 	func isTerminalSplit(at index: Int) -> Bool
+	/// The project a terminal belongs to, or nil for one opened outside any project.
+	func terminalProjectPath(at index: Int) -> String?
 }
 
 protocol TabToolbarDelegate: AnyObject {
@@ -133,6 +135,9 @@ class TabToolbarViewController: UIViewController {
 
 	func didSelectTab(at index: Int) {
 		state.selectedIndex = dataSource!.selectedTerminalIndex()
+		// The bar follows the selection into whichever project that tab belongs to, rather than the
+		// selection having to stay inside whatever the bar happens to be showing.
+		state.visibleProjectPath = dataSource?.terminalProjectPath(at: state.selectedIndex)
 	}
 
 	/// Leaves tab edit mode, for taps that land outside the tab bar entirely — on the terminal.
@@ -144,7 +149,8 @@ class TabToolbarViewController: UIViewController {
 		let terminal = TerminalTab(title: "",
 															 screenSize: .default,
 															 isDirty: false,
-															 hasBell: false)
+															 hasBell: false,
+															 projectPath: dataSource?.terminalProjectPath(at: index))
 		if index == state.terminals.count {
 			state.terminals.append(terminal)
 		} else {
@@ -159,6 +165,7 @@ class TabToolbarViewController: UIViewController {
 	func tabDidUpdate(at index: Int) {
 		state.terminals[index].title = dataSource?.terminalName(at: index) ?? .localize("Terminal")
 		state.terminals[index].isSplit = dataSource?.isTerminalSplit(at: index) ?? false
+		state.terminals[index].projectPath = dataSource?.terminalProjectPath(at: index)
 	}
 
 	private func selectTerminal(at index: Int) {

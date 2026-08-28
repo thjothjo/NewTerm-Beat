@@ -242,8 +242,16 @@ class RootViewController: UIViewController {
 		#endif
 	}
 
+	/// The project the selected tab belongs to, if any.
+	private var selectedProjectPath: String? {
+		terminalProjectPath(at: selectedTabIndex)
+	}
+
 	func addTerminal() {
-		addTerminal(projectPath: nil)
+		// Inherited rather than nil: a terminal opened while a project is on screen belongs to that
+		// project too. Starting it in the home directory instead meant picking the project again every
+		// single time a second terminal was wanted.
+		addTerminal(projectPath: selectedProjectPath)
 	}
 
 	func addTerminal(projectPath: String?, tabID: String? = nil) {
@@ -478,11 +486,18 @@ class RootViewController: UIViewController {
 	// MARK: - Split views
 
 	@objc func splitHorizontally() {
-		addTerminal(at: selectedTabIndex, axis: .vertical)
+		addTerminal(at: selectedTabIndex, axis: .vertical, projectPath: selectedProjectPath)
 	}
 
 	@objc func splitVertically() {
-		addTerminal(at: selectedTabIndex, axis: .horizontal)
+		addTerminal(at: selectedTabIndex, axis: .horizontal, projectPath: selectedProjectPath)
+	}
+
+	func terminalProjectPath(at index: Int) -> String? {
+		guard terminals.indices.contains(index) else {
+			return nil
+		}
+		return terminals[index].projectPath
 	}
 
 	/// Whether the tab at `index` is showing two terminals rather than one.
@@ -536,7 +551,7 @@ class RootViewController: UIViewController {
 			// belongs to the terminal that just moved rather than to the tab it came out of.
 			discardEmptyTab(at: neighbourIndex)
 		} else {
-			addTerminal(at: selectedTabIndex, axis: axis)
+			addTerminal(at: selectedTabIndex, axis: axis, projectPath: selectedProjectPath)
 			return
 		}
 
@@ -686,13 +701,25 @@ extension RootViewController {
 	}
 
 	func openProject(_ project: Project) {
-		if let index = terminals.firstIndex(where: { $0.projectPath == project.url.path }) {
+		// Tapping the project you're already in goes back to the terminals that aren't in one. The bar
+		// shows a single project's terminals, so without this there'd be no way back out of a project
+		// once you were in it.
+		if selectedProjectPath == project.url.path {
+			showTerminals(forProjectPath: nil)
+			return
+		}
+		showTerminals(forProjectPath: project.url.path,
+									initialCommand: ProjectManager.openCommand(for: project))
+	}
+
+	/// Brings a project's terminals to the front, starting one if it hasn't got any yet.
+	private func showTerminals(forProjectPath path: String?, initialCommand: String? = nil) {
+		if let index = terminals.firstIndex(where: { $0.projectPath == path }) {
 			selectTerminal(at: index)
 			return
 		}
-
-		initialCommand = ProjectManager.openCommand(for: project)
-		addTerminal(projectPath: project.url.path)
+		self.initialCommand = initialCommand
+		addTerminal(projectPath: path)
 	}
 
 	func trashProject(_ project: Project) {
