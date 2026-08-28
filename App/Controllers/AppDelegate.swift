@@ -24,6 +24,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		FontMetrics.loadFonts()
 		_ = Preferences.shared
 
+		// Before any terminal starts, so this launch's own shells can't be caught by it. iOS kills a
+		// backgrounded app without warning and nothing we do runs when it does, so whatever the last
+		// launch was running is still there — this is the only place it gets cleaned up.
+		DispatchQueue.global(qos: .utility).async {
+			OrphanReaper.reapOrphans()
+		}
+
 		UpdateCheckManager.check(updateAvailableCompletion: { response in
 			if let scene = application.connectedScenes.first(where: { scene in scene.delegate is TerminalSceneDelegate }) {
 				let delegate = scene.delegate as! TerminalSceneDelegate

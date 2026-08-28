@@ -254,7 +254,10 @@ public class SubProcess {
 			.filter { $0.key != "COLUMNS" && $0.key != "LINES" }
 			.map { "\($0)=\($1)" }
 		let envp = (inherited + Self.baseEnvp + [
-			"LANG=\(localeCode)"
+			"LANG=\(localeCode)",
+			// Inherited by everything the shell starts, which is what lets a later launch recognise
+			// what this one left behind. See OrphanReaper.
+			OrphanReaper.environmentEntry
 		]).cStringArray
 
 		defer {
@@ -308,14 +311,49 @@ public class SubProcess {
 		delegate!.subProcessDidConnect()
 	}
 
+	/// Ends the shell the way closing a terminal window does, so it takes its jobs down with it.
+	///
+	/// `SIGKILL` on the shell alone is what left `claude`, `codex` and the like running forever: the
+	/// shell died without ever getting to hang up its own jobs, and every one of them was re-parented
+	/// to launchd, holding its memory and its pid for the rest of the boot. A terminal emulator's job
+	/// here is to hang up the line — `SIGHUP` — and let the shell do the reaping it already knows how
+	/// to do.
+	///
+	/// Both the foreground job and the shell get it. A job-control shell puts each job in its own
+	/// process group, so signalling only the shell's group misses whatever is actually running.
+	private func hangUp(childPID: pid_t) {
+		if let fileDescriptor = fileDescriptor {
+			let foreground = tcgetpgrp(fileDescriptor)
+			// Not our own group, and not the shell's own — that one is covered below, and `-1` would
+			// mean every process we're allowed to signal.
+			if foreground > 1 && foreground != getpgrp() {
+				kill(-foreground, SIGHUP)
+			}
+		}
+		kill(childPID, SIGHUP)
+
+		// Long enough for a shell to hang up its jobs and exit, short enough not to be a stall the user
+		// can feel when closing a tab. A shell that ignores it gets killed outright — but its jobs will
+		// have had the signal by then either way.
+		let deadline = Date().addingTimeInterval(Self.hangUpGracePeriod)
+		while kill(childPID, 0) == 0 && Date() < deadline {
+			usleep(20_000)
+		}
+		if kill(childPID, 0) == 0 {
+			logger.debug("Shell \(childPID) ignored SIGHUP; killing")
+			kill(childPID, SIGKILL)
+		}
+	}
+
+	private static let hangUpGracePeriod: TimeInterval = 0.5
+
 	func stop(fromError: Bool = false) throws {
 		guard let childPID = childPID else {
 			throw SubProcessIllegalStateError.notStarted
 		}
 
-		// If process is still running, send it SIGKILL and wait for termination
 		if kill(childPID, 0) == 0 {
-			kill(childPID, SIGKILL)
+			hangUp(childPID: childPID)
 
 			var status = Int32()
 			waitpid(childPID, &status, WUNTRACED)
