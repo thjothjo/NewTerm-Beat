@@ -91,6 +91,8 @@ struct TerminalView: View {
 				}
 					.coordinateSpace(name: Self.scrollCoordinateSpace)
 					.background(Color(state.colorMap.background))
+					// Outside the lazy stack, so it is laid out even when line 0 has scrolled away.
+					.background(lineHeightProbe, alignment: .topLeading)
 					// The three things that need the view pinned back to the newest output. None of them
 					// can be caused by scrolling, so none of them can feed back into another scroll.
 					//
@@ -118,6 +120,27 @@ struct TerminalView: View {
 		}
 	}
 
+	/// One row, laid out exactly as a real line is but never shown, purely to measure the height
+	/// SwiftUI gives a row.
+	///
+	/// It can't be taken from the font: SwiftUI rounds a row to whole points, and which way it rounds
+	/// doesn't reliably follow the font's own metrics (12pt matches `ceil`, 10pt and 18pt don't). And
+	/// it can't be divided out of the content, for the reason in `applyGeometry`. Measuring one row
+	/// directly is the only reading that is neither stale nor guessed.
+	private var lineHeightProbe: some View {
+		Text(verbatim: "A")
+			.font(Font(state.fontMetrics.regularFont))
+			.tracking(0)
+			.lineLimit(1)
+			.fixedSize(horizontal: false, vertical: true)
+			.background(GeometryReader { probe in
+				Color.clear
+					.onAppear { state.lineHeight = probe.size.height }
+					.onChange(of: probe.size.height) { state.lineHeight = $0 }
+			})
+			.hidden()
+	}
+
 	// MARK: - Geometry
 
 	/// Observes the laid-out content. This must never scroll: `scrollTo` remeasures the `LazyVStack`,
@@ -127,12 +150,9 @@ struct TerminalView: View {
 	private func applyGeometry(_ metrics: TerminalContentMetrics) {
 		state.contentOriginY = metrics.originY
 
-		let lineCount = state.lines.count
-		if lineCount > 0 {
-			// Measured from the laid-out content rather than taken from the font, so hit testing tracks
-			// what’s actually drawn even if SwiftUI rounds line heights differently to FontMetrics.
-			state.lineHeight = (metrics.contentHeight - Self.verticalSpacing * 2) / CGFloat(lineCount)
-		}
+		// Line height comes from `lineHeightProbe`, not from dividing the total height by the line
+		// count: those two are produced by different layout passes, so output arriving between them
+		// divided a stale height by a fresh count and made every row look ~9% shorter than it is.
 
 		// The user scrolling moves the offset and nothing else. Anything that changes the size of the
 		// content or of the viewport — new output, the keyboard, a rotation, coming back from the

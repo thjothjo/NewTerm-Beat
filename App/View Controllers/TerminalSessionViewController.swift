@@ -346,6 +346,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 														 rows: UInt16(layoutSize.height / glyphSize.height.rounded(.up)),
 														 cellSize: glyphSize)
 		if screenSize != newSize {
+			// Resizing reflows the buffer, so text moves to different cells while a selection keeps the
+			// coordinates it was made with — after a rotation it would be highlighting, and copying,
+			// whatever now happens to sit there. There's nothing to re-anchor it to, so it goes.
+			clearSelection()
 			screenSize = newSize
 			delegate?.terminal(viewController: self, screenSizeDidChange: newSize)
 		}
