@@ -249,6 +249,8 @@
 		CFBB96C522B5481B00585BE6 /* TerminalController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalController.swift; sourceTree = "<group>"; };
 		CFBB96C622B5481B00585BE6 /* TerminalSceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TerminalSceneDelegate.swift; sourceTree = "<group>"; };
 		CFBB96F122B548D700585BE6 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		4EAA10412A0100410000FACE /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		4EAA10422A0100420000FACE /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		CFBB96F322B548D700585BE6 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		CFBB96F722B548D700585BE6 /* bell.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = bell.m4a; sourceTree = "<group>"; };
 		CFBB96FE22B548D700585BE6 /* colortest.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = colortest.txt; sourceTree = "<group>"; };
@@ -681,6 +683,8 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = CF22F9A81FFB97F7003175DE;
 			packageReferences = (
@@ -878,6 +882,8 @@
 			isa = PBXVariantGroup;
 			children = (
 				CFBB96F122B548D700585BE6 /* en */,
+				4EAA10412A0100410000FACE /* zh-Hans */,
+				4EAA10422A0100420000FACE /* zh-Hant */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";

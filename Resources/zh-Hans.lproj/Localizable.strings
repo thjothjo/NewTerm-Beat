@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>TERMINAL</key>
+	<string>终端</string>
+	<key>SETTINGS</key>
+	<string>设置</string>
+	<key>ABOUT</key>
+	<string>关于 NewTerm</string>
+	<key>PASSWORD_MANAGER</key>
+	<string>密码管理器</string>
+	<key>TERMINAL_LAUNCH_FAILED</key>
+	<string>Shell 进程意外退出。</string>
+	<key>TERMINAL_LAUNCH_FAILED_TITLE</key>
+	<string>无法启动终端，Shell 进程意外退出。</string>
+	<key>TERMINAL_LAUNCH_FAILED_BODY</key>
+	<string>详情见终端窗口里的错误信息。可能需要检查启动脚本，或重装核心软件包。</string>
+	<key>PROCESS_COMPLETED_TITLE</key>
+	<string>会话已结束</string>
+	<key>NEW_TAB</key>
+	<string>新建标签页</string>
+	<key>CLOSE_TAB</key>
+	<string>关闭标签页</string>
+	<key>NEW_WINDOW</key>
+	<string>新建窗口</string>
+	<key>CLOSE_WINDOW</key>
+	<string>关闭窗口</string>
+	<key>CLEAR_TERMINAL</key>
+	<string>清空终端</string>
+	<key>SHOW_PREVIOUS_TAB</key>
+	<string>上一个标签页</string>
+	<key>SHOW_NEXT_TAB</key>
+	<string>下一个标签页</string>
+	<key>SPLIT_HORIZONTALLY</key>
+	<string>左右分屏</string>
+	<key>SPLIT_VERTICALLY</key>
+	<string>上下分屏</string>
+	<key>TOGGLE_SPLIT</key>
+	<string>分屏 / 取消分屏</string>
+	<key>LOCALE_SYSTEM</key>
+	<string>系统语言：%@</string>
+	<key>CLOSE_WINDOW_TITLE</key>
+	<string>关闭窗口？</string>
+	<key>CLOSE_WINDOW_ACTION</key>
+	<string>关闭窗口</string>
+	<key>Terminal</key>
+	<string>终端</string>
+	<key>Control</key>
+	<string>Control</string>
+	<key>Ctrl</key>
+	<string>ctrl</string>
+	<key>Escape</key>
+	<string>Escape</string>
+	<key>Esc</key>
+	<string>esc</string>
+	<key>Tab</key>
+	<string>Tab</string>
+	<key>Shift-Tab</key>
+	<string>Shift-Tab</string>
+	<key>More</key>
+	<string>更多</string>
+	<key>Delete Forward</key>
+	<string>向后删除</string>
+	<key>Del</key>
+	<string>删除</string>
+	<key>Function Keys</key>
+	<string>功能键</string>
+	<key>Fn</key>
+	<string>Fn</string>
+	<key>Up</key>
+	<string>上</string>
+	<key>Down</key>
+	<string>下</string>
+	<key>Left</key>
+	<string>左</string>
+	<key>Right</key>
+	<string>右</string>
+	<key>Projects</key>
+	<string>项目</string>
+	<key>Proj</key>
+	<string>项目</string>
+	<key>New</key>
+	<string>新建</string>
+	<key>New Project</key>
+	<string>新建项目</string>
+	<key>No projects yet — tap New</key>
+	<string>还没有项目 — 点「新建」</string>
+	<key>Delete %@</key>
+	<string>删除 %@</string>
+	<key>Create</key>
+	<string>创建</string>
+	<key>Creates a folder in %@.</key>
+	<string>在 %@ 中创建一个文件夹。</string>
+	<key>Couldn’t Create Project</key>
+	<string>无法创建项目</string>
+	<key>Project names can’t be empty, start with a dot, or contain a slash.</key>
+	<string>项目名不能为空、不能以点开头、不能包含斜杠。</string>
+	<key>Move “%@” to Trash?</key>
+	<string>把“%@”移到废纸篓？</string>
+	<key>Move to Trash</key>
+	<string>移到废纸篓</string>
+	<key>The folder and everything in it moves to .Trash inside your projects folder. You can put it back with a file manager.</key>
+	<string>该文件夹及其中所有内容会移到项目目录下的 .Trash 里。之后可以用文件管理器还原。</string>
+	<key>Couldn’t Move Project</key>
+	<string>无法移动项目</string>
+	<key>Attach Image</key>
+	<string>附加图片</string>
+	<key>Img</key>
+	<string>图片</string>
+	<key>Couldn’t Attach Image</key>
+	<string>无法附加图片</string>
+	<key>Copy</key>
+	<string>拷贝</string>
+	<key>SSH Hosts</key>
+	<string>SSH 主机</string>
+	<key>SSH</key>
+	<string>SSH</string>
+	<key>New SSH Host</key>
+	<string>新建 SSH 主机</string>
+	<key>No hosts in ~/.ssh/config</key>
+	<string>~/.ssh/config 里还没有主机</string>
+	<key>Added to ~/.ssh/config. Connecting runs ssh with the name.</key>
+	<string>会写入 ~/.ssh/config。连接时执行 ssh 加这个名字。</string>
+	<key>Name (e.g. server)</key>
+	<string>名称（例如 server）</string>
+	<key>Host name or IP</key>
+	<string>主机名或 IP</string>
+	<key>User (optional)</key>
+	<string>用户名（可选）</string>
+	<key>Port (optional)</key>
+	<string>端口（可选）</string>
+	<key>Add</key>
+	<string>添加</string>
+	<key>Couldn’t Add Host</key>
+	<string>无法添加主机</string>
+	<key>AI Commands</key>
+	<string>AI 命令</string>
+	<key>AI</key>
+	<string>AI</string>
+	<key>No agent CLIs installed</key>
+	<string>没有已安装的 AI 命令行</string>
+	<key>Installed</key>
+	<string>已安装</string>
+	<key>iCloud Drive isn’t set up on this device.</key>
+	<string>本设备未启用 iCloud 云盘。</string>
+	<key>This build can’t reach iCloud Drive.</key>
+	<string>此版本无法访问 iCloud 云盘。</string>
+	<key>Name</key>
+	<string>名称</string>
+	<key>has activity</key>
+	<string>有新输出</string>
+	<key>has bell</key>
+	<string>响铃</string>
+	<key>Internal state error</key>
+	<string>内部状态错误</string>
+	<key>Couldn’t initialize a terminal. %@</key>
+	<string>无法初始化终端。%@</string>
+	<key>Couldn’t prepare terminal for logging in. %@</key>
+	<string>无法为登录准备终端。%@</string>
+	<key>Couldn’t start a terminal process. %@</key>
+	<string>无法启动终端进程。%@</string>
+	<key>Unknown (%i)</key>
+	<string>未知（%i）</string>
+	<key>Check out NewTerm, a modern, super fast terminal app for iOS and macOS! 🧑‍💻</key>
+	<string>推荐 NewTerm —— iOS 和 macOS 上现代、极快的终端 App！🧑‍💻</string>
+</dict>
+</plist>

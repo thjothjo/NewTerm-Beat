@@ -24,7 +24,7 @@
 
 	<!-- Alert title displayed when a terminal could not be launched. -->
 	<key>TERMINAL_LAUNCH_FAILED_TITLE</key>
-	<string>無法啟動終端機因為 Shell 處理程序未預期關閉。</</string>
+	<string>無法啟動終端機，因為 Shell 處理程序未預期關閉。</string>
 
 	<!-- Alert body displayed when a terminal could not be launched. -->
 	<key>TERMINAL_LAUNCH_FAILED_BODY</key>
@@ -82,5 +82,129 @@
 	<!-- Settings option to use the operating system’s locale. %@ is the user’s operating system language. -->
 	<key>LOCALE_SYSTEM</key>
 	<string>系統語言： %@</string>
+	<key>CLOSE_WINDOW_TITLE</key>
+	<string>關閉視窗？</string>
+	<key>CLOSE_WINDOW_ACTION</key>
+	<string>關閉視窗</string>
+	<key>Terminal</key>
+	<string>終端機</string>
+	<key>Control</key>
+	<string>Control</string>
+	<key>Ctrl</key>
+	<string>ctrl</string>
+	<key>Escape</key>
+	<string>Escape</string>
+	<key>Esc</key>
+	<string>esc</string>
+	<key>Tab</key>
+	<string>Tab</string>
+	<key>Shift-Tab</key>
+	<string>Shift-Tab</string>
+	<key>More</key>
+	<string>更多</string>
+	<key>Delete Forward</key>
+	<string>向後刪除</string>
+	<key>Del</key>
+	<string>刪除</string>
+	<key>Function Keys</key>
+	<string>功能鍵</string>
+	<key>Fn</key>
+	<string>Fn</string>
+	<key>Up</key>
+	<string>上</string>
+	<key>Down</key>
+	<string>下</string>
+	<key>Left</key>
+	<string>左</string>
+	<key>Right</key>
+	<string>右</string>
+	<key>Projects</key>
+	<string>專案</string>
+	<key>Proj</key>
+	<string>專案</string>
+	<key>New</key>
+	<string>新增</string>
+	<key>New Project</key>
+	<string>新增專案</string>
+	<key>No projects yet — tap New</key>
+	<string>還沒有專案 — 點「新增」</string>
+	<key>Delete %@</key>
+	<string>刪除 %@</string>
+	<key>Create</key>
+	<string>建立</string>
+	<key>Creates a folder in %@.</key>
+	<string>在 %@ 中建立一個資料夾。</string>
+	<key>Couldn’t Create Project</key>
+	<string>無法建立專案</string>
+	<key>Project names can’t be empty, start with a dot, or contain a slash.</key>
+	<string>專案名稱不能為空、不能以點開頭、不能包含斜線。</string>
+	<key>Move “%@” to Trash?</key>
+	<string>把「%@」移到垃圾桶？</string>
+	<key>Move to Trash</key>
+	<string>移到垃圾桶</string>
+	<key>The folder and everything in it moves to .Trash inside your projects folder. You can put it back with a file manager.</key>
+	<string>該資料夾及其中所有內容會移到專案目錄下的 .Trash 裡。之後可以用檔案管理器還原。</string>
+	<key>Couldn’t Move Project</key>
+	<string>無法移動專案</string>
+	<key>Attach Image</key>
+	<string>附加圖片</string>
+	<key>Img</key>
+	<string>圖片</string>
+	<key>Couldn’t Attach Image</key>
+	<string>無法附加圖片</string>
+	<key>Copy</key>
+	<string>拷貝</string>
+	<key>SSH Hosts</key>
+	<string>SSH 主機</string>
+	<key>SSH</key>
+	<string>SSH</string>
+	<key>New SSH Host</key>
+	<string>新增 SSH 主機</string>
+	<key>No hosts in ~/.ssh/config</key>
+	<string>~/.ssh/config 裡還沒有主機</string>
+	<key>Added to ~/.ssh/config. Connecting runs ssh with the name.</key>
+	<string>會寫入 ~/.ssh/config。連線時執行 ssh 加這個名稱。</string>
+	<key>Name (e.g. server)</key>
+	<string>名稱（例如 server）</string>
+	<key>Host name or IP</key>
+	<string>主機名稱或 IP</string>
+	<key>User (optional)</key>
+	<string>使用者（選填）</string>
+	<key>Port (optional)</key>
+	<string>連接埠（選填）</string>
+	<key>Add</key>
+	<string>加入</string>
+	<key>Couldn’t Add Host</key>
+	<string>無法加入主機</string>
+	<key>AI Commands</key>
+	<string>AI 指令</string>
+	<key>AI</key>
+	<string>AI</string>
+	<key>No agent CLIs installed</key>
+	<string>沒有已安裝的 AI 命令列</string>
+	<key>Installed</key>
+	<string>已安裝</string>
+	<key>iCloud Drive isn’t set up on this device.</key>
+	<string>本裝置未啟用 iCloud 雲碟。</string>
+	<key>This build can’t reach iCloud Drive.</key>
+	<string>此版本無法存取 iCloud 雲碟。</string>
+	<key>Name</key>
+	<string>名稱</string>
+	<key>has activity</key>
+	<string>有新輸出</string>
+	<key>has bell</key>
+	<string>響鈴</string>
+	<key>Internal state error</key>
+	<string>內部狀態錯誤</string>
+	<key>Couldn’t initialize a terminal. %@</key>
+	<string>無法初始化終端機。%@</string>
+	<key>Couldn’t prepare terminal for logging in. %@</key>
+	<string>無法為登入準備終端機。%@</string>
+	<key>Couldn’t start a terminal process. %@</key>
+	<string>無法啟動終端機處理程序。%@</string>
+	<key>Unknown (%i)</key>
+	<string>未知（%i）</string>
+	<key>Check out NewTerm, a modern, super fast terminal app for iOS and macOS! 🧑‍💻</key>
+	<string>推薦 NewTerm —— iOS 和 macOS 上現代、極快的終端機 App！🧑‍💻</string>
 </dict>
 </plist>
