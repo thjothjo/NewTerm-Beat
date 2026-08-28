@@ -131,9 +131,6 @@ class KeyboardSidePanelView: UIInputView {
 	/// Gap between the strip and the panel.
 	static let spacing: CGFloat = 4
 
-	/// Project names are words, not glyphs, so their column needs room the key columns don’t.
-	private static let projectWidth: CGFloat = 150
-
 	private var hostingView: UIHostingView<AnyView>!
 	private var widthConstraint: NSLayoutConstraint!
 	private var toggleObserver: AnyCancellable?
@@ -174,16 +171,14 @@ class KeyboardSidePanelView: UIInputView {
 			.sink { [weak self] width in self?.apply(width: width) }
 	}
 
-	/// `nil` when nothing is open, so the panel isn't a stray translucent box over the terminal.
+	/// One key column wide, whatever is in it — the panel is a second strip beside the first, not a
+	/// sheet. `nil` when nothing is open, so the panel isn't a stray translucent box over the terminal.
 	private static func width(forToggles toggles: Set<ToolbarKey>) -> CGFloat? {
-		if toggles.contains(.projects) {
-			return projectWidth
-		}
 		// Fn keys win over More, because More is what opens them and so both are on at once.
-		if toggles.contains(.fnKeys) || toggles.contains(.more) {
-			return KeyboardSideBarView.width
+		guard !toggles.isDisjoint(with: [.projects, .fnKeys, .more]) else {
+			return nil
 		}
-		return nil
+		return KeyboardSideBarView.width
 	}
 
 	private func apply(width: CGFloat?) {
@@ -193,7 +188,11 @@ class KeyboardSidePanelView: UIInputView {
 		}
 		widthConstraint.constant = width
 		isHidden = false
-		superview?.layoutIfNeeded()
+		// Deliberately not `layoutIfNeeded`. This runs from `@Published`'s `willSet`, so the property
+		// hasn't actually changed yet — forcing a layout here made SwiftUI render against the old value
+		// and consider itself up to date, and it never drew the new one. The panel then sat at the new
+		// column's width still showing the old column's contents.
+		superview?.setNeedsLayout()
 	}
 
 	required init?(coder: NSCoder) {
@@ -227,6 +226,9 @@ private struct KeyboardSidePanelContent: View {
 			content()
 				.padding(.vertical, 2)
 				.padding(.horizontal, 4)
+				// Against the strip. Centred, the keys floated in the middle of the panel and the space
+				// beside them read as a gap between two separate things.
+				.frame(maxWidth: .infinity, alignment: .leading)
 		}
 	}
 }

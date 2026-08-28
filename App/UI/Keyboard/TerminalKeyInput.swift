@@ -479,6 +479,12 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 			if state.toggledKeys.contains(.fnKeys) {
 				state.toggledKeys.remove(.fnKeys)
 			}
+			// The landscape panel is a single column, so whatever else was open has to give way — left
+			// on, Projects kept winning and More looked like it did nothing at all.
+			closeOtherPanels(keeping: .more)
+
+		case .projects:
+			closeOtherPanels(keeping: .projects)
 
 		case .image:
 			attachImageHandler?()
@@ -486,7 +492,7 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 
 		// The toggles run the panel rather than use it, and Control is held for the key that comes
 		// after it — closing on either would take the panel away mid-gesture.
-		case .control, .fnKeys, .projects:
+		case .control, .fnKeys:
 			break
 
 		default:
@@ -500,6 +506,24 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	private func closeSideBarPanel() {
 		if usesSideBar {
 			state.toggledKeys.subtract([.more, .fnKeys, .projects])
+		}
+	}
+
+	/// Leaves only `key` open, since the landscape panel has room for one column.
+	///
+	/// Deferred a turn deliberately. A toggle key has already changed `toggledKeys` inside the button's
+	/// own action by the time this runs, and SwiftUI has an update in flight against that value —
+	/// changing it a second time in the same turn was simply lost. The width, which watches the
+	/// publisher rather than the view, did follow, so the panel ended up narrowed to the new column
+	/// while still showing the old one's contents.
+	private func closeOtherPanels(keeping key: ToolbarKey) {
+		guard usesSideBar else {
+			return
+		}
+		// Only the other panel keys, so an armed Control survives opening a panel.
+		let others = Set<ToolbarKey>([.more, .fnKeys, .projects]).subtracting([key])
+		DispatchQueue.main.async { [weak self] in
+			self?.state.toggledKeys.subtract(others)
 		}
 	}
 

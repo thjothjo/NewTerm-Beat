@@ -410,7 +410,9 @@ struct ProjectPickerRow: View {
 	private func stack<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
 		switch axis {
 		case .horizontal: HStack(alignment: .center, spacing: 5) { content() }
-		case .vertical:   VStack(alignment: .center, spacing: 5) { content() }
+		// Leading, not centre: the column sits against the key strip, and centring left a strip-wide
+		// gap between the two that read as an empty column rather than as one panel.
+		case .vertical:   VStack(alignment: .leading, spacing: 5) { content() }
 		}
 	}
 
@@ -424,8 +426,16 @@ struct ProjectPickerRow: View {
 					HStack(spacing: 3) {
 						Image(systemName: .plus)
 							.imageScale(.small)
-						Text(String.localize("New"))
+						// No room for the word beside the plus in a one-key-wide column, and the plus on its
+						// own says the same thing.
+						if axis == .horizontal {
+							Text(String.localize("New"))
+						}
 					}
+						// Widened from inside the label so the key's background grows with it. Widening the
+						// button from outside only stretches an invisible frame and leaves the key floating
+						// in the middle of the column.
+						.frame(maxWidth: axis == .vertical ? .infinity : nil)
 				}
 					.buttonStyle(.keyboardKey(hasShadow: true))
 					.accessibilityLabel(String.localize("New Project"))
@@ -435,6 +445,7 @@ struct ProjectPickerRow: View {
 						.font(.system(size: 12))
 						.foregroundColor(.secondary)
 						.padding(.horizontal, 6)
+						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
 				} else {
 					ForEach(Array(zip(projects, projects.indices)), id: \.0) { project, index in
 						// Deliberately not a Button: a Button swallows the press, and neither
@@ -442,11 +453,19 @@ struct ProjectPickerRow: View {
 						// tab bar uses the same plain-view-plus-gestures shape for the same reason, so the
 						// key styling is reproduced here by hand.
 						Text(project.name)
-							.font(.system(size: isBigDevice ? 18 : 15, weight: .regular).monospacedDigit())
+							// Smaller in the column, which is one key wide: at the row size a name gets four
+							// characters before the ellipsis, which is no name at all.
+							.font(.system(size: axis == .vertical ? 11 : (isBigDevice ? 18 : 15),
+														weight: .regular).monospacedDigit())
 							.foregroundColor(.white)
-							.padding(.horizontal, 8)
+							// A long name has to end in an ellipsis rather than wrap: the key is a fixed
+							// height, so a second line has nowhere to go but outside it.
+							.lineLimit(1)
+							.truncationMode(.tail)
+							.padding(.horizontal, axis == .vertical ? 3 : 8)
 							.padding(.vertical, 6)
-							.frame(minWidth: Self.rowHeight, maxWidth: axis == .vertical ? .infinity : nil)
+							.frame(minWidth: axis == .vertical ? 0 : Self.rowHeight,
+										 maxWidth: axis == .vertical ? .infinity : nil)
 							.frame(height: Self.rowHeight)
 							.background(
 								Color(.keyBackgroundNormal)
