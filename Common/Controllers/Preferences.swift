@@ -178,6 +178,13 @@ public class Preferences: NSObject, ObservableObject {
 		willSet { objectWillChange.send() }
 	}
 
+	/// Folder inside iCloud Drive that project copies go to. One folder rather than the whole drive,
+	/// so an export can never scatter directories across the top level of somebody's iCloud.
+	@AppStorage("iCloudFolderName")
+	public var iCloudFolderName: String = "NewTerm" {
+		willSet { objectWillChange.send() }
+	}
+
 	/// Open projects inside a tmux session named after the project. This is what makes a session
 	/// outlive the app being killed; turn it off if tmux isn’t installed and the fallback bothers you.
 	@AppStorage("useTmuxForProjects")

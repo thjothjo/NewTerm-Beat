@@ -29,7 +29,10 @@ struct SettingsICloudView: View {
 		var evicted: [String] = []
 	}
 
+	@ObservedObject private var preferences = Preferences.shared
+
 	@State private var projects = ProjectManager.projects()
+	@State private var folderNames = [String]()
 	@State private var iCloudNames = [String]()
 	@State private var unavailable: String? = ProjectManager.iCloudUnavailableReason()
 	@State private var pending: PendingCopy?
@@ -44,8 +47,39 @@ struct SettingsICloudView: View {
 						.foregroundColor(.secondary)
 				}
 			} else {
+				PreferencesGroup(header: Text("Folder in iCloud Drive"),
+												 footer: Text("Copies go into this folder. Pick one that’s already there, or type a name and it’s created on the first copy.")) {
+					HStack {
+						Text("Name")
+						Spacer()
+						TextField(ProjectManager.defaultICloudFolderName, text: preferences.$iCloudFolderName)
+							.multilineTextAlignment(.trailing)
+							.autocapitalization(.none)
+							.disableAutocorrection(true)
+							.foregroundColor(.secondary)
+							.onChange(of: preferences.iCloudFolderName) { _ in reload() }
+					}
+
+					ForEach(folderNames, id: \.self) { name in
+						Button {
+							preferences.iCloudFolderName = name
+							reload()
+						} label: {
+							HStack {
+								Text(name)
+									.foregroundColor(.primary)
+								Spacer()
+								if name == ProjectManager.iCloudFolderName {
+									Image(systemName: .checkmark)
+										.foregroundColor(.accentColor)
+								}
+							}
+						}
+					}
+				}
+
 				PreferencesGroup(header: Text("Copy to iCloud Drive"),
-												 footer: Text("Puts a copy in iCloud Drive/NewTerm, where it shows up on your Mac. Replaces whatever is already there under the same name.")) {
+												 footer: Text("Puts a copy in iCloud Drive/\(ProjectManager.iCloudFolderName), where it shows up on your Mac. Replaces whatever is already there under the same name.")) {
 					if projects.isEmpty {
 						Text("No projects yet.")
 							.foregroundColor(.secondary)
@@ -60,7 +94,7 @@ struct SettingsICloudView: View {
 				PreferencesGroup(header: Text("Copy from iCloud Drive"),
 												 footer: Text("Replaces the project of the same name on this device. There is no merge — the copy in iCloud Drive wins outright.")) {
 					if iCloudNames.isEmpty {
-						Text("Nothing in iCloud Drive/NewTerm yet.")
+						Text("Nothing in iCloud Drive/\(ProjectManager.iCloudFolderName) yet.")
 							.foregroundColor(.secondary)
 					}
 					ForEach(iCloudNames, id: \.self) { name in
@@ -108,7 +142,7 @@ struct SettingsICloudView: View {
 			title = Text("Copy “\(copy.name)” to iCloud Drive?")
 			message = iCloudNames.contains(copy.name)
 				? Text("The copy already in iCloud Drive will be replaced. Anything changed there and not copied back is lost.")
-				: Text("A copy goes to iCloud Drive/NewTerm.")
+				: Text("A copy goes to iCloud Drive/\(ProjectManager.iCloudFolderName).")
 		case .importing:
 			title = Text("Copy “\(copy.name)” from iCloud Drive?")
 			let base = projects.contains(where: { $0.name == copy.name })
@@ -158,5 +192,6 @@ struct SettingsICloudView: View {
 		unavailable = ProjectManager.iCloudUnavailableReason()
 		projects = ProjectManager.projects()
 		iCloudNames = unavailable == nil ? ProjectManager.iCloudProjectNames() : []
+		folderNames = unavailable == nil ? ProjectManager.iCloudFolderNames() : []
 	}
 }

@@ -121,19 +121,45 @@ public enum ProjectManager {
 
 	// MARK: - iCloud Drive
 
-	/// Our folder in iCloud Drive, where copies of projects go so they can be seen from a Mac.
+	/// iCloud Drive itself.
 	///
 	/// A literal path, not `~`-expanded: `~` for everything else here means the jailbreak's home,
 	/// and iCloud Drive only exists under the real one. Nothing in `rootURL`'s expansion applies.
-	public static let iCloudRootURL = URL(fileURLWithPath: "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/NewTerm",
-																				isDirectory: true)
+	public static let iCloudContainerURL = URL(fileURLWithPath: "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs",
+																						 isDirectory: true)
+
+	public static let defaultICloudFolderName = "NewTerm"
+
+	/// Whichever folder in iCloud Drive copies go to. Falls back rather than allowing an empty name,
+	/// which would put project folders loose at the top level of the user's iCloud Drive.
+	public static var iCloudFolderName: String {
+		let name = Preferences.shared.iCloudFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+		return name.isEmpty ? defaultICloudFolderName : name
+	}
+
+	/// Our folder in iCloud Drive, where copies of projects go so they can be seen from a Mac.
+	public static var iCloudRootURL: URL {
+		iCloudContainerURL.appendingPathComponent(iCloudFolderName, isDirectory: true)
+	}
+
+	/// Top-level folders already in iCloud Drive, to pick one of rather than having to type its name.
+	public static func iCloudFolderNames() -> [String] {
+		let keys: [URLResourceKey] = [.isDirectoryKey]
+		let contents = (try? FileManager.default.contentsOfDirectory(at: iCloudContainerURL,
+																																 includingPropertiesForKeys: keys,
+																																 options: [.skipsHiddenFiles])) ?? []
+		return contents
+			.filter { (try? $0.resourceValues(forKeys: Set(keys)))?.isDirectory == true }
+			.map(\.lastPathComponent)
+			.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+	}
 
 	/// Why iCloud Drive can't be used, or nil when it can.
 	///
 	/// Reading the folder rather than asking about the account: the entitlement that gets us in is
 	/// checked by the kernel, so the only answer that means anything is whether the open succeeded.
 	public static func iCloudUnavailableReason() -> String? {
-		let container = iCloudRootURL.deletingLastPathComponent()
+		let container = iCloudContainerURL
 		var isDirectory: ObjCBool = false
 		guard FileManager.default.fileExists(atPath: container.path, isDirectory: &isDirectory),
 					isDirectory.boolValue else {
