@@ -68,6 +68,23 @@ open class StringSupplier {
 			}
 
 			let character = data.getCharacter()
+
+			// A wide character gets a run to itself, centred in the cells the buffer gave it. Its glyph
+			// is only ~80% of the two cells it owns, so left-aligning a run of them leaves the slack
+			// pooled at the right-hand end — which is what walked the cursor further from the text with
+			// every character typed, and put the selection rectangle over the wrong cells. Per-character
+			// framing pins every glyph to the grid the rest of the app measures against.
+			if cellCols > 1 {
+				if !buffer.isEmpty {
+					views.append(text(buffer, cols: bufferCols, attribute: lastAttribute))
+					buffer.removeAll()
+					bufferCols = 0
+				}
+				views.append(text(String(character), cols: cellCols, attribute: lastAttribute, isCursor: isCursor, isWide: true))
+				j += cellCols
+				continue
+			}
+
 			buffer.append(character == "\0" ? " " : character)
 			bufferCols += cellCols
 
@@ -88,7 +105,7 @@ open class StringSupplier {
 		})
 	}
 
-	private func text(_ run: String, cols: Int, attribute: Attribute, isCursor: Bool = false) -> AnyView {
+	private func text(_ run: String, cols: Int, attribute: Attribute, isCursor: Bool = false, isWide: Bool = false) -> AnyView {
 		var fgColor = attribute.fg
 		var bgColor = attribute.bg
 
@@ -133,11 +150,11 @@ open class StringSupplier {
 				.allowsTightening(false)
 				.lineLimit(1)
 				.minimumScaleFactor(Self.minimumGlyphScale)
-				// Leading, not the default centre. A run of full-width characters draws narrower than
-				// the two cells each is allotted, and centring shares that slack out to both sides —
-				// which pushed every line containing CJK a couple of columns to the right of the ASCII
-				// lines above and below it.
-				.frame(width: width, alignment: .leading)
+				// Narrow runs are leading-aligned so they sit flush on the grid. A wide character is
+				// centred instead: its glyph is narrower than its two cells, and centring splits that
+				// slack evenly rather than pooling it to one side. Because each wide character now has
+				// its own frame, the slack can't accumulate across the line.
+				.frame(width: width, alignment: isWide ? .center : .leading)
 				.fixedSize(horizontal: false, vertical: true)
 				// Background goes after the frame so it paints the whole cell run. Applied before it,
 				// it would track the glyphs’ intrinsic width instead, leaving gaps between cells for
