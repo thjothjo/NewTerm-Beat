@@ -19,9 +19,9 @@ class KeyboardToolbarInputView: UIInputView {
 	private var measuredRowsHeight: CGFloat = 50
 	private let state: KeyboardToolbarViewState
 
-	/// Told when the bar has finished changing height, so whoever lays out around the keyboard can
-	/// follow. UIKit posts no keyboard frame change when an accessory sizes itself.
-	var onHeightChanged: (() -> Void)?
+	/// Told by how much the bar just grew or shrank, so whoever lays out around the keyboard can
+	/// follow in the same pass. UIKit posts no keyboard frame change when an accessory sizes itself.
+	var onHeightChanged: ((CGFloat) -> Void)?
 
 	init(delegate: KeyboardToolbarViewDelegate?, toolbars: [Toolbar], state: KeyboardToolbarViewState) {
 		self.state = state
@@ -36,11 +36,10 @@ class KeyboardToolbarInputView: UIInputView {
 		// point — the old code invalidated from the model change instead and measured the rows that
 		// were still on screen.
 		view.onHeightMeasured = { [weak self] height in
-			// Deferred a turn: the preference arrives inside SwiftUI's update, and re-entering UIKit
-			// layout from there is asking for trouble.
-			DispatchQueue.main.async {
-				self?.applyContentHeight(height)
-			}
+			// Not deferred. The preference arrives as part of SwiftUI's update, which is the same pass
+			// that draws the new row — waiting a turn meant the row was on screen over the terminal's
+			// last lines before the terminal was told to make room.
+			self?.applyContentHeight(height)
 		}
 
 		hostingView = UIHostingView(rootView: AnyView(
@@ -124,11 +123,16 @@ class KeyboardToolbarInputView: UIInputView {
 		guard measuredRowsHeight > 0, abs(measuredRowsHeight - contentHeight.constant) > 0.5 else {
 			return
 		}
+		let delta = measuredRowsHeight - contentHeight.constant
 		contentHeight.constant = measuredRowsHeight
+		// Before the layout, not after. The bar draws as soon as it is laid out; telling the terminal a
+		// turn later meant the new row was on screen for two frames before the terminal moved out from
+		// under it — captured at 30fps, the row appeared over the last lines of output and the text
+		// only reflowed afterwards.
+		onHeightChanged?(delta)
 		invalidateIntrinsicContentSize()
 		setNeedsLayout()
 		layoutIfNeeded()
-		onHeightChanged?()
 	}
 
 }

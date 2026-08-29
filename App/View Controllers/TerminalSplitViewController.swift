@@ -123,7 +123,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryFrameChanged(_:)), name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryHeightChanged(_:)), name: TerminalKeyInput.accessoryHeightDidChangeNotification, object: nil)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -136,7 +136,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
-		NotificationCenter.default.removeObserver(self, name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
+		NotificationCenter.default.removeObserver(self, name: TerminalKeyInput.accessoryHeightDidChangeNotification, object: nil)
 	}
 
 	override func updateViewConstraints() {
@@ -335,20 +335,26 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 	/// terminal keeps the inset it had and draws underneath the taller bar. `TerminalKeyInput` used to
 	/// force the notification by reloading its input views, which UIKit animates as taking the bar
 	/// away and bringing a new one back: the whole bar visibly dived off the bottom and returned.
-	@objc func accessoryFrameChanged(_ notification: Notification) {
-		guard let frame = notification.userInfo?[TerminalKeyInput.accessoryFrameKey] as? CGRect else {
+	@objc func accessoryHeightChanged(_ notification: Notification) {
+		guard let delta = notification.userInfo?[TerminalKeyInput.accessoryHeightDeltaKey] as? CGFloat else {
 			return
 		}
-		// No animation curve to match — nothing is moving except the bar's own top edge, which UIKit
-		// has already laid out by the time this arrives.
-		apply(keyboardFrame: frame, animationDuration: 0, curve: nil)
+		// The change, applied to the overlap already known. Asking the bar for its frame instead means
+		// waiting for UIKit to place it, which happens a turn later — and by then the new row has been
+		// drawn over the terminal's last lines. Captured at 30fps: the row appeared on top of the
+		// output for two frames before the text reflowed out from under it.
+		keyboardHeight += delta
+		applyKeyboardInsets(animationDuration: 0, curve: nil)
 	}
 
 	private func apply(keyboardFrame: CGRect, animationDuration: TimeInterval, curve: UInt?) {
 		keyboardHeight = view.convert(keyboardFrame, from: nil)
 			.intersection(view.bounds)
 			.height
+		applyKeyboardInsets(animationDuration: animationDuration, curve: curve)
+	}
 
+	private func applyKeyboardInsets(animationDuration: TimeInterval, curve: UInt?) {
 		// Only the part of the keyboard the safe area doesn’t already account for. Flooring this at
 		// bottomInset instead of 0 held a home-indicator’s worth of dead space under the terminal
 		// whenever the keyboard was down — the view never came all the way back.

@@ -130,8 +130,8 @@ class TerminalKeyInput: TextInputBase {
 																			 state: state)
 		// The bar tells us when it has actually finished resizing, rather than us guessing from the
 		// model change — which fired before SwiftUI had laid the new rows out.
-		toolbar.onHeightChanged = { [weak self] in
-			self?.notifyAccessoryFrameChanged()
+		toolbar.onHeightChanged = { [weak self] delta in
+			self?.notifyAccessoryHeightChanged(by: delta)
 		}
 
 		// Switching keyboards — to emoji, to a third-party one, to dictation — changes how tall the
@@ -179,36 +179,22 @@ class TerminalKeyInput: TextInputBase {
 		}
 	}
 
-	/// Tells whoever lays out around the keyboard where its top edge is now.
+	/// Tells whoever lays out around the keyboard that its top edge moved, and by how much.
 	///
-	/// The accessory bar *is* the visible top of the keyboard, so its own frame plus everything below
-	/// it is exactly the area the terminal has to keep clear.
-	private func notifyAccessoryFrameChanged() {
-		// A turn later: the bar has just changed height, and UIKit moves its origin to match on the
-		// next layout pass. Reading the frame straight away gets the position it had at the old height,
-		// which left the terminal inset for a bar that had already grown — its last lines drawn behind
-		// the keys.
-		DispatchQueue.main.async { [weak self] in
-			self?.postAccessoryFrame()
-		}
-	}
-
-	private func postAccessoryFrame() {
-		guard let window = toolbar.window else {
+	/// The change rather than the resulting frame: the bar's own frame is only correct once UIKit has
+	/// placed it again, which is a turn later, and by then the new row has already been drawn over the
+	/// terminal.
+	private func notifyAccessoryHeightChanged(by delta: CGFloat) {
+		guard delta != 0 else {
 			return
 		}
-		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
-		let keyboardFrame = CGRect(x: barFrame.minX,
-															 y: barFrame.minY,
-															 width: barFrame.width,
-															 height: window.bounds.maxY - barFrame.minY)
-		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
+		NotificationCenter.default.post(name: Self.accessoryHeightDidChangeNotification,
 																		object: self,
-																		userInfo: [Self.accessoryFrameKey: keyboardFrame])
+																		userInfo: [Self.accessoryHeightDeltaKey: delta])
 	}
 
-	static let accessoryFrameDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryFrameDidChange")
-	static let accessoryFrameKey = "frame"
+	static let accessoryHeightDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryHeightDidChange")
+	static let accessoryHeightDeltaKey = "delta"
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
 	/// live in the shortcuts bar rather than a row of our own.
