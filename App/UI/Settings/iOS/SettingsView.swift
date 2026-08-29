@@ -39,10 +39,6 @@ struct SettingsView: View {
 
 	@ObservedObject var preferences = Preferences.shared
 
-	/// The bell settings as of the last change, so the first observation — which fires simply because
-	/// the screen appeared — can be told apart from the user actually toggling something.
-	@State private var lastBellSettings: [Bool]?
-
 	/// How much terminal output is on disk right now, so the button can say what it's about to clear.
 	@State private var savedBytes = 0
 
@@ -142,9 +138,22 @@ struct SettingsView: View {
 
 			PreferencesGroup(header: Text("Bell"),
 											 footer: Text("When a terminal application needs to notify you of something, it rings the bell.")) {
-				Toggle("Make beep sound", isOn: preferences.$bellSound)
+				// Demonstrated from the toggle itself rather than by observing the value. An observation
+				// fires when the screen appears too, which is why opening Settings used to ring the bell
+				// — and turning one *off* is not an occasion to play it either.
+				Toggle("Make beep sound", isOn: Binding(
+					get: { preferences.bellSound },
+					set: { isOn in
+						preferences.bellSound = isOn
+						if isOn { HapticController.playBell() }
+					}))
 				if CHHapticEngine.capabilitiesForHardware().supportsHaptics {
-					Toggle("Make haptic vibration", isOn: preferences.$bellVibrate)
+					Toggle("Make haptic vibration", isOn: Binding(
+						get: { preferences.bellVibrate },
+						set: { isOn in
+							preferences.bellVibrate = isOn
+							if isOn { HapticController.playBell() }
+						}))
 				}
 				Toggle("Show heads-up display", isOn: preferences.$bellHUD)
 			}
@@ -167,16 +176,6 @@ struct SettingsView: View {
 					ScrollbackStore.shared.discardAll()
 				}
 				savedBytes = ScrollbackStore.shared.totalBytes()
-			}
-			// Demonstrating the bell is only meaningful when one of these is actually toggled. Comparing
-			// against the value seen last is what makes that so: the observation fires once when the
-			// screen appears, and every opening of Settings used to ring the bell for no reason.
-			.onChange(of: [preferences.bellVibrate, preferences.bellSound]) { newValue in
-				defer { lastBellSettings = newValue }
-				guard let previous = lastBellSettings, previous != newValue else {
-					return
-				}
-				HapticController.playBell()
 			}
 
 		return NavigationView {

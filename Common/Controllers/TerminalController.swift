@@ -329,7 +329,11 @@ public class TerminalController {
 		guard !data.isEmpty else {
 			return
 		}
-		readInputStream([UTF8Char](data))
+		// Bells stripped before replaying. The saved bytes are a recording of the session, and every
+		// BEL the shell rang during it is in there — feeding them back rang the lot on launch, for
+		// things that happened yesterday. Replaying is reconstructing what the screen looked like, not
+		// making it all happen again.
+		readInputStream([UTF8Char](data).filter { $0 != 0x07 })
 		// A newline so the restored shell's first prompt starts cleanly below the history rather than
 		// merged onto its last line.
 		readInputStream([UInt8]("\r\n".utf8))
