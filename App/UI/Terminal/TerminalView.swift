@@ -45,18 +45,6 @@ fileprivate struct TerminalContentMetrics: Equatable {
 	var distanceFromBottom: CGFloat { originY + contentHeight - viewportHeight }
 }
 
-fileprivate extension View {
-	/// `defaultScrollAnchor(.bottom)` where it exists, and nothing where it doesn't.
-	@ViewBuilder
-	func bottomAnchoredScroll() -> some View {
-		if #available(iOS 17, *) {
-			defaultScrollAnchor(.bottom)
-		} else {
-			self
-		}
-	}
-}
-
 struct TerminalView: View {
 	static let horizontalSpacing: CGFloat = isBigDevice ? 3 : 0
 	static let verticalSpacing: CGFloat = isBigDevice ? 2 : 0
@@ -100,12 +88,6 @@ struct TerminalView: View {
 								.onAppear { applyGeometry(metrics) }
 								.onChange(of: metrics, perform: applyGeometry)
 						})
-						// At least a screenful, laid out from the top, so a terminal holding less than that
-						// keeps its lines where they are and the empty part is below them. The bottom anchor
-						// aligns content that underfills the viewport to the bottom instead, which put a
-						// nearly-empty terminal's prompt at the foot of the screen and had a keyboard row
-						// opening shove it upwards — when all it should do is eat into the blank space.
-						.frame(minHeight: outer.size.height, alignment: .top)
 				}
 					.coordinateSpace(name: Self.scrollCoordinateSpace)
 					.background(Color(state.colorMap.background))
@@ -125,11 +107,6 @@ struct TerminalView: View {
 					.onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
 						followOutput(scrollView)
 					}
-					// Anchored at the bottom, so a change in the viewport's height doesn't cost the offset.
-					// Without it SwiftUI rebuilds the scroll view for the new size and hands it back at the
-					// top: opening a keyboard row threw the output upwards for a frame, and the row itself
-					// was drawn over the last lines until the terminal caught up.
-					.bottomAnchoredScroll()
 			}
 		}
 			.opacity(state.isSplitViewResizing ? 0.6 : 1)
