@@ -273,6 +273,11 @@ struct AIPickerRow: View {
 			.onReceive(NotificationCenter.default.publisher(for: AICatalog.didChangeNotification)) { _ in
 				commands = AICatalog.commands()
 			}
+			// An agent that just rewrote the shortcuts file should see its own change without the app
+			// being restarted — that's the whole point of the file being editable.
+			.onReceive(NotificationCenter.default.publisher(for: AIShortcutStore.didChangeNotification)) { _ in
+				commands = AICatalog.commands()
+			}
 	}
 }
 

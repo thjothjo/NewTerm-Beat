@@ -45,7 +45,17 @@ public enum AICatalog {
 	]
 
 	public static func commands() -> [AICommand] {
-		installedCLIs() + prompts()
+		// The user's own first: a persona they wrote is more use than the CLI list they already know.
+		userShortcuts() + installedCLIs() + prompts()
+	}
+
+	private static func userShortcuts() -> [AICommand] {
+		AIShortcutStore.shortcuts().map { shortcut in
+			AICommand(name: shortcut.name,
+								command: shortcut.send ? shortcut.command + "\r" : shortcut.command,
+								kind: shortcut.kind == .agent ? .cli : .prompt,
+								source: shortcut.kind.sourceLabel)
+		}
 	}
 
 	// MARK: - CLIs
@@ -85,6 +95,8 @@ public enum AICatalog {
 	private static func prompts() -> [AICommand] {
 		let home = SubProcess.homeDirectory as NSString
 		var commands = [AICommand]()
+		// Keyed by source as well as name: Claude and Codex can each have a /review, and they are not
+		// the same command. Deduping on name alone silently dropped the second.
 		var seen = Set<String>()
 
 		for entry in promptDirectories {
@@ -108,7 +120,7 @@ public enum AICatalog {
 					name = (item as NSString).deletingPathExtension
 				}
 
-				guard seen.insert(name).inserted else {
+				guard seen.insert("\(entry.source)/\(name)").inserted else {
 					continue
 				}
 				// A trailing space, because a slash command is nearly always followed by an argument.
@@ -119,5 +131,16 @@ public enum AICatalog {
 			}
 		}
 		return commands
+	}
+}
+
+private extension AIShortcut.Kind {
+	/// What the list shows underneath the name, so a persona isn't mistaken for a command.
+	var sourceLabel: String {
+		switch self {
+		case .agent:   return .localize("Yours")
+		case .skill:   return .localize("Skill")
+		case .persona: return .localize("Persona")
+		}
 	}
 }

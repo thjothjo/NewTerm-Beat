@@ -29,6 +29,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		// launch was running is still there — this is the only place it gets cleaned up.
 		DispatchQueue.global(qos: .utility).async {
 			OrphanReaper.reapOrphans()
+			// Seeded on first launch so the file an agent is told to edit already exists, with a worked
+			// example of every field in it.
+			AIShortcutStore.createTemplateIfNeeded()
 		}
 
 		UpdateCheckManager.check(updateAvailableCompletion: { response in

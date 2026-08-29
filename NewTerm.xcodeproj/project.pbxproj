@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4EW5000000000000000002 /* SettingsAIShortcutsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW5000000000000000001 /* SettingsAIShortcutsView.swift */; };
+		4EW4000000000000000002 /* AIShortcutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW4000000000000000001 /* AIShortcutStore.swift */; };
 		4EW3000000000000000001 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
 		4EW2000000000000000004 /* TerminalActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000003 /* TerminalActivityController.swift */; };
 		4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
@@ -185,6 +187,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4EW5000000000000000001 /* SettingsAIShortcutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAIShortcutsView.swift; sourceTree = "<group>"; };
+		4EW4000000000000000001 /* AIShortcutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIShortcutStore.swift; sourceTree = "<group>"; };
 		4EW2000000000000000003 /* TerminalActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityController.swift; sourceTree = "<group>"; };
 		4EW2000000000000000001 /* TerminalActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityAttributes.swift; sourceTree = "<group>"; };
 		4EW1000000000000000002 /* NewTermWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NewTermWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -432,6 +436,7 @@
 		CF71BC3E22BB62B400AFB1E1 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				4EW4000000000000000001 /* AIShortcutStore.swift */,
 				4EW2000000000000000003 /* TerminalActivityController.swift */,
 				CFBB96C322B5481B00585BE6 /* Preferences.swift */,
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
@@ -496,6 +501,7 @@
 				4EDC998C26F440090030C1F9 /* Mac */,
 				4E5E817426F2EBE000C4DB6D /* SettingsPerformanceView.swift */,
 				4EAA100126F2EBE000C4DB70 /* SettingsICloudView.swift */,
+				4EW5000000000000000001 /* SettingsAIShortcutsView.swift */,
 				4E1028D0275C4BD9001A34AB /* SettingsAdvancedView.swift */,
 				4E980827261879D200E41883 /* SettingsAboutView.swift */,
 				4E0A979F2685CDE30022F569 /* SettingsAcknowledgementsView.swift */,
@@ -859,6 +865,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4EW4000000000000000002 /* AIShortcutStore.swift in Sources */,
 				4EW2000000000000000004 /* TerminalActivityController.swift in Sources */,
 				4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */,
 				4EBBCB21288AB710002EAE00 /* UnicodeUtil.swift in Sources */,
@@ -925,6 +932,7 @@
 				4E9B32E0260C66B5006A1FBC /* Bundle+NewTermAdditions.swift in Sources */,
 				4E5E817526F2EBE000C4DB6D /* SettingsPerformanceView.swift in Sources */,
 				4EAA100226F2EBE000C4DB70 /* SettingsICloudView.swift in Sources */,
+				4EW5000000000000000002 /* SettingsAIShortcutsView.swift in Sources */,
 				CFBB96CD22B5481B00585BE6 /* TerminalKeyInput.swift in Sources */,
 				4E9FB99426184356005AFCC8 /* SettingsView.swift in Sources */,
 				4E460129261FF23F004DBCC2 /* SettingsSceneDelegate.swift in Sources */,

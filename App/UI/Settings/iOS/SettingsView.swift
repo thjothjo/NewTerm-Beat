@@ -39,6 +39,10 @@ struct SettingsView: View {
 
 	@ObservedObject var preferences = Preferences.shared
 
+	/// The bell settings as of the last change, so the first observation — which fires simply because
+	/// the screen appeared — can be told apart from the user actually toggling something.
+	@State private var lastBellSettings: [Bool]?
+
 	var windowScene: UIWindowScene?
 
 	@State private var keyboardToolbarState = KeyboardToolbarViewState()
@@ -82,6 +86,11 @@ struct SettingsView: View {
 
 				NavigationLink(destination: SettingsICloudView(),
 											 label: { Text("iCloud Drive") })
+			}
+
+			PreferencesGroup(header: Text("AI")) {
+				NavigationLink(destination: SettingsAIShortcutsView(),
+											 label: { Text("AI Shortcuts") })
 			}
 
 			PreferencesGroup(header: Text("Keyboard"),
@@ -129,7 +138,14 @@ struct SettingsView: View {
 			}
 		}
 			.listStyle(InsetGroupedListStyle())
-			.onChange(of: [preferences.bellVibrate, preferences.bellSound]) { _ in
+			// Demonstrating the bell is only meaningful when one of these is actually toggled. Comparing
+			// against the value seen last is what makes that so: the observation fires once when the
+			// screen appears, and every opening of Settings used to ring the bell for no reason.
+			.onChange(of: [preferences.bellVibrate, preferences.bellSound]) { newValue in
+				defer { lastBellSettings = newValue }
+				guard let previous = lastBellSettings, previous != newValue else {
+					return
+				}
 				HapticController.playBell()
 			}
 
