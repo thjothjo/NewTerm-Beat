@@ -28,12 +28,17 @@ public struct AIShortcut: Codable, Hashable, Identifiable {
 	/// Whether to press return afterwards. Off for anything you'd want to add to before sending —
 	/// which is most things.
 	public var send: Bool
+	/// What this is for, in one line. The name on a key is four or five characters; it can say what
+	/// the shortcut is called but not what it does, and the seeded ones arrived with no explanation
+	/// at all.
+	public var note: String?
 
-	public init(name: String, command: String, kind: Kind, send: Bool = false) {
+	public init(name: String, command: String, kind: Kind, send: Bool = false, note: String? = nil) {
 		self.name = name
 		self.command = command
 		self.kind = kind
 		self.send = send
+		self.note = note
 	}
 
 	/// Whether picking this should clear whatever is already typed.
@@ -113,6 +118,20 @@ public enum AIShortcutStore {
 		try save(all)
 	}
 
+	/// Replaces one in place, keeping its position in the list.
+	///
+	/// Not `remove` then `add`: renaming one would otherwise move it to the end, and the order is the
+	/// order the keys appear in.
+	public static func update(_ old: AIShortcut, to new: AIShortcut) throws {
+		var all = shortcuts()
+		guard let index = all.firstIndex(where: { $0.id == old.id }) else {
+			try add(new)
+			return
+		}
+		all[index] = new
+		try save(all)
+	}
+
 	public static func remove(_ shortcut: AIShortcut) throws {
 		try save(shortcuts().filter { $0.id != shortcut.id })
 	}
@@ -124,15 +143,18 @@ public enum AIShortcutStore {
 	@discardableResult
 	public static func createTemplateIfNeeded() -> Bool {
 		guard !FileManager.default.fileExists(atPath: fileURL.path) else {
+			backfillSeededNotes()
 			return false
 		}
 		let examples = [
 			AIShortcut(name: "Reviewer",
 								 command: "You are a meticulous code reviewer. Point out real defects only — no style preferences. ",
-								 kind: .persona),
+								 kind: .persona,
+								 note: .localize("AI_SHORTCUT_REVIEWER_NOTE")),
 			AIShortcut(name: "Explain",
 								 command: "Explain what this code does, in plain terms, and name anything that looks wrong. ",
-								 kind: .persona)
+								 kind: .persona,
+								 note: .localize("AI_SHORTCUT_EXPLAIN_NOTE"))
 		]
 		do {
 			try save(examples)
@@ -140,6 +162,32 @@ public enum AIShortcutStore {
 		} catch {
 			logger.error("Couldn’t create \(displayPath): \(String(describing: error))")
 			return false
+		}
+	}
+
+	/// Gives the seeded entries their note, for files written before notes existed.
+	///
+	/// Only fills a note in where there isn't one, so anything edited by hand or by an agent is left
+	/// exactly as it was found.
+	private static func backfillSeededNotes() {
+		let notes = ["Reviewer": String.localize("AI_SHORTCUT_REVIEWER_NOTE"),
+								 "Explain": String.localize("AI_SHORTCUT_EXPLAIN_NOTE")]
+		var all = shortcuts()
+		var changed = false
+		for index in all.indices where all[index].note?.isEmpty != false {
+			guard let note = notes[all[index].name] else {
+				continue
+			}
+			all[index].note = note
+			changed = true
+		}
+		guard changed else {
+			return
+		}
+		do {
+			try save(all)
+		} catch {
+			logger.notice("Couldn’t add notes to \(displayPath): \(String(describing: error))")
 		}
 	}
 
@@ -151,7 +199,8 @@ public enum AIShortcutStore {
 	private static let readme = [
 		"NewTerm AI shortcuts. Edit this file — the keyboard's AI panel reads it.",
 		"Each entry: name (the key's label), command (typed into the terminal),",
-		"kind (agent | skill | persona), send (true to press return afterwards).",
+		"kind (agent | skill | persona), send (true to press return afterwards),",
+		"note (one line saying what it is for, shown under the name).",
 		"kind=agent starts a CLI, kind=skill is a slash command, kind=persona is",
 		"instructions to paste into a running agent.",
 		"Installed CLIs and files in ~/.claude and ~/.codex are listed automatically;",

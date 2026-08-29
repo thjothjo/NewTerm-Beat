@@ -139,5 +139,15 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<string>iCloud 云盘</string>
 	<key>iCloud Drive isn’t set up on this device.</key>
 	<string>本设备未启用 iCloud 云盘。</string>
+	<key>AI_SHORTCUT_REVIEWER_NOTE</key>
+	<string>让 AI 以代码审查者身份工作，只报真实缺陷，不提风格偏好。</string>
+	<key>AI_SHORTCUT_EXPLAIN_NOTE</key>
+	<string>让 AI 用平实的语言解释这段代码，并指出可疑之处。</string>
+	<key>NOTE</key>
+	<string>备注</string>
+	<key>AI_SHORTCUT_NOTE_FOOTER</key>
+	<string>一句话说明这个快捷键是干什么的。会显示在名称下方——按键上和这里都显示。</string>
+	<key>EDIT</key>
+	<string>编辑</string>
 </dict>
 </plist>

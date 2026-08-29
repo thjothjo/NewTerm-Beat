@@ -268,6 +268,9 @@ struct PickerChip: View {
 			}
 				.lineLimit(1)
 				.truncationMode(.tail)
+				// Capped, or one chip with a long note fills the row and hides every other one behind a
+				// scroll. The name is what you pick by; the note only has to hint.
+				.frame(maxWidth: axis == .vertical ? .infinity : 190, alignment: .leading)
 		}
 			.padding(.horizontal, axis == .vertical ? 6 : 10)
 			.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
@@ -345,10 +348,12 @@ struct AIPickerRow: View {
 						} label: {
 							// A CLI starts something; a prompt is something you hand to what's already
 							// running. Different icons because they behave differently.
+							// The note when there is one: "Persona" says what kind of thing it is, which you
+							// can already see from the icon, while the note says what it does.
 							PickerChip(icon: command.kind == .cli ? "terminal" : "sparkles",
 												 iconTint: command.kind == .cli ? .green : .purple,
 												 title: command.name,
-												 subtitle: command.source,
+												 subtitle: command.note ?? command.source,
 												 axis: axis)
 						}
 							.buttonStyle(.plain)

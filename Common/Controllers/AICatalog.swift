@@ -24,6 +24,8 @@ public struct AICommand: Hashable, Identifiable {
 	/// Whether picking this should clear whatever is already typed. A persona is a setting, not
 	/// something you add to what's there.
 	public var replacesInput: Bool = false
+	/// One line saying what it is for, when whoever added it wrote one.
+	public var note: String?
 }
 
 /// The agent CLIs installed on this device, and the prompts they already know.
@@ -58,7 +60,8 @@ public enum AICatalog {
 								command: shortcut.send ? shortcut.command + "\r" : shortcut.command,
 								kind: shortcut.kind == .agent ? .cli : .prompt,
 								source: shortcut.kind.sourceLabel,
-								replacesInput: shortcut.replacesInput)
+								replacesInput: shortcut.replacesInput,
+								note: shortcut.note)
 		}
 	}
 

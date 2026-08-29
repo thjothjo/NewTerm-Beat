@@ -23,6 +23,9 @@ struct SettingsAIShortcutsView: View {
 	@State private var discovered = [AICommand]()
 	@State private var failure: Failure?
 	@State private var isAdding = false
+	/// The one being changed. Adding and editing are the same sheet — the difference is whether it
+	/// starts empty.
+	@State private var editing: AIShortcut?
 
 	var body: some View {
 		PreferencesList {
@@ -33,18 +36,26 @@ struct SettingsAIShortcutsView: View {
 						.foregroundColor(.secondary)
 				}
 				ForEach(shortcuts) { shortcut in
-					VStack(alignment: .leading, spacing: 2) {
-						HStack {
-							Text(shortcut.name)
-							Spacer()
-							Text(shortcut.kind.rawValue)
+					Button {
+						editing = shortcut
+					} label: {
+						VStack(alignment: .leading, spacing: 2) {
+							HStack {
+								Text(shortcut.name)
+									.foregroundColor(.primary)
+								Spacer()
+								Text(shortcut.kind.rawValue)
+									.font(.caption)
+									.foregroundColor(.secondary)
+							}
+							// The note if it has one, because that says what the shortcut does; the text it
+							// types is the implementation, and it's long.
+							Text(shortcut.note?.isEmpty == false ? shortcut.note! : shortcut.command)
 								.font(.caption)
 								.foregroundColor(.secondary)
+								.lineLimit(2)
+								.frame(maxWidth: .infinity, alignment: .leading)
 						}
-						Text(shortcut.command)
-							.font(.caption)
-							.foregroundColor(.secondary)
-							.lineLimit(2)
 					}
 				}
 					.onDelete { offsets in
@@ -84,9 +95,19 @@ struct SettingsAIShortcutsView: View {
 				reload()
 			}
 			.sheet(isPresented: $isAdding) {
-				AIShortcutEditor { shortcut in
+				AIShortcutEditor(existing: nil) { shortcut in
 					do {
 						try AIShortcutStore.add(shortcut)
+					} catch {
+						failure = Failure(message: error.localizedDescription)
+					}
+					reload()
+				}
+			}
+			.sheet(item: $editing) { shortcut in
+				AIShortcutEditor(existing: shortcut) { updated in
+					do {
+						try AIShortcutStore.update(shortcut, to: updated)
 					} catch {
 						failure = Failure(message: error.localizedDescription)
 					}
@@ -118,17 +139,29 @@ struct SettingsAIShortcutsView: View {
 	}
 }
 
-/// Adding one by hand, for when there's no agent around to ask.
+/// Adding or changing one by hand, for when there's no agent around to ask.
 private struct AIShortcutEditor: View {
 
 	@Environment(\.presentationMode) private var presentationMode
 
-	@State private var name = ""
-	@State private var command = ""
-	@State private var kind = AIShortcut.Kind.persona
-	@State private var send = false
+	@State private var name: String
+	@State private var command: String
+	@State private var note: String
+	@State private var kind: AIShortcut.Kind
+	@State private var send: Bool
 
+	private let isNew: Bool
 	let onSave: (AIShortcut) -> Void
+
+	init(existing: AIShortcut?, onSave: @escaping (AIShortcut) -> Void) {
+		_name = State(initialValue: existing?.name ?? "")
+		_command = State(initialValue: existing?.command ?? "")
+		_note = State(initialValue: existing?.note ?? "")
+		_kind = State(initialValue: existing?.kind ?? .persona)
+		_send = State(initialValue: existing?.send ?? false)
+		isNew = existing == nil
+		self.onSave = onSave
+	}
 
 	var body: some View {
 		NavigationView {
@@ -149,6 +182,16 @@ private struct AIShortcutEditor: View {
 					Toggle("Send Immediately", isOn: $send)
 				}
 
+				PreferencesGroup(footer: Text("AI_SHORTCUT_NOTE_FOOTER")) {
+					HStack {
+						Text("NOTE")
+						Spacer()
+						TextField("", text: $note)
+							.multilineTextAlignment(.trailing)
+							.foregroundColor(.secondary)
+					}
+				}
+
 				PreferencesGroup(header: Text("Text"),
 												 footer: Text("Typed into the terminal exactly as written. For a persona, this is the instructions; for a skill, the slash command.")) {
 					TextEditor(text: $command)
@@ -157,14 +200,17 @@ private struct AIShortcutEditor: View {
 						.disableAutocorrection(true)
 				}
 			}
-				.navigationBarTitle("Add", displayMode: .inline)
+				.navigationBarTitle(isNew ? Text("Add") : Text("EDIT"), displayMode: .inline)
 				.navigationBarItems(
 					leading: Button("Cancel") { presentationMode.wrappedValue.dismiss() },
 					trailing: Button("Save") {
 						onSave(AIShortcut(name: name.trimmingCharacters(in: .whitespaces),
 															command: command,
 															kind: kind,
-															send: send))
+															send: send,
+															note: note.trimmingCharacters(in: .whitespaces).isEmpty
+																? nil
+																: note.trimmingCharacters(in: .whitespaces)))
 						presentationMode.wrappedValue.dismiss()
 					}
 						.disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || command.isEmpty)

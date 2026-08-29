@@ -82,5 +82,15 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<!-- Settings option to use the operating system’s locale. %@ is the user’s operating system language. -->
 	<key>LOCALE_SYSTEM</key>
 	<string>System Language: %@</string>
+	<key>AI_SHORTCUT_REVIEWER_NOTE</key>
+	<string>Tells the agent to review code and report real defects only.</string>
+	<key>AI_SHORTCUT_EXPLAIN_NOTE</key>
+	<string>Asks the agent to explain code in plain terms and flag anything wrong.</string>
+	<key>NOTE</key>
+	<string>Note</string>
+	<key>AI_SHORTCUT_NOTE_FOOTER</key>
+	<string>One line saying what this is for. Shown under the name, on the key and here.</string>
+	<key>EDIT</key>
+	<string>Edit</string>
 </dict>
 </plist>
