@@ -110,6 +110,10 @@ enum ToolbarKey: Hashable {
 	// Fn keys
 	case fnKey(index: Int)
 
+	/// Whether pressing this turns something on and off rather than sending a keystroke. The `Key`
+	/// table itself is fileprivate; this is the one thing about it the rest of the app needs.
+	var isToggle: Bool { key.isToggle }
+
 	fileprivate var key: Key {
 		switch self {
 		// Special
@@ -565,14 +569,10 @@ struct KeyboardToolbarKeyStack: View {
 		let button = Button {
 			UIDevice.current.playInputClick()
 
-			if key.key.isToggle {
-				if state.toggledKeys.contains(key) {
-					state.toggledKeys.remove(key)
-				} else {
-					state.toggledKeys.insert(key)
-				}
-			}
-
+			// The toggle itself belongs to the delegate, which knows what a panel excludes and can put
+			// both halves of the change into one mutation. Doing it here first made switching from one
+			// panel to another two changes — the bar grew a row and shrank again, and the terminal
+			// resized twice for what the user sees as one tap.
 			delegate?.keyboardToolbarDidPressKey(key)
 		} label: {
 			switch key {

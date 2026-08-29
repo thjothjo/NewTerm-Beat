@@ -551,40 +551,40 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 
 		terminalInputDelegate.receiveKeyboardInput(data: key.keySequence(applicationCursor: terminalInputDelegate.applicationCursor))
 
+		if key.isToggle {
+			applyToggle(key)
+		}
+
 		switch key {
-		case .more:
-			// Also hide fn row if currently toggled
-			if state.toggledKeys.contains(.fnKeys) {
-				state.toggledKeys.remove(.fnKeys)
-			}
-			// The landscape panel is a single column, so whatever else was open has to give way — left
-			// on, Projects kept winning and More looked like it did nothing at all.
-			closeOtherPanels(keeping: .more)
-
-		case .projects:
-			closeOtherPanels(keeping: .projects)
-
-		case .ssh:
-			closeOtherPanels(keeping: .ssh)
-
-		case .ai:
-			closeOtherPanels(keeping: .ai)
-
 		case .image:
 			attachImageHandler?()
 			closeSideBarPanel()
 
-		case .fnKeys:
-			closeOtherPanels(keeping: .fnKeys)
-
-		// Held for the key that comes after it — closing anything on it would take a panel away
-		// mid-gesture.
-		case .control:
+		// A toggle's own effect is handled above. Control is held for the key that comes after it, so
+		// nothing else may close on it either.
+		case .more, .projects, .ssh, .ai, .fnKeys, .control:
 			break
 
 		default:
 			closeSideBarPanel()
 		}
+	}
+
+	/// Flips a toggle and closes whatever it excludes, in one change.
+	///
+	/// Both halves together, because the bar's height follows this set: inserting the new panel and
+	/// removing the old one a turn later meant the bar grew by a row and shrank again, so the terminal
+	/// resized twice and reflowed twice for what the user sees as one tap. Switching between More and
+	/// Projects showed that as a stutter.
+	private func applyToggle(_ key: ToolbarKey) {
+		var next = state.toggledKeys
+		if next.contains(key) {
+			next.remove(key)
+		} else {
+			next.insert(key)
+			next.subtract(panelsExcluded(by: key))
+		}
+		state.toggledKeys = next
 	}
 
 	/// The landscape panel is a column laid over the terminal, so unlike the accessory row in portrait
@@ -605,22 +605,24 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	/// changing it a second time in the same turn was simply lost. The width, which watches the
 	/// publisher rather than the view, did follow, so the panel ended up narrowed to the new column
 	/// while still showing the old one's contents.
-	private func closeOtherPanels(keeping key: ToolbarKey) {
-		// Only the other content keys, so an armed Control survives opening a panel.
-		//
-		// More closes too, unless the key just pressed is one of the ones More itself is holding —
-		// SSH, AI and Fn live in the row it opens, and closing it would pull the key out from under
-		// the finger that pressed it. Projects is in the row below and has no such problem, which is
-		// why leaving More alone in portrait made the exclusion one-way: More closed Projects, and
-		// Projects left More open.
+	/// The panels a given one can't share the bar with.
+	///
+	/// Only the other content keys, so an armed Control survives opening a panel.
+	///
+	/// More is among them unless the key just pressed is one of the ones More itself is holding — SSH,
+	/// AI and Fn live in the row it opens, and closing it would pull the key out from under the finger
+	/// that pressed it. Projects is in the row below and has no such problem, which is why leaving More
+	/// alone in portrait made the exclusion one-way.
+	private func panelsExcluded(by key: ToolbarKey) -> Set<ToolbarKey> {
+		guard key != .control else {
+			return []
+		}
 		var others = Set<ToolbarKey>([.fnKeys, .projects, .ssh, .ai])
 		if usesSideBar || !Toolbar.secondary.keys.contains(key) {
 			others.insert(.more)
 		}
 		others.remove(key)
-		DispatchQueue.main.async { [weak self] in
-			self?.state.toggledKeys.subtract(others)
-		}
+		return others
 	}
 
 	func keyboardToolbarDidBeginPressingKey(_ key: ToolbarKey) {
