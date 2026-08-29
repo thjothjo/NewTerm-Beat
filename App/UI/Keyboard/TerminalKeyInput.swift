@@ -187,8 +187,16 @@ class TerminalKeyInput: TextInputBase {
 			// Re-measured before the reload: reloading asks UIKit for the bar again, and if the bar
 			// still believes it is as tall as it was with three rows open, that is the height UIKit
 			// takes.
-			self.toolbar.invalidateHeight()
-			self.reloadInputViews()
+			//
+			// Without animation, because the re-measure lays the bar out at its new height while it is
+			// still sitting where the old one put it. Animated, that intermediate position is a frame
+			// the user sees: the key rows slide to the wrong place and are then dragged back as the
+			// keyboard settles, which reads as the bar shuddering on its way down.
+			UIView.performWithoutAnimation {
+				self.toolbar.invalidateHeight()
+				self.reloadInputViews()
+				self.layoutIfNeeded()
+			}
 		}
 	}
 
