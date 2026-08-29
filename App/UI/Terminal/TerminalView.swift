@@ -100,6 +100,12 @@ struct TerminalView: View {
 								.onAppear { applyGeometry(metrics) }
 								.onChange(of: metrics, perform: applyGeometry)
 						})
+						// At least a screenful, laid out from the top, so a terminal holding less than that
+						// keeps its lines where they are and the empty part is below them. The bottom anchor
+						// aligns content that underfills the viewport to the bottom instead, which put a
+						// nearly-empty terminal's prompt at the foot of the screen and had a keyboard row
+						// opening shove it upwards — when all it should do is eat into the blank space.
+						.frame(minHeight: outer.size.height, alignment: .top)
 				}
 					.coordinateSpace(name: Self.scrollCoordinateSpace)
 					.background(Color(state.colorMap.background))
