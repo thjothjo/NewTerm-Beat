@@ -212,6 +212,8 @@ protocol KeyboardToolbarViewDelegate: AnyObject {
 	func keyboardToolbarDidRequestDeleteProject(_ project: Project)
 	func keyboardToolbarDidSelectSSHHost(_ host: SSHHost)
 	func keyboardToolbarDidRequestNewSSHHost()
+	func keyboardToolbarDidRequestEditSSHHost(_ host: SSHHost)
+	func keyboardToolbarDidRequestDeleteSSHHost(_ host: SSHHost)
 	func keyboardToolbarDidSelectAICommand(_ command: AICommand)
 }
 
@@ -246,6 +248,19 @@ struct PickerChip: View {
 
 	private var isTinted: Bool { isSelected || isAction }
 
+	/// Trims a long note down to a hint.
+	///
+	/// The string rather than the layout: capping the width with `frame(maxWidth:)` makes the chip
+	/// flexible, and a row of flexible chips gets squeezed to fit instead of scrolling — which turned
+	/// project names into "b…" and "al…".
+	private static func shortened(_ text: String) -> String {
+		let limit = 26
+		guard text.count > limit else {
+			return text
+		}
+		return text.prefix(limit).trimmingCharacters(in: .whitespaces) + "…"
+	}
+
 	var body: some View {
 		let shape = RoundedRectangle(cornerRadius: Design.keyRadius, style: .continuous)
 
@@ -261,16 +276,13 @@ struct PickerChip: View {
 				// Dropped in the column: it is one key wide, and the name already has to be truncated
 				// to fit.
 				if axis == .horizontal, let subtitle = subtitle, !subtitle.isEmpty {
-					Text(subtitle)
+					Text(Self.shortened(subtitle))
 						.font(.system(size: 10))
 						.foregroundColor(.secondary)
 				}
 			}
 				.lineLimit(1)
 				.truncationMode(.tail)
-				// Capped, or one chip with a long note fills the row and hides every other one behind a
-				// scroll. The name is what you pick by; the note only has to hint.
-				.frame(maxWidth: axis == .vertical ? .infinity : 190, alignment: .leading)
 		}
 			.padding(.horizontal, axis == .vertical ? 6 : 10)
 			.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
@@ -383,6 +395,9 @@ struct SSHHostPickerRow: View {
 	var axis: Axis = .horizontal
 
 	@State private var hosts = [SSHHost]()
+	/// Long-press to enter, same as the projects row and the tab bar. A stray tap connects; it must
+	/// never be able to rewrite the config.
+	@State private var isEditing = false
 
 	/// Matches `KeyboardKeyButtonStyle`’s key height, the same as the projects row.
 	private static let rowHeight: CGFloat = 45
@@ -415,27 +430,49 @@ struct SSHHostPickerRow: View {
 													 text: String.localize("No hosts in ~/.ssh/config"),
 													 axis: axis)
 				} else {
-					ForEach(hosts) { host in
-						Button {
-							UIDevice.current.playInputClick()
-							delegate?.keyboardToolbarDidSelectSSHHost(host)
-						} label: {
-							// The alias is what gets typed, so it leads; what it resolves to is only there to
-							// tell two similar aliases apart, and is dropped entirely in the narrow column.
-							PickerChip(icon: "network",
-												 iconTint: .appTeal,
-												 title: host.name,
-												 subtitle: host.detail,
-												 axis: axis)
-						}
-							.buttonStyle(.plain)
+					ForEach(Array(zip(hosts, hosts.indices)), id: \.0) { host, index in
+						// Deliberately not a Button, for the same reason the projects row isn’t one: a Button
+						// swallows the press and no long-press gesture on it ever fires.
+						// The alias is what gets typed, so it leads; what it resolves to is only there to
+						// tell two similar aliases apart, and is dropped entirely in the narrow column.
+						PickerChip(icon: "network",
+											 iconTint: .appTeal,
+											 title: host.name,
+											 subtitle: host.detail,
+											 axis: axis)
+							.frame(minWidth: axis == .vertical ? 0 : Self.rowHeight)
+							.onTapGesture {
+								UIDevice.current.playInputClick()
+								if isEditing {
+									// In edit mode a tap changes the entry rather than connecting — the badge
+									// beside it is for removing, and there’s nothing else a tap could mean here.
+									isEditing = false
+									delegate?.keyboardToolbarDidRequestEditSSHHost(host)
+								} else {
+									delegate?.keyboardToolbarDidSelectSSHHost(host)
+								}
+							}
+							.onLongPressGesture { isEditing = true }
+							.jiggle(isActive: isEditing, index: index)
+							.deleteBadge(isVisible: isEditing,
+													 label: String(format: .localize("Delete %@"), host.name),
+													 action: { delegate?.keyboardToolbarDidRequestDeleteSSHHost(host) })
 					}
 				}
 			}
 				.padding(.horizontal, 4)
 		}
 			.frame(height: axis == .horizontal ? Self.rowHeight : nil)
-			.onAppear { hosts = SSHConfig.hosts() }
+			.background(
+				// Tapping the empty part of the row leaves edit mode — there’s no Done button.
+				Color.clear
+					.contentShape(Rectangle())
+					.onTapGesture { isEditing = false }
+			)
+			.onAppear {
+				hosts = SSHConfig.hosts()
+				isEditing = false
+			}
 			.onReceive(NotificationCenter.default.publisher(for: SSHConfig.didChangeNotification)) { _ in
 				hosts = SSHConfig.hosts()
 			}
@@ -468,6 +505,13 @@ struct AttachmentStrip: View {
 
 class KeyboardToolbarViewState: ObservableObject {
 	@Published var toggledKeys = Set<ToolbarKey>()
+	/// The strip of screen the home indicator sits in, handed down from UIKit.
+	///
+	/// SwiftUI's own safe-area handling is switched off for this view. The bar is placed by the
+	/// keyboard, and how much of it overlaps the indicator changes as it resizes — measured, the same
+	/// bar reported a 34pt inset at one height and 9pt at another, so the rows were laid out against
+	/// one number while the bar was sized from the other and ended up 25pt too low.
+	@Published var bottomInset: CGFloat = 0
 
 
 	/// Numbers of the images attached since the last return, newest last. Cleared on return, because
@@ -879,6 +923,9 @@ struct KeyboardToolbarView: View {
 				}
 			}
 		}
+			// Included in what gets measured below, so the height the bar is given already accounts for
+			// it and there is no second number to keep in step.
+			.padding(.bottom, state.bottomInset)
 			// Its own height, not the one it is offered. Without this the stack is stretched to fill the
 			// bar and there is nothing left to measure.
 			.fixedSize(horizontal: false, vertical: true)

@@ -15,12 +15,16 @@ class KeyboardToolbarInputView: UIInputView {
 	private var hostingView: UIHostingView<AnyView>!
 	/// The bar's height, taken from what the rows actually need.
 	private var contentHeight: NSLayoutConstraint!
+	/// What SwiftUI reports the rows need, padding included.
+	private var measuredRowsHeight: CGFloat = 50
+	private let state: KeyboardToolbarViewState
 
 	/// Told when the bar has finished changing height, so whoever lays out around the keyboard can
 	/// follow. UIKit posts no keyboard frame change when an accessory sizes itself.
 	var onHeightChanged: (() -> Void)?
 
 	init(delegate: KeyboardToolbarViewDelegate?, toolbars: [Toolbar], state: KeyboardToolbarViewState) {
+		self.state = state
 		super.init(frame: .zero, inputViewStyle: .keyboard)
 
 		translatesAutoresizingMaskIntoConstraints = false
@@ -45,29 +49,27 @@ class KeyboardToolbarInputView: UIInputView {
 		hostingView.translatesAutoresizingMaskIntoConstraints = false
 		hostingView.shouldResizeToFitContent = true
 		hostingView.setContentHuggingPriority(.fittingSizeLevel, for: .vertical)
+		// The rows reserve the home indicator's strip themselves, as padding, from `state.bottomInset`.
+		// Left to SwiftUI it comes from how much of the bar happens to overlap that strip, which
+		// changes as the bar resizes.
+		hostingView._disableSafeAreaInsets()
 		addSubview(hostingView)
 
 		NSLayoutConstraint.activate([
 			hostingView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
 			hostingView.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
-			// Bottom pinned, top only a minimum. The bar's height comes from the rows' own intrinsic
-			// height, and while UIKit still has the bar at its old height the rows sit against the bottom
-			// edge — the one that doesn't move, because the keyboard is below it. Aligning them from
-			// SwiftUI instead (a leading spacer) made the content fill whatever height it was given, so
-			// its intrinsic size always equalled the current size and the bar could never resize at all:
-			// measured, it latched at 184pt with four rows to show and never came back down.
-			hostingView.topAnchor.constraint(greaterThanOrEqualTo: self.topAnchor),
+			hostingView.topAnchor.constraint(equalTo: self.topAnchor),
 			hostingView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
 		])
 
-		// An explicit height, because the hosting view's own intrinsic size can't provide one. SwiftUIX
-		// wraps the content in `.frame(max: layoutFittingExpandedSize)`, so the content fills whatever
-		// height it is offered and its intrinsic size comes back equal to the current height — every
-		// time. Measured: with four rows to show, the bar latched at three rows' worth (184pt) and
-		// invalidating the intrinsic size changed nothing, in either direction. `sizeThatFits` with a
-		// compressed vertical priority asks SwiftUI what the rows need instead of what they were given.
+		// An explicit height on the bar itself, because the hosting view's intrinsic size can't provide
+		// one. SwiftUIX wraps the content in `.frame(max: layoutFittingExpandedSize)`, so it fills
+		// whatever height it is offered and its intrinsic size comes back equal to the current height —
+		// every time. Measured: with four rows to show, the bar latched at three rows' worth (184pt)
+		// and invalidating the intrinsic size changed nothing, in either direction.
+		//
 		// Seeded with one row so the bar is never zero-height before SwiftUI has measured itself.
-		contentHeight = hostingView.heightAnchor.constraint(equalToConstant: 50)
+		contentHeight = heightAnchor.constraint(equalToConstant: 50)
 		contentHeight.isActive = true
 	}
 
@@ -82,14 +84,23 @@ class KeyboardToolbarInputView: UIInputView {
 	/// bar at its old height with the keys centred in the leftover space, and the more rows were
 	/// closed the more empty bar there was above and below them.
 	private func applyContentHeight(_ height: CGFloat) {
-		guard height > 0, abs(height - contentHeight.constant) > 0.5 else {
-			return
-		}
-		contentHeight.constant = height
-		invalidateIntrinsicContentSize()
-		setNeedsLayout()
-		layoutIfNeeded()
-		onHeightChanged?()
+		measuredRowsHeight = height
+		updateHeight()
+	}
+
+	override func didMoveToWindow() {
+		super.didMoveToWindow()
+		updateHeight()
+	}
+
+	override func layoutSubviews() {
+		super.layoutSubviews()
+		updateHeight()
+	}
+
+	override func safeAreaInsetsDidChange() {
+		super.safeAreaInsetsDidChange()
+		updateHeight()
 	}
 
 	/// Forces a re-measure, for the paths that rebuild the bar rather than change its rows.
@@ -98,6 +109,26 @@ class KeyboardToolbarInputView: UIInputView {
 		invalidateIntrinsicContentSize()
 		setNeedsLayout()
 		layoutIfNeeded()
+	}
+
+	/// Keeps the rows' padding and the bar's height in step, both from the window's inset.
+	///
+	/// The window's rather than the bar's own: the bar is placed by the keyboard, and how much of it
+	/// overlaps the home indicator changes as it resizes — 34pt at one height, 9pt at another. The
+	/// window's inset is the one that is always the same.
+	private func updateHeight() {
+		let inset = window?.safeAreaInsets.bottom ?? safeAreaInsets.bottom
+		if abs(state.bottomInset - inset) > 0.5 {
+			state.bottomInset = inset
+		}
+		guard measuredRowsHeight > 0, abs(measuredRowsHeight - contentHeight.constant) > 0.5 else {
+			return
+		}
+		contentHeight.constant = measuredRowsHeight
+		invalidateIntrinsicContentSize()
+		setNeedsLayout()
+		layoutIfNeeded()
+		onHeightChanged?()
 	}
 
 }
