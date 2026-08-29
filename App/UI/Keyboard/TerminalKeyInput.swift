@@ -185,6 +185,13 @@ class TerminalKeyInput: TextInputBase {
 	/// placed it again, which is a turn later, and by then the new row has already been drawn over the
 	/// terminal.
 	private func notifyAccessoryHeightChanged(by delta: CGFloat) {
+		// Only the bar that is actually on screen. Every tab has its own, they all re-measure when the
+		// rows change, and the terminal was adding up a delta from each of them — captured at 60fps,
+		// the output jumped twice as far as it should for a single frame before the correction pulled
+		// it back.
+		guard toolbar.window != nil else {
+			return
+		}
 		// The change first, so the terminal makes room in the same pass the row is drawn in. Zero means
 		// the bar has only just settled on a height rather than changed one, and there is nothing to
 		// make room for — but the correction below still has to go out.
