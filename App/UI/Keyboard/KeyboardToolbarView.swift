@@ -765,6 +765,16 @@ struct KeyboardToolbarView: View {
 		// width whenever the measurement didn’t fire on rotation: the bar came back from landscape
 		// still 874pt wide, centred, and clipped off both edges of a 402pt screen.
 		VStack(spacing: 0) {
+			// Holds the rows against the bottom of the bar, which is the edge that doesn't move — the
+			// keyboard is below it.
+			//
+			// A VStack centres its content when it is given more height than it needs, and for one frame
+			// after a row closes that is exactly the situation: SwiftUI has dropped the row while UIKit
+			// still has the bar at its old height. Measured at 30fps, the `ctrl` row jumped 25pt — half a
+			// row — upwards for a single frame and dropped back. `minLength: 0` keeps the ideal height
+			// equal to the rows' own, so the bar still measures itself correctly.
+			Spacer(minLength: 0)
+
 			ForEach(toolbars, id: \.self) { toolbar in
 				if isToolbarVisible(toolbar) {
 					switch toolbar {

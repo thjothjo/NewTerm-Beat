@@ -123,6 +123,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryFrameChanged(_:)), name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -135,6 +136,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillHideNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+		NotificationCenter.default.removeObserver(self, name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
 	}
 
 	override func updateViewConstraints() {
@@ -324,9 +326,41 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		// iPhone 17 Pro Max simulator: accessory-only 84pt, keys up 402pt, and willHide reports 84pt,
 		// not 0. When the keyboard genuinely leaves, the end frame is off screen and the overlap is
 		// zero on its own.
+		apply(keyboardFrame: keyboardFrame, animationDuration: animationDuration, curve: curve)
+	}
+
+	/// The accessory bar grew or shrank a row without the keyboard moving.
+	///
+	/// UIKit posts no keyboard frame change for that — the bar sizes itself — so without this the
+	/// terminal keeps the inset it had and draws underneath the taller bar. `TerminalKeyInput` used to
+	/// force the notification by reloading its input views, which UIKit animates as taking the bar
+	/// away and bringing a new one back: the whole bar visibly dived off the bottom and returned.
+	@objc func accessoryFrameChanged(_ notification: Notification) {
+		guard let frame = notification.userInfo?[TerminalKeyInput.accessoryFrameKey] as? CGRect else {
+			return
+		}
+		// No animation curve to match — nothing is moving except the bar's own top edge, which UIKit
+		// has already laid out by the time this arrives.
+		apply(keyboardFrame: frame, animationDuration: 0, curve: nil)
+	}
+
+	private func apply(keyboardFrame: CGRect, animationDuration: TimeInterval, curve: UInt?) {
 		keyboardHeight = view.convert(keyboardFrame, from: nil)
 			.intersection(view.bounds)
 			.height
+
+		// Only the part of the keyboard the safe area doesn’t already account for. Flooring this at
+		// bottomInset instead of 0 held a home-indicator’s worth of dead space under the terminal
+		// whenever the keyboard was down — the view never came all the way back.
+		let updateInsets = {
+			let bottomInset = self.parent?.view.safeAreaInsets.bottom ?? 0
+			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - bottomInset)
+		}
+
+		guard let curve = curve else {
+			UIView.performWithoutAnimation(updateInsets)
+			return
+		}
 
 		// We update the safe areas in an animation block to force it to be animated with the exact
 		// parameters given to us in the notification.
@@ -335,13 +369,8 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 		UIView.animate(withDuration: animationDuration,
 									 delay: 0,
-									 options: options) {
-			// Only the part of the keyboard the safe area doesn’t already account for. Flooring this at
-			// bottomInset instead of 0 held a home-indicator’s worth of dead space under the terminal
-			// whenever the keyboard was down — the view never came all the way back.
-			let bottomInset = self.parent?.view.safeAreaInsets.bottom ?? 0
-			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - bottomInset)
-		}
+									 options: options,
+									 animations: updateInsets)
 	}
 
 }

@@ -141,7 +141,7 @@ class TerminalKeyInput: TextInputBase {
 			.map { $0.intersection(rowKeys) }
 			.removeDuplicates()
 			.dropFirst()
-			.sink { [weak self] _ in self?.setNeedsInputViewReload() }
+			.sink { [weak self] _ in self?.setNeedsAccessoryResize() }
 			.store(in: &accessoryHeightObservers)
 
 		// Switching keyboards — to emoji, to a third-party one, to dictation — changes how tall the
@@ -155,7 +155,7 @@ class TerminalKeyInput: TextInputBase {
 			.map(\.isEmpty)
 			.removeDuplicates()
 			.dropFirst()
-			.sink { [weak self] _ in self?.setNeedsInputViewReload() }
+			.sink { [weak self] _ in self?.setNeedsAccessoryResize() }
 			.store(in: &accessoryHeightObservers)
 	}
 
@@ -187,11 +187,6 @@ class TerminalKeyInput: TextInputBase {
 			// Re-measured before the reload: reloading asks UIKit for the bar again, and if the bar
 			// still believes it is as tall as it was with three rows open, that is the height UIKit
 			// takes.
-			//
-			// Without animation, because the re-measure lays the bar out at its new height while it is
-			// still sitting where the old one put it. Animated, that intermediate position is a frame
-			// the user sees: the key rows slide to the wrong place and are then dragged back as the
-			// keyboard settles, which reads as the bar shuddering on its way down.
 			UIView.performWithoutAnimation {
 				self.toolbar.invalidateHeight()
 				self.reloadInputViews()
@@ -199,6 +194,56 @@ class TerminalKeyInput: TextInputBase {
 			}
 		}
 	}
+
+	private var hasPendingAccessoryResize = false
+
+	/// Grows or shrinks the bar in place, for a row opening or closing.
+	///
+	/// Deliberately not `reloadInputViews()`. That takes the accessory away and hands UIKit a new one,
+	/// and UIKit animates the swap as a dismiss followed by a present — the entire bar, `ctrl` row
+	/// included, slides down off the bottom of the screen and climbs back. Recorded on the simulator
+	/// at 30fps: closing a row moved both rows steadily downwards for about half a second before they
+	/// snapped back to the resting position. The bar is a self-sizing `UIInputView`; invalidating its
+	/// height is enough to resize it where it stands.
+	///
+	/// The reload was there for a second reason — UIKit posts no keyboard frame change when an
+	/// accessory resizes itself, so the terminal kept the old inset and drew underneath the taller
+	/// bar. That is what `notifyAccessoryFrameChanged` replaces.
+	private func setNeedsAccessoryResize() {
+		guard !hasPendingAccessoryResize else {
+			return
+		}
+		hasPendingAccessoryResize = true
+		DispatchQueue.main.async { [weak self] in
+			guard let self else {
+				return
+			}
+			self.hasPendingAccessoryResize = false
+			self.toolbar.invalidateHeight()
+			self.notifyAccessoryFrameChanged()
+		}
+	}
+
+	/// Tells whoever lays out around the keyboard where its top edge is now.
+	///
+	/// The accessory bar *is* the visible top of the keyboard, so its own frame plus everything below
+	/// it is exactly the area the terminal has to keep clear.
+	private func notifyAccessoryFrameChanged() {
+		guard let window = toolbar.window else {
+			return
+		}
+		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
+		let keyboardFrame = CGRect(x: barFrame.minX,
+															 y: barFrame.minY,
+															 width: barFrame.width,
+															 height: window.bounds.maxY - barFrame.minY)
+		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
+																		object: self,
+																		userInfo: [Self.accessoryFrameKey: keyboardFrame])
+	}
+
+	static let accessoryFrameDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryFrameDidChange")
+	static let accessoryFrameKey = "frame"
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
 	/// live in the shortcuts bar rather than a row of our own.
