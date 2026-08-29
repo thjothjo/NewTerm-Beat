@@ -137,13 +137,21 @@ class TerminalKeyInput: TextInputBase {
 			.map { $0.intersection(rowKeys) }
 			.removeDuplicates()
 			.dropFirst()
-			.sink { [weak self] _ in self?.reloadInputViews() }
+			.sink { [weak self] _ in self?.setNeedsInputViewReload() }
 			.store(in: &accessoryHeightObservers)
+
+		// Switching keyboards — to emoji, to a third-party one, to dictation — changes how tall the
+		// keyboard is, and the accessory keeps the height it measured for the old one until something
+		// asks it again. That left it floating above the new keyboard, or overlapping it.
+		NotificationCenter.default.addObserver(self,
+																					selector: #selector(self.setNeedsInputViewReload),
+																					name: UITextInputMode.currentInputModeDidChangeNotification,
+																					object: nil)
 		state.$imageAttachments
 			.map(\.isEmpty)
 			.removeDuplicates()
 			.dropFirst()
-			.sink { [weak self] _ in self?.reloadInputViews() }
+			.sink { [weak self] _ in self?.setNeedsInputViewReload() }
 			.store(in: &accessoryHeightObservers)
 	}
 
@@ -153,6 +161,28 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Shared with the landscape side bar so both show the same toggle state.
 	var toolbarState: KeyboardToolbarViewState { state }
+
+	private var hasPendingInputViewReload = false
+
+	/// Rebuilds the accessory bar once, at the end of the turn.
+	///
+	/// `reloadInputViews()` tears the bar down and puts it back, which makes the keyboard re-lay-out
+	/// and the terminal reflow around it — visible as a flash. Opening a panel used to cause two of
+	/// them in a row: one for the key being toggled on, one for the deferred pass that closes the
+	/// others. Coalescing them means the user sees the bar change size once.
+	@objc private func setNeedsInputViewReload() {
+		guard !hasPendingInputViewReload else {
+			return
+		}
+		hasPendingInputViewReload = true
+		DispatchQueue.main.async { [weak self] in
+			guard let self else {
+				return
+			}
+			self.hasPendingInputViewReload = false
+			self.reloadInputViews()
+		}
+	}
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
 	/// live in the shortcuts bar rather than a row of our own.
@@ -177,7 +207,7 @@ class TerminalKeyInput: TextInputBase {
 			state.toggledKeys.subtract([.more, .fnKeys, .projects, .ssh, .ai])
 			// Makes UIKit ask for inputAccessoryView again, which is how the bar appears and disappears
 			// on rotation.
-			reloadInputViews()
+			setNeedsInputViewReload()
 		}
 	}
 

@@ -418,7 +418,14 @@ public class TerminalController {
 			// blank in its place. The blank only got drawn again if the terminal happened to report that
 			// row as changed, so a line that had finished changing — the one you just filled up, the
 			// moment the next one wrapped underneath it — stayed blank.
-			let neededCount = max(scrollInvariantRows, updateRange.endY + 1)
+			// The terminal's own row count is the truth, and nothing else gets a vote.
+			//
+			// It used to be `max(scrollInvariantRows, updateRange.endY + 1)`. The update range is
+			// measured before the rows are re-counted, so when content is deleted — clearing the screen,
+			// or an app redrawing after a resize — it still names rows that have just gone away. Taking
+			// the maximum grew the array to fit those, and everything past the real end was a blank
+			// nothing ever filled in: the terminal appeared to lose its contents the more was deleted.
+			let neededCount = scrollInvariantRows
 			if self.lines.count > neededCount {
 				self.lines.removeSubrange(neededCount...)
 			}
@@ -426,11 +433,18 @@ public class TerminalController {
 				self.lines.append(AnyView(EmptyView()))
 			}
 
-			// Update lines that changed
-			var linesToUpdate = updateRange == (0, 0) ? Set() : Set(updateRange.startY...updateRange.endY)
+			// Update lines that changed, clamped to the rows that still exist. Built by intersection
+			// rather than by clamping the ends into a range literal: once the range names only rows that
+			// are gone, the clamped start passes the clamped end, and `a...b` with a > b traps.
+			let existingRows = 0..<neededCount
+			var linesToUpdate = updateRange == (0, 0)
+				? Set<Int>()
+				: Set((updateRange.startY...max(updateRange.startY, updateRange.endY)).filter(existingRows.contains))
 			if cursorLocation != self.lastCursorLocation {
-				linesToUpdate.insert(cursorLocation.y)
-				if self.lastCursorLocation.y != -1 && self.lastCursorLocation.y < scrollInvariantRows {
+				if existingRows.contains(cursorLocation.y) {
+					linesToUpdate.insert(cursorLocation.y)
+				}
+				if existingRows.contains(self.lastCursorLocation.y) {
 					linesToUpdate.insert(self.lastCursorLocation.y)
 				}
 			}
