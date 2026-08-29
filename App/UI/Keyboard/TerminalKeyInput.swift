@@ -184,6 +184,10 @@ class TerminalKeyInput: TextInputBase {
 				return
 			}
 			self.hasPendingInputViewReload = false
+			// Re-measured before the reload: reloading asks UIKit for the bar again, and if the bar
+			// still believes it is as tall as it was with three rows open, that is the height UIKit
+			// takes.
+			self.toolbar.invalidateHeight()
 			self.reloadInputViews()
 		}
 	}

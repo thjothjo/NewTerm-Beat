@@ -45,6 +45,15 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var hudState = HUDViewState()
 	private var hudView: UIHostingView<AnyView>!
 
+	/// When the bell last sounded, so a burst of them is announced once.
+	///
+	/// A shell rings the bell every time a key can't do anything — backspace at an empty prompt, tab
+	/// with nothing to complete. Tapping Delete a few times at a bare prompt is three or four of
+	/// those, and answering each with a sound and a jolt of haptics turns a key doing nothing into the
+	/// loudest thing the app does.
+	private var lastBellAt = Date.distantPast
+	private static let bellCoalescingInterval: TimeInterval = 0.5
+
 	private var hasAppeared = false
 	private var hasStarted = false
 	private var failureError: Error?
@@ -978,6 +987,12 @@ extension TerminalSessionViewController: TerminalControllerDelegate {
 	}
 
 	func activateBell() {
+		let now = Date()
+		guard now.timeIntervalSince(lastBellAt) >= Self.bellCoalescingInterval else {
+			return
+		}
+		lastBellAt = now
+
 		if Preferences.shared.bellHUD {
 			hudState.isVisible = true
 		}

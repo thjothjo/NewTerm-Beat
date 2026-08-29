@@ -41,6 +41,20 @@ class KeyboardToolbarInputView: UIInputView {
 		fatalError("init(coder:) has not been implemented")
 	}
 
+	/// Re-measures the bar after rows have been added or taken away.
+	///
+	/// The hosting view reports the height its rows need, and the input view sizes itself to that —
+	/// but neither re-asks on its own when the content changes. Closing several rows at once left the
+	/// bar at its old height with the keys centred in the leftover space, and the more rows were
+	/// closed the more empty bar there was above and below them.
+	func invalidateHeight() {
+		hostingView.invalidateIntrinsicContentSize()
+		invalidateIntrinsicContentSize()
+		hostingView.setNeedsLayout()
+		setNeedsLayout()
+		layoutIfNeeded()
+	}
+
 }
 
 extension KeyboardToolbarInputView: UIInputViewAudioFeedback {
