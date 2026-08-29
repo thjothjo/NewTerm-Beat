@@ -959,8 +959,23 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	}
 
 	/// Persist this tab's scrollback so it can be replayed after the app is killed.
+	/// Whether this terminal's output is worth bringing back.
+	///
+	/// A project, or a terminal an agent has been run in. A plain shell someone typed `ls` in has no
+	/// conversation to resume, and replaying one only means the tab opens onto a wall of yesterday's
+	/// output above the prompt.
+	private var isWorthRestoring: Bool {
+		(parent as? TerminalSplitViewController)?.projectPath != nil || terminalController.hasRunAgent
+	}
+
 	private func saveScrollback() {
 		guard let scrollbackID = scrollbackID else {
+			return
+		}
+		guard isWorthRestoring else {
+			// Dropped rather than left alone: a tab that used to qualify and no longer does shouldn't
+			// keep restoring the output from back when it did.
+			ScrollbackStore.shared.discard(id: scrollbackID)
 			return
 		}
 		ScrollbackStore.shared.save(terminalController.snapshotScrollback(), id: scrollbackID)

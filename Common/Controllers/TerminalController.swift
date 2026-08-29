@@ -248,6 +248,12 @@ public class TerminalController {
 	/// Puts a long-running agent on the Dynamic Island once the app is backgrounded.
 	public let activityController = TerminalActivityController()
 
+	/// Whether an agent CLI has been run in this terminal.
+	///
+	/// What decides if the session is worth keeping across a restart. A shell someone ran `ls` in has
+	/// nothing to come back to; an agent conversation is the whole reason the app remembers anything.
+	public private(set) var hasRunAgent = false
+
 	/// What the user has typed since the last return, so the command can be recognised when they run
 	/// it. Reading it back off the screen would mean parsing the prompt, which every shell draws
 	/// differently.
@@ -325,10 +331,15 @@ public class TerminalController {
 	/// Replay previously-saved output before the live shell starts, reconstructing the last visual
 	/// state, and prime the capture buffer so the next save still carries this history. Feed it through
 	/// the normal input path so it renders and re-captures exactly as live output would.
+	/// True while saved output is being fed back, so the emulator's replies go nowhere.
+	private var isSeedingScrollback = false
+
 	public func seedScrollback(_ data: Data) {
 		guard !data.isEmpty else {
 			return
 		}
+		isSeedingScrollback = true
+		defer { isSeedingScrollback = false }
 		// Bells stripped before replaying. The saved bytes are a recording of the session, and every
 		// BEL the shell rang during it is in there — feeding them back rang the lot on launch, for
 		// things that happened yesterday. Replaying is reconstructing what the screen looked like, not
@@ -356,6 +367,9 @@ public class TerminalController {
 				let line = pendingCommandLine.trimmingCharacters(in: .whitespaces)
 				pendingCommandLine = ""
 				if !line.isEmpty {
+					if TerminalActivityController.watchedName(in: line) != nil {
+						hasRunAgent = true
+					}
 					activityController.commandDidStart(line, project: activityProjectName)
 				}
 			case 0x7F, 0x08:
@@ -723,6 +737,14 @@ extension TerminalController: TerminalDelegate {
 	public func isProcessTrusted(source: Terminal) -> Bool { isLocalhost }
 
 	public func send(source: Terminal, data: ArraySlice<UInt8>) {
+		// Swallowed while replaying saved output. These are the emulator's answers to things the
+		// program asked — where the cursor is, what colour the foreground is — and a recording is full
+		// of those questions. Answering them puts the reply into the shell's input, which is how a
+		// restored tab came back with `;1R10;rgb:8a3d/…` typed at its prompt. Nothing is waiting for
+		// an answer; the program that asked finished yesterday.
+		guard !isSeedingScrollback else {
+			return
+		}
 		terminalQueue.async {
 			self.write([UTF8Char](data))
 		}
