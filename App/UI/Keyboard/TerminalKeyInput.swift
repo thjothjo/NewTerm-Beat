@@ -599,11 +599,15 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	/// publisher rather than the view, did follow, so the panel ended up narrowed to the new column
 	/// while still showing the old one's contents.
 	private func closeOtherPanels(keeping key: ToolbarKey) {
-		// Only the other content keys, so an armed Control survives opening a panel. More stays out of
-		// it in portrait — there it's the row holding these keys, and closing it would pull the key the
-		// user just pressed out from under their finger.
+		// Only the other content keys, so an armed Control survives opening a panel.
+		//
+		// More closes too, unless the key just pressed is one of the ones More itself is holding —
+		// SSH, AI and Fn live in the row it opens, and closing it would pull the key out from under
+		// the finger that pressed it. Projects is in the row below and has no such problem, which is
+		// why leaving More alone in portrait made the exclusion one-way: More closed Projects, and
+		// Projects left More open.
 		var others = Set<ToolbarKey>([.fnKeys, .projects, .ssh, .ai])
-		if usesSideBar {
+		if usesSideBar || !Toolbar.secondary.keys.contains(key) {
 			others.insert(.more)
 		}
 		others.remove(key)

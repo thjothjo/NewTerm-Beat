@@ -154,6 +154,11 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 	override func viewSafeAreaInsetsDidChange() {
 		super.viewSafeAreaInsetsDidChange()
 		updateConstraints()
+		// The inset is the keyboard's overlap minus whatever the safe area already accounts for, and
+		// that second number isn't necessarily settled when the keyboard first reports itself. At
+		// launch it read zero, so the terminal was inset by the home indicator's strip a second time
+		// and sat four lines short of the bar until a row was opened and something recomputed it.
+		applyKeyboardInsets(animationDuration: 0, curve: nil)
 	}
 
 	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -369,7 +374,13 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		// bottomInset instead of 0 held a home-indicator’s worth of dead space under the terminal
 		// whenever the keyboard was down — the view never came all the way back.
 		let updateInsets = {
-			let bottomInset = self.parent?.view.safeAreaInsets.bottom ?? 0
+			// The window's, not the parent's. The parent's reads zero until it has been laid out, and at
+			// launch that is exactly when the keyboard first reports itself — so the home indicator's
+			// strip was subtracted from nothing, counted twice, and the terminal sat 34pt short of the
+			// bar until a row was opened and it was recomputed against a settled parent.
+			let bottomInset = self.view.window?.safeAreaInsets.bottom
+				?? self.parent?.view.safeAreaInsets.bottom
+				?? 0
 			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - bottomInset)
 		}
 
