@@ -159,8 +159,10 @@ public class Preferences: NSObject, ObservableObject {
 		willSet { objectWillChange.send() }
 	}
 
+	/// The bell icon that flashes in the middle of the terminal. Off by default: the sound already
+	/// says it, and a badge over the output is in the way of the thing you were reading.
 	@AppStorage("bellHUD")
-	public var bellHUD: Bool = true {
+	public var bellHUD: Bool = false {
 		willSet { objectWillChange.send() }
 	}
 
@@ -248,12 +250,23 @@ public class Preferences: NSObject, ObservableObject {
 		let font = AppFont.predefined[fontName] ?? AppFont()
 		objectWillChange.send()
 		fontMetrics = FontMetrics(font: font, fontSize: CGFloat(fontSize))
+		notifyChanged()
 	}
 
 	private func colorMapChanged() {
 		let theme = AppTheme.predefined[effectiveThemeName] ?? AppTheme()
 		objectWillChange.send()
 		colorMap = ColorMap(theme: theme)
+		notifyChanged()
+	}
+
+	/// Tells the parts of the app that aren't SwiftUI that a preference moved.
+	///
+	/// Four places have always listened for this and nothing ever sent it, which is why changing the
+	/// theme only took effect on the next launch: the new colours reached the colour map and never
+	/// reached the terminal drawing with it.
+	private func notifyChanged() {
+		NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
 	}
 
 }

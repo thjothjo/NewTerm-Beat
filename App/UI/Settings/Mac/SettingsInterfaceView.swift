@@ -102,7 +102,7 @@ struct SettingsInterfaceView: View {
 		return HStack(spacing: 0) {
 			sampleView
 			PreferencesList {
-				Text("Note: You currently need to restart the app to have theme updates apply.")
+
 				themes
 				fonts
 				fontSize

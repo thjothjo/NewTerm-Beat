@@ -264,58 +264,80 @@ class TerminalHostingView: UIHostingView<AnyView> {
 }
 
 struct TerminalSampleView: View {
-	private class TerminalSampleViewDelegate: NSObject, TerminalDelegate {
-		func send(source: Terminal, data: ArraySlice<UInt8>) {}
+
+	/// The preview’s terminal, kept alive across redraws.
+	///
+	/// These were stored properties on the view struct, which SwiftUI rebuilds every time anything it
+	/// observes changes. Picking a theme therefore threw away the configured terminal and made a fresh
+	/// one whose colours were only ever set in `onAppear` — which doesn’t run again — so the preview
+	/// went black the moment you changed a theme. Held here, it is made once and only repainted.
+	private class Model: ObservableObject {
+		private class Delegate: NSObject, TerminalDelegate {
+			func send(source: Terminal, data: ArraySlice<UInt8>) {}
+		}
+
+		let state = TerminalState()
+		let stringSupplier = StringSupplier()
+		let terminal: Terminal
+		private let delegate = Delegate()
+
+		init() {
+			terminal = Terminal(delegate: delegate,
+													options: TerminalOptions(cols: 80,
+																									 rows: 25,
+																									 termName: "xterm-256color",
+																									 scrollback: 100))
+			stringSupplier.terminal = terminal
+
+			if let colorTest = try? Data(contentsOf: Bundle.main.url(forResource: "colortest", withExtension: "txt")!) {
+				terminal.feed(byteArray: [UTF8Char](colorTest))
+			}
+		}
+
+		/// The supplier draws the text; the state draws everything behind it. Setting only the former
+		/// left a light theme’s black text sitting on the previous theme’s dark background.
+		func apply(colorMap: ColorMap, fontMetrics: FontMetrics) {
+			stringSupplier.colorMap = colorMap
+			stringSupplier.fontMetrics = fontMetrics
+			state.colorMap = colorMap
+			state.fontMetrics = fontMetrics
+			redraw()
+		}
+
+		func redraw() {
+			state.lines = Array(0...(terminal.rows + terminal.getTopVisibleRow()))
+				.map { stringSupplier.attributedString(forScrollInvariantRow: $0) }
+		}
 	}
 
-	@State var fontMetrics: FontMetrics
-	@State var colorMap: ColorMap
+	@StateObject private var model = Model()
 
-	private var terminal: Terminal!
-	private let stringSupplier = StringSupplier()
-	private let delegate = TerminalSampleViewDelegate()
-	private let state = TerminalState()
+	/// Observed rather than held, so the preview follows the live preference instead of whatever value
+	/// it happened to be created with.
+	@ObservedObject private var preferences = Preferences.shared
 
 	private let timer = Timer.publish(every: 1, on: .main, in: .common)
 		.autoconnect()
 
+	/// Takes the values for source compatibility with its callers; the preview follows the live
+	/// preferences regardless of what it was handed.
 	init(fontMetrics: FontMetrics = FontMetrics(font: AppFont(), fontSize: 12),
-			 colorMap: ColorMap = ColorMap(theme: AppTheme())) {
-		self.fontMetrics = fontMetrics
-		self.colorMap = colorMap
-
-		let options = TerminalOptions(cols: 80,
-																	rows: 25,
-																	termName: "xterm-256color",
-																	scrollback: 100)
-		terminal = Terminal(delegate: delegate, options: options)
-		stringSupplier.terminal = terminal
-
-		if let colorTest = try? Data(contentsOf: Bundle.main.url(forResource: "colortest", withExtension: "txt")!) {
-			terminal?.feed(byteArray: [UTF8Char](colorTest))
-		}
-	}
+			 colorMap: ColorMap = ColorMap(theme: AppTheme())) {}
 
 	var body: some View {
 		TerminalView()
-			.environmentObject(state)
-			.onAppear {
-				stringSupplier.colorMap = colorMap
-				stringSupplier.fontMetrics = fontMetrics
-			}
-			.onChange(of: colorMap, perform: { stringSupplier.colorMap = $0 })
-			.onChange(of: fontMetrics, perform: { stringSupplier.fontMetrics = $0 })
+			.environmentObject(model.state)
+			.onAppear { model.apply(colorMap: preferences.colorMap, fontMetrics: preferences.fontMetrics) }
+			.onChange(of: preferences.colorMap) { model.apply(colorMap: $0, fontMetrics: preferences.fontMetrics) }
+			.onChange(of: preferences.fontMetrics) { model.apply(colorMap: preferences.colorMap, fontMetrics: $0) }
 			.onChangeOfFrame(perform: { size in
 				// Determine the screen size based on the font size
 				// TODO: Calculate the exact number of lines we need from the buffer
-				let glyphSize = stringSupplier.fontMetrics?.boundingBox ?? .zero
-				terminal.resize(cols: Int(size.width / glyphSize.width),
-												rows: 32)
+				let glyphSize = model.stringSupplier.fontMetrics?.boundingBox ?? .zero
+				model.terminal.resize(cols: Int(size.width / glyphSize.width),
+															rows: 32)
 			})
-			.onReceive(timer) { _ in
-				state.lines = Array(0...(terminal.rows + terminal.getTopVisibleRow()))
-					.map { stringSupplier.attributedString(forScrollInvariantRow: $0) }
-			}
+			.onReceive(timer) { _ in model.redraw() }
 	}
 }
 
