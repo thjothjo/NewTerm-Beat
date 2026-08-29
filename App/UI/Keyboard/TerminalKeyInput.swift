@@ -580,6 +580,10 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 		var next = state.toggledKeys
 		if next.contains(key) {
 			next.remove(key)
+			// And everything that was opened from inside it. SSH, AI and Fn are keys in the row More
+			// opens, so closing More takes away the only way back to them — leaving their rows on screen
+			// with nothing to dismiss them.
+			next.subtract(panelsInside(key))
 		} else {
 			next.insert(key)
 			next.subtract(panelsExcluded(by: key))
@@ -605,6 +609,32 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	/// changing it a second time in the same turn was simply lost. The width, which watches the
 	/// publisher rather than the view, did follow, so the panel ended up narrowed to the new column
 	/// while still showing the old one's contents.
+	/// Everything reachable only from inside the row this key opens, however deep it goes.
+	///
+	/// Closing a row closes what it holds, and what those hold in turn. Today only More holds anything;
+	/// written as a closure over the toolbar's own key lists so a second level would follow on its own
+	/// rather than needing this to be remembered.
+	private func panelsInside(_ key: ToolbarKey) -> Set<ToolbarKey> {
+		var found = Set<ToolbarKey>()
+		var queue = [key]
+		while let next = queue.popLast() {
+			for child in Self.rowOpened(by: next)?.keys.filter({ $0.isToggle }) ?? []
+			where found.insert(child).inserted {
+				queue.append(child)
+			}
+		}
+		return found
+	}
+
+	/// The row a toggle opens, for the toggles that open one.
+	private static func rowOpened(by key: ToolbarKey) -> Toolbar? {
+		switch key {
+		case .more:    return .secondary
+		case .fnKeys:  return .fnKeys
+		default:       return nil
+		}
+	}
+
 	/// The panels a given one can't share the bar with.
 	///
 	/// Only the other content keys, so an armed Control survives opening a panel.
