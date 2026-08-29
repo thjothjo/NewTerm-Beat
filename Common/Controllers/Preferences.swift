@@ -51,6 +51,36 @@ public class Preferences: NSObject, ObservableObject {
 
 		fontMetricsChanged()
 		colorMapChanged()
+
+		// The `didSet` observers below are not enough on their own. Every picker in Settings writes
+		// through the `@AppStorage` projected binding (`preferences.$themeName`), and that writes
+		// straight to UserDefaults without going through the enclosing property's setter — so no
+		// `didSet` runs, the colour map is never recomputed, and the choice only took effect on the
+		// next launch. Watching the defaults themselves catches the write however it was made.
+		NotificationCenter.default.addObserver(self,
+																					 selector: #selector(self.userDefaultsChanged),
+																					 name: UserDefaults.didChangeNotification,
+																					 object: nil)
+	}
+
+	/// A binding that writes through the property, so its `didSet` runs.
+	///
+	/// `preferences.$themeName` is the obvious thing to hand a picker, but `@AppStorage`'s own binding
+	/// writes straight to UserDefaults and skips the property observer that recomputes the colour map.
+	/// The observer above catches the write eventually; this makes it immediate, which is what picking
+	/// a theme should feel like.
+	public func binding<Value>(_ keyPath: ReferenceWritableKeyPath<Preferences, Value>) -> Binding<Value> {
+		Binding(get: { self[keyPath: keyPath] },
+						set: { self[keyPath: keyPath] = $0 })
+	}
+
+	@objc private func userDefaultsChanged() {
+		// Both recomputes bail out when nothing they derive from moved, so the fact that this fires for
+		// every preference in the app — not just the two that matter here — costs nothing.
+		DispatchQueue.main.async {
+			self.fontMetricsChanged()
+			self.colorMapChanged()
+		}
 	}
 
 	@AppStorage("fontName")
@@ -248,15 +278,23 @@ public class Preferences: NSObject, ObservableObject {
 
 	private func fontMetricsChanged() {
 		let font = AppFont.predefined[fontName] ?? AppFont()
+		let newValue = FontMetrics(font: font, fontSize: CGFloat(fontSize))
+		guard newValue != fontMetrics else {
+			return
+		}
 		objectWillChange.send()
-		fontMetrics = FontMetrics(font: font, fontSize: CGFloat(fontSize))
+		fontMetrics = newValue
 		notifyChanged()
 	}
 
 	private func colorMapChanged() {
 		let theme = AppTheme.predefined[effectiveThemeName] ?? AppTheme()
+		let newValue = ColorMap(theme: theme)
+		guard newValue != colorMap else {
+			return
+		}
 		objectWillChange.send()
-		colorMap = ColorMap(theme: theme)
+		colorMap = newValue
 		notifyChanged()
 	}
 

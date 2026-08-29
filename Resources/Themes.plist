@@ -21,12 +21,31 @@
 		<string>#1e1e1e</string>
 		<key>boldText</key>
 		<string>#ffffff</string>
+		<key>colorTable</key>
+		<array>
+			<string>#4d4d55</string>
+			<string>#f2555a</string>
+			<string>#3ecf8e</string>
+			<string>#e3b341</string>
+			<string>#6cb6ff</string>
+			<string>#d2a8ff</string>
+			<string>#56d4dd</string>
+			<string>#c9d1d9</string>
+			<string>#8b949e</string>
+			<string>#ff7b72</string>
+			<string>#56d364</string>
+			<string>#f0c674</string>
+			<string>#79c0ff</string>
+			<string>#dcb2ff</string>
+			<string>#76e3ea</string>
+			<string>#f0f6fc</string>
+		</array>
 		<key>cursor</key>
-		<string>#9d9d9d</string>
+		<string>#79c0ff</string>
 		<key>isDark</key>
 		<true/>
 		<key>text</key>
-		<string>#ffffff</string>
+		<string>#e6edf3</string>
 	</dict>
 	<key>Cursor</key>
 	<dict>

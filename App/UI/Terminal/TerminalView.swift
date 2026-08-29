@@ -327,9 +327,14 @@ struct TerminalSampleView: View {
 	var body: some View {
 		TerminalView()
 			.environmentObject(model.state)
-			.onAppear { model.apply(colorMap: preferences.colorMap, fontMetrics: preferences.fontMetrics) }
-			.onChange(of: preferences.colorMap) { model.apply(colorMap: $0, fontMetrics: preferences.fontMetrics) }
-			.onChange(of: preferences.fontMetrics) { model.apply(colorMap: preferences.colorMap, fontMetrics: $0) }
+			.onAppear { apply() }
+			// The notification rather than the published properties. `Preferences` stores these as
+			// `@AppStorage`, which SwiftUI only observes inside a View — in a class it is plain storage,
+			// so a picker writing through its binding updated the value without ever invalidating this
+			// view, and the preview kept drawing the theme you had before.
+			.onReceive(NotificationCenter.default.publisher(for: Preferences.didChangeNotification)) { _ in
+				apply()
+			}
 			.onChangeOfFrame(perform: { size in
 				// Determine the screen size based on the font size
 				// TODO: Calculate the exact number of lines we need from the buffer
@@ -338,6 +343,10 @@ struct TerminalSampleView: View {
 															rows: 32)
 			})
 			.onReceive(timer) { _ in model.redraw() }
+	}
+
+	private func apply() {
+		model.apply(colorMap: preferences.colorMap, fontMetrics: preferences.fontMetrics)
 	}
 }
 

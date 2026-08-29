@@ -65,7 +65,7 @@ struct SettingsInterfaceView: View {
 			)
 			.padding([.top, .bottom, .leading], 20)
 
-		let themes = PreferencesPicker(selection: preferences.$themeName,
+		let themes = PreferencesPicker(selection: preferences.binding(\.themeName),
 																	 label: Text("Theme")) {
 			ForEach(sortedThemes, id: \.key) { key, _ in
 				Text(key)
@@ -73,7 +73,7 @@ struct SettingsInterfaceView: View {
 		}
 			.pickerStyle(MenuPickerStyle())
 
-		let fonts = PreferencesPicker(selection: preferences.$fontName,
+		let fonts = PreferencesPicker(selection: preferences.binding(\.fontName),
 																	label: Text("Font")) {
 			Text("Default (SF Mono)")
 				.id("SF Mono")

@@ -28,23 +28,23 @@ struct SettingsThemeView: View {
 
 			PreferencesList {
 				PreferencesGroup(footer: Text("Switches between a light and a dark theme when iOS does.")) {
-					Toggle("Match System Appearance", isOn: preferences.$followsSystemAppearance)
+					Toggle("Match System Appearance", isOn: preferences.binding(\.followsSystemAppearance))
 				}
 
 				if preferences.followsSystemAppearance {
 					PreferencesGroup(header: Text("Light Theme")) {
-						PreferencesPicker(selection: preferences.$lightThemeName, label: EmptyView()) {
+						PreferencesPicker(selection: preferences.binding(\.lightThemeName), label: EmptyView()) {
 							ForEach(lightThemes, id: \.key) { item in Text(item.key) }
 						}
 					}
 					PreferencesGroup(header: Text("Dark Theme")) {
-						PreferencesPicker(selection: preferences.$darkThemeName, label: EmptyView()) {
+						PreferencesPicker(selection: preferences.binding(\.darkThemeName), label: EmptyView()) {
 							ForEach(darkThemes, id: \.key) { item in Text(item.key) }
 						}
 					}
 				} else {
 					PreferencesGroup(header: Text("Built in Themes")) {
-						PreferencesPicker(selection: preferences.$themeName, label: EmptyView()) {
+						PreferencesPicker(selection: preferences.binding(\.themeName), label: EmptyView()) {
 							ForEach(sortedThemes, id: \.key) { item in Text(item.key) }
 						}
 					}

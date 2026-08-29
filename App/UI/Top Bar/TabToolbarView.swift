@@ -220,6 +220,8 @@ struct TabToolbarView: View {
 
 				tabsFiller
 			}
+				// The first tab sat flush against the screen edge with its left border cut off by it.
+				.padding(.leading, 8)
 				// Fills the bar when the tabs don’t, so the filler has somewhere to be; scrolls when
 				// there are more tabs than fit.
 				.frame(minWidth: minimumWidth, alignment: .leading)
@@ -334,7 +336,7 @@ struct TabToolbarItemView: View {
 	/// without any one tab taking over the bar.
 	private static let maximumTitleWidth: CGFloat = 88
 
-	private static let cornerRadius: CGFloat = 6
+	private static let cornerRadius = Design.chipRadius
 
 	var terminal: TerminalTab
 	var index: Int
@@ -359,8 +361,10 @@ struct TabToolbarItemView: View {
 			indicator
 
 			Text(terminal.title)
-				.font(.system(size: 12, weight: .semibold))
-				.foregroundColor(.label)
+				.font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+				// The selected tab is the one you are looking at; the rest are a list you are choosing
+				// from. Weight and colour say which is which, so the chip doesn’t have to shout.
+				.foregroundColor(isSelected ? .label : .secondaryLabel)
 				.lineLimit(1)
 				.truncationMode(.tail)
 				// Capped so a long title — a project folder, or whatever the shell sets — can’t push the
@@ -371,16 +375,9 @@ struct TabToolbarItemView: View {
 			.height(height - 6)
 			.padding(.horizontal, 10)
 			// Every tab is an outlined chip, not just the selected one. With only the selected tab
-			// filled, two unselected tabs sitting side by side were a single run of text with no way to
+			// marked, two unselected tabs sitting side by side were a single run of text with no way to
 			// see where one ended and the next began.
-			.background(
-				RoundedRectangle(cornerRadius: Self.cornerRadius)
-					.fill(isSelected ? Color(.tabSelected) : .clear)
-			)
-			.overlay(
-				RoundedRectangle(cornerRadius: Self.cornerRadius)
-					.strokeBorder(Color.label.opacity(isSelected ? 0.25 : 0.15), lineWidth: 1)
-			)
+			.background(chipBackground)
 			.padding(.vertical, 3)
 			.padding(.trailing, 4)
 			.accessibilityLabel(accessibilityLabel)
@@ -392,6 +389,23 @@ struct TabToolbarItemView: View {
 			.deleteBadge(isVisible: isEditing,
 									 label: .localize("Close Tab"),
 									 action: removeTerminal)
+	}
+
+	/// Frosted and tinted when selected, outlined when not.
+	///
+	/// Material alone doesn’t mark it: the bar is already blurred, so blurring a small piece of it
+	/// again comes out the same shade and every tab looked identical. The tint is what carries the
+	/// selection; the material is what keeps it from becoming a flat block in a translucent bar.
+	@ViewBuilder
+	private var chipBackground: some View {
+		let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+		if isSelected {
+			Design.glass(shape, strokeOpacity: 0)
+				.overlay(shape.fill(Color.accentColor.opacity(0.22)))
+				.overlay(shape.strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 1))
+		} else {
+			shape.strokeBorder(Color.label.opacity(0.13), lineWidth: Design.stroke)
+		}
 	}
 
 	@ViewBuilder

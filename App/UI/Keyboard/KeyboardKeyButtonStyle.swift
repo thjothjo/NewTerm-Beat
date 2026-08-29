@@ -18,40 +18,50 @@ struct KeyboardKeyButtonStyle: ButtonStyle {
 		var height: CGFloat = 45
 		let width = widthRatio == nil ? nil : height * widthRatio! * (isBigDevice ? 1.3 : 1)
 		var fontSize: CGFloat = isBigDevice ? 18 : 15
-		var cornerRadius: CGFloat = isBigDevice ? 6 : 4
+		var cornerRadius = Design.keyRadius
 		if halfHeight {
 			height = (height / 2) - 1
 			fontSize *= 0.9
-			cornerRadius *= 0.75
+			cornerRadius *= 0.7
 		}
-
-		let backgroundColor: Color
-		if configuration.isPressed {
-			backgroundColor = Color(.keyBackgroundHighlighted)
-		} else if selected {
-			backgroundColor = Color(.keyBackgroundSelected)
-		} else {
-			backgroundColor = Color(.keyBackgroundNormal)
-		}
+		let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
 		return HStack(alignment: .center, spacing: 0) {
 			configuration.label
-				.font(.system(size: fontSize, weight: .regular).monospacedDigit())
+				// Medium rather than regular: these are labels on a control, and at 15pt over a blurred
+				// background regular weight reads as washed out.
+				.font(.system(size: fontSize, weight: .medium).monospacedDigit())
 				.padding(.horizontal, halfHeight ? 2 : 8)
 				.padding(.vertical, halfHeight ? 0 : 6)
-				.foregroundColor(selected && !configuration.isPressed ? .black : .white)
+				.foregroundColor(selected ? Color(.systemBackground) : .primary)
 		}
 			.frame(minWidth: height, maxWidth: width)
 			.frame(height: height)
-			.background(
-				backgroundColor
-					.cornerRadius(cornerRadius)
-					.shadow(color: shadow ? .black.opacity(0.8) : .clear,
-									radius: 0,
-									x: 0,
-									y: shadow ? 1 : 0)
-			)
+			.background(background(shape: shape, isPressed: configuration.isPressed))
 			.animation(nil)
+	}
+
+	/// A frosted key rather than a flat grey one.
+	///
+	/// The old fill was a fixed grey per appearance, which floated over the terminal without belonging
+	/// to it. Blurring what is behind the key ties the two together, and the hairline is what stops
+	/// the keys dissolving into the bar on a light theme.
+	@ViewBuilder
+	private func background<S: InsettableShape>(shape: S, isPressed: Bool) -> some View {
+		if selected {
+			shape
+				.fill(Color.accentColor)
+				.overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: Design.stroke))
+		} else {
+			Design.glass(shape)
+				// Pressed lightens on a dark keyboard and darkens on a light one, because it is the label
+				// colour that inverts between them.
+				.overlay(shape.fill(Color.primary.opacity(isPressed ? 0.18 : 0)))
+				.shadow(color: shadow ? .black.opacity(0.25) : .clear,
+								radius: shadow ? 1.5 : 0,
+								x: 0,
+								y: shadow ? 1 : 0)
+		}
 	}
 
 	init(selected: Bool = false, hasShadow shadow: Bool = false, halfHeight: Bool = false, widthRatio: CGFloat? = nil) {

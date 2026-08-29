@@ -40,7 +40,8 @@ class TabToolbarViewController: UIViewController {
 
 	private let state = TabToolbarState()
 
-	private var backdropView: UIToolbar!
+	private var backdropView: UIVisualEffectView!
+	private var separatorView: UIView!
 	private var hostingView: UIHostingView<AnyView>!
 	private var leadingConstraint: NSLayoutConstraint!
 	private var trailingConstraint: NSLayoutConstraint!
@@ -50,11 +51,18 @@ class TabToolbarViewController: UIViewController {
 
 		view.setContentHuggingPriority(.fittingSizeLevel, for: .vertical)
 
-		backdropView = UIToolbar()
+		// A UIToolbar was doing this job, which brought its own bar metrics, its own shadow line and a
+		// chrome material heavy enough to read as a solid strip. The bar sits over the terminal, so a
+		// thin material and one hairline is the whole of what it needs.
+		backdropView = UIVisualEffectView(effect: UIBlurEffect(style: Design.chromeBlur))
 		backdropView.frame = view.bounds
 		backdropView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-		backdropView.delegate = self
 		view.addSubview(backdropView)
+
+		separatorView = UIView()
+		separatorView.backgroundColor = .separator
+		separatorView.translatesAutoresizingMaskIntoConstraints = false
+		view.addSubview(separatorView)
 
 		hostingView = UIHostingView(rootView: AnyView(TabToolbarView()
 			.environmentObject(state)))
@@ -72,7 +80,12 @@ class TabToolbarViewController: UIViewController {
 			hostingView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
 			hostingView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 			leadingConstraint,
-			trailingConstraint
+			trailingConstraint,
+
+			separatorView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+			separatorView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+			separatorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+			separatorView.heightAnchor.constraint(equalToConstant: 1 / (view.window?.screen.scale ?? UIScreen.main.scale))
 		])
 
 		// See `setNeedsInsetUpdate` — a 180° flip notifies nothing else.
@@ -188,11 +201,3 @@ class TabToolbarViewController: UIViewController {
 
 }
 
-extension TabToolbarViewController: UIToolbarDelegate {
-
-	func position(for bar: UIBarPositioning) -> UIBarPosition {
-		// Helps UIToolbar figure out where to place the shadow line
-		return .top
-	}
-
-}
