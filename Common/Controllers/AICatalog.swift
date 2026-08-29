@@ -21,6 +21,9 @@ public struct AICommand: Hashable, Identifiable {
 	public var kind: Kind
 	/// Where it was found, so it's clear which agent a slash command belongs to.
 	public var source: String
+	/// Whether picking this should clear whatever is already typed. A persona is a setting, not
+	/// something you add to what's there.
+	public var replacesInput: Bool = false
 }
 
 /// The agent CLIs installed on this device, and the prompts they already know.
@@ -54,7 +57,8 @@ public enum AICatalog {
 			AICommand(name: shortcut.name,
 								command: shortcut.send ? shortcut.command + "\r" : shortcut.command,
 								kind: shortcut.kind == .agent ? .cli : .prompt,
-								source: shortcut.kind.sourceLabel)
+								source: shortcut.kind.sourceLabel,
+								replacesInput: shortcut.replacesInput)
 		}
 	}
 

@@ -35,6 +35,12 @@ public struct AIShortcut: Codable, Hashable, Identifiable {
 		self.kind = kind
 		self.send = send
 	}
+
+	/// Whether picking this should clear whatever is already typed.
+	///
+	/// A persona is a setting, not an addition: picking Reviewer and then Explain means "be Explain",
+	/// not "be both". Skills and agents append, because those are things you add an argument to.
+	public var replacesInput: Bool { kind == .persona }
 }
 
 /// The user's own skills and personas, in a file an agent can rewrite.
