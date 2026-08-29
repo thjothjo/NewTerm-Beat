@@ -271,6 +271,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	override func viewSafeAreaInsetsDidChange() {
 		super.viewSafeAreaInsetsDidChange()
 		updateScreenSize()
+		// A row opening under the terminal moves the bottom of the viewport without printing anything.
+		// The scroll view stays where it was, so the newest lines — the prompt included — end up behind
+		// the bar. This is the same signal new output uses to pin the view back to the bottom.
+		state.revision &+= 1
 	}
 
 	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

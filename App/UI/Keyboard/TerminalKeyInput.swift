@@ -62,7 +62,6 @@ class TerminalKeyInput: TextInputBase {
 
 	private var toolbar: KeyboardToolbarInputView!
 	private var passwordInputView: TerminalPasswordInputView?
-	private var accessoryHeightObservers = Set<AnyCancellable>()
 
 	private var previousFloatingCursorPoint: CGPoint? = nil
 	private var repeatTimer: Timer?
@@ -129,20 +128,11 @@ class TerminalKeyInput: TextInputBase {
 		toolbar = KeyboardToolbarInputView(delegate: self,
 																			 toolbars: toolbars,
 																			 state: state)
-
-		// Each of these gates a whole row of the accessory bar, so toggling one makes the bar taller or
-		// shorter. UIKit posts no keyboard frame change when an accessory resizes itself — measured: the
-		// reported overlap stayed at 84pt after the projects row appeared — so whoever is sizing around
-		// the keyboard keeps the old height and the terminal draws underneath the taller bar, its text
-		// showing through the translucent keyboard background. Reloading makes UIKit re-measure and
-		// report the frame it ends up with.
-		let rowKeys: Set<ToolbarKey> = [.more, .fnKeys, .projects, .ssh, .ai]
-		state.$toggledKeys
-			.map { $0.intersection(rowKeys) }
-			.removeDuplicates()
-			.dropFirst()
-			.sink { [weak self] _ in self?.setNeedsAccessoryResize() }
-			.store(in: &accessoryHeightObservers)
+		// The bar tells us when it has actually finished resizing, rather than us guessing from the
+		// model change — which fired before SwiftUI had laid the new rows out.
+		toolbar.onHeightChanged = { [weak self] in
+			self?.notifyAccessoryFrameChanged()
+		}
 
 		// Switching keyboards — to emoji, to a third-party one, to dictation — changes how tall the
 		// keyboard is, and the accessory keeps the height it measured for the old one until something
@@ -151,12 +141,6 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.setNeedsInputViewReload),
 																					name: UITextInputMode.currentInputModeDidChangeNotification,
 																					object: nil)
-		state.$imageAttachments
-			.map(\.isEmpty)
-			.removeDuplicates()
-			.dropFirst()
-			.sink { [weak self] _ in self?.setNeedsAccessoryResize() }
-			.store(in: &accessoryHeightObservers)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -195,40 +179,21 @@ class TerminalKeyInput: TextInputBase {
 		}
 	}
 
-	private var hasPendingAccessoryResize = false
-
-	/// Grows or shrinks the bar in place, for a row opening or closing.
-	///
-	/// Deliberately not `reloadInputViews()`. That takes the accessory away and hands UIKit a new one,
-	/// and UIKit animates the swap as a dismiss followed by a present — the entire bar, `ctrl` row
-	/// included, slides down off the bottom of the screen and climbs back. Recorded on the simulator
-	/// at 30fps: closing a row moved both rows steadily downwards for about half a second before they
-	/// snapped back to the resting position. The bar is a self-sizing `UIInputView`; invalidating its
-	/// height is enough to resize it where it stands.
-	///
-	/// The reload was there for a second reason — UIKit posts no keyboard frame change when an
-	/// accessory resizes itself, so the terminal kept the old inset and drew underneath the taller
-	/// bar. That is what `notifyAccessoryFrameChanged` replaces.
-	private func setNeedsAccessoryResize() {
-		guard !hasPendingAccessoryResize else {
-			return
-		}
-		hasPendingAccessoryResize = true
-		DispatchQueue.main.async { [weak self] in
-			guard let self else {
-				return
-			}
-			self.hasPendingAccessoryResize = false
-			self.toolbar.invalidateHeight()
-			self.notifyAccessoryFrameChanged()
-		}
-	}
-
 	/// Tells whoever lays out around the keyboard where its top edge is now.
 	///
 	/// The accessory bar *is* the visible top of the keyboard, so its own frame plus everything below
 	/// it is exactly the area the terminal has to keep clear.
 	private func notifyAccessoryFrameChanged() {
+		// A turn later: the bar has just changed height, and UIKit moves its origin to match on the
+		// next layout pass. Reading the frame straight away gets the position it had at the old height,
+		// which left the terminal inset for a bar that had already grown — its last lines drawn behind
+		// the keys.
+		DispatchQueue.main.async { [weak self] in
+			self?.postAccessoryFrame()
+		}
+	}
+
+	private func postAccessoryFrame() {
 		guard let window = toolbar.window else {
 			return
 		}

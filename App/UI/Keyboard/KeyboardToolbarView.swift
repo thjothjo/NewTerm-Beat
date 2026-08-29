@@ -744,6 +744,14 @@ struct ProjectPickerRow: View {
 	}
 }
 
+/// Carries the rows' real height out to the UIKit bar that has to be that tall.
+struct KeyboardBarHeightKey: PreferenceKey {
+	static var defaultValue: CGFloat = 0
+	static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+		value = max(value, nextValue())
+	}
+}
+
 struct KeyboardToolbarView: View {
 	/// Key height from `KeyboardKeyButtonStyle`, plus the row’s top padding.
 	private static let keyRowHeight: CGFloat = 45 + 5
@@ -751,6 +759,15 @@ struct KeyboardToolbarView: View {
 	weak var delegate: KeyboardToolbarViewDelegate?
 
 	let toolbars: [Toolbar]
+
+	/// Reports how tall the rows actually are.
+	///
+	/// The bar cannot work this out from the hosting view: SwiftUIX wraps the content in
+	/// `.frame(max: layoutFittingExpandedSize)`, so it fills whatever height it is offered and its
+	/// intrinsic size always comes back equal to the current height. Measured, the bar latched at three
+	/// rows' worth with four to show and never moved again, in either direction. `fixedSize` below
+	/// keeps this stack at its own height regardless, which is what makes it measurable at all.
+	var onHeightMeasured: ((CGFloat) -> Void)?
 
 	@EnvironmentObject var state: KeyboardToolbarViewState
 
@@ -816,16 +833,6 @@ struct KeyboardToolbarView: View {
 		// width whenever the measurement didn’t fire on rotation: the bar came back from landscape
 		// still 874pt wide, centred, and clipped off both edges of a 402pt screen.
 		VStack(spacing: 0) {
-			// Holds the rows against the bottom of the bar, which is the edge that doesn't move — the
-			// keyboard is below it.
-			//
-			// A VStack centres its content when it is given more height than it needs, and for one frame
-			// after a row closes that is exactly the situation: SwiftUI has dropped the row while UIKit
-			// still has the bar at its old height. Measured at 30fps, the `ctrl` row jumped 25pt — half a
-			// row — upwards for a single frame and dropped back. `minLength: 0` keeps the ideal height
-			// equal to the rows' own, so the bar still measures itself correctly.
-			Spacer(minLength: 0)
-
 			ForEach(toolbars, id: \.self) { toolbar in
 				if isToolbarVisible(toolbar) {
 					switch toolbar {
@@ -867,6 +874,19 @@ struct KeyboardToolbarView: View {
 				}
 			}
 		}
+			// Its own height, not the one it is offered. Without this the stack is stretched to fill the
+			// bar and there is nothing left to measure.
+			.fixedSize(horizontal: false, vertical: true)
+			.background(GeometryReader { proxy in
+				Color.clear.preference(key: KeyboardBarHeightKey.self, value: proxy.size.height)
+			})
+			// Held against the bottom edge — the one that doesn't move, because the keyboard is below
+			// it — so that while UIKit still has the bar at its old height the key rows stay put instead
+			// of drifting to the middle.
+			.frame(maxHeight: .infinity, alignment: .bottom)
+			.onPreferenceChange(KeyboardBarHeightKey.self) { height in
+				onHeightMeasured?(height)
+			}
 	}
 }
 

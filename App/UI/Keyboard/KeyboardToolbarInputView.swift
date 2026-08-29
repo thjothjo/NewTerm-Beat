@@ -13,6 +13,12 @@ import SwiftUIX
 class KeyboardToolbarInputView: UIInputView {
 
 	private var hostingView: UIHostingView<AnyView>!
+	/// The bar's height, taken from what the rows actually need.
+	private var contentHeight: NSLayoutConstraint!
+
+	/// Told when the bar has finished changing height, so whoever lays out around the keyboard can
+	/// follow. UIKit posts no keyboard frame change when an accessory sizes itself.
+	var onHeightChanged: (() -> Void)?
 
 	init(delegate: KeyboardToolbarViewDelegate?, toolbars: [Toolbar], state: KeyboardToolbarViewState) {
 		super.init(frame: .zero, inputViewStyle: .keyboard)
@@ -20,9 +26,21 @@ class KeyboardToolbarInputView: UIInputView {
 		translatesAutoresizingMaskIntoConstraints = false
 		allowsSelfSizing = true
 
+		var view = KeyboardToolbarView(delegate: delegate, toolbars: toolbars)
+		// Deferred a turn: `onChange` runs inside SwiftUI's update, and re-entering UIKit layout from
+		// there is asking for trouble. By the next turn the new rows are committed, which is the whole
+		// point — the old code invalidated from the model change instead and measured the rows that
+		// were still on screen.
+		view.onHeightMeasured = { [weak self] height in
+			// Deferred a turn: the preference arrives inside SwiftUI's update, and re-entering UIKit
+			// layout from there is asking for trouble.
+			DispatchQueue.main.async {
+				self?.applyContentHeight(height)
+			}
+		}
+
 		hostingView = UIHostingView(rootView: AnyView(
-			KeyboardToolbarView(delegate: delegate, toolbars: toolbars)
-				.environmentObject(state)
+			view.environmentObject(state)
 		))
 		hostingView.translatesAutoresizingMaskIntoConstraints = false
 		hostingView.shouldResizeToFitContent = true
@@ -32,9 +50,25 @@ class KeyboardToolbarInputView: UIInputView {
 		NSLayoutConstraint.activate([
 			hostingView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
 			hostingView.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
-			hostingView.topAnchor.constraint(equalTo: self.topAnchor),
+			// Bottom pinned, top only a minimum. The bar's height comes from the rows' own intrinsic
+			// height, and while UIKit still has the bar at its old height the rows sit against the bottom
+			// edge — the one that doesn't move, because the keyboard is below it. Aligning them from
+			// SwiftUI instead (a leading spacer) made the content fill whatever height it was given, so
+			// its intrinsic size always equalled the current size and the bar could never resize at all:
+			// measured, it latched at 184pt with four rows to show and never came back down.
+			hostingView.topAnchor.constraint(greaterThanOrEqualTo: self.topAnchor),
 			hostingView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
 		])
+
+		// An explicit height, because the hosting view's own intrinsic size can't provide one. SwiftUIX
+		// wraps the content in `.frame(max: layoutFittingExpandedSize)`, so the content fills whatever
+		// height it is offered and its intrinsic size comes back equal to the current height — every
+		// time. Measured: with four rows to show, the bar latched at three rows' worth (184pt) and
+		// invalidating the intrinsic size changed nothing, in either direction. `sizeThatFits` with a
+		// compressed vertical priority asks SwiftUI what the rows need instead of what they were given.
+		// Seeded with one row so the bar is never zero-height before SwiftUI has measured itself.
+		contentHeight = hostingView.heightAnchor.constraint(equalToConstant: 50)
+		contentHeight.isActive = true
 	}
 
 	required init?(coder: NSCoder) {
@@ -47,10 +81,21 @@ class KeyboardToolbarInputView: UIInputView {
 	/// but neither re-asks on its own when the content changes. Closing several rows at once left the
 	/// bar at its old height with the keys centred in the leftover space, and the more rows were
 	/// closed the more empty bar there was above and below them.
+	private func applyContentHeight(_ height: CGFloat) {
+		guard height > 0, abs(height - contentHeight.constant) > 0.5 else {
+			return
+		}
+		contentHeight.constant = height
+		invalidateIntrinsicContentSize()
+		setNeedsLayout()
+		layoutIfNeeded()
+		onHeightChanged?()
+	}
+
+	/// Forces a re-measure, for the paths that rebuild the bar rather than change its rows.
 	func invalidateHeight() {
 		hostingView.invalidateIntrinsicContentSize()
 		invalidateIntrinsicContentSize()
-		hostingView.setNeedsLayout()
 		setNeedsLayout()
 		layoutIfNeeded()
 	}
