@@ -57,3 +57,10 @@ enum Design {
 		RoundedRectangle(cornerRadius: chipRadius, style: .continuous)
 	}
 }
+
+extension Color {
+	/// Backports for a 14.0 deployment target: these exist as `UIColor` long before they exist as
+	/// `Color`, and the app supports iOS further back than SwiftUI added them.
+	static let appIndigo = Color(UIColor.systemIndigo)
+	static let appTeal = Color(UIColor.systemTeal)
+}

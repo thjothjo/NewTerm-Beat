@@ -418,7 +418,7 @@ struct SSHHostPickerRow: View {
 							// The alias is what gets typed, so it leads; what it resolves to is only there to
 							// tell two similar aliases apart, and is dropped entirely in the narrow column.
 							PickerChip(icon: "network",
-												 iconTint: .teal,
+												 iconTint: .appTeal,
 												 title: host.name,
 												 subtitle: host.detail,
 												 axis: axis)

@@ -61,17 +61,20 @@ struct SettingsView: View {
 		let list = List() {
 			PreferencesGroup(header: Text("Terminal")) {
 				NavigationLink(destination: SettingsFontView(),
-											 label: { KeyValueView(title: Text("Font"),
+											 label: { KeyValueView(icon: "textformat", iconTint: .appIndigo,
+																						 title: Text("Font"),
 																						 value: Text("\(preferences.fontName), \(Int(preferences.fontSize))")) })
 
 				NavigationLink(destination: SettingsThemeView(),
-											 label: { KeyValueView(title: Text("Theme"),
+											 label: { KeyValueView(icon: "paintpalette.fill", iconTint: .pink,
+																						 title: Text("Theme"),
 																						 value: Text(preferences.themeName)) })
 			}
 
 			PreferencesGroup(header: Text("Projects"),
-											 footer: Text("Every folder in here is a project. Currently \(ProjectManager.rootURL.path). Opening a project in tmux is what lets its session survive the app being closed.")) {
-				HStack {
+											 footer: Text("Every folder in here is a project, at \((ProjectManager.rootURL.path as NSString).abbreviatingWithTildeInPath). Opening one in tmux is what lets its session survive the app being closed.")) {
+				HStack(spacing: 12) {
+					SettingsIcon(systemName: "folder.fill", tint: .orange)
 					Text("Folder")
 					Spacer()
 					TextField(ProjectManager.defaultDirectory, text: preferences.$projectsDirectory)
@@ -81,26 +84,31 @@ struct SettingsView: View {
 						.foregroundColor(.secondary)
 				}
 
-				Toggle("Open in tmux", isOn: preferences.$useTmuxForProjects)
+				Toggle(isOn: preferences.$useTmuxForProjects) {
+					SettingsRow(icon: "rectangle.split.3x1.fill", tint: .appTeal) { Text("Open in tmux") }
+				}
 
 				NavigationLink(destination: SettingsICloudView(),
-											 label: { Text("iCloud Drive") })
+											 label: { SettingsRow(icon: "icloud.fill", tint: .blue) { Text("iCloud Drive") } })
 			}
 
 			PreferencesGroup(header: Text("AI")) {
 				NavigationLink(destination: SettingsAIShortcutsView(),
-											 label: { Text("AI Shortcuts") })
+											 label: { SettingsRow(icon: "sparkles", tint: .purple) { Text("AI Shortcuts") } })
 			}
 
 			PreferencesGroup(header: Text("Privacy"),
 											 footer: Text("Saved output is whatever was on screen, which can include a token or a password a program printed back. Turning this off clears what's already saved.")) {
-				Toggle("Save Terminal History", isOn: preferences.$saveScrollback)
+				Toggle(isOn: preferences.$saveScrollback) {
+					SettingsRow(icon: "clock.arrow.circlepath", tint: .appIndigo) { Text("Save Terminal History") }
+				}
 
 				Button {
 					ScrollbackStore.shared.discardAll()
 					savedBytes = 0
 				} label: {
-					HStack {
+					HStack(spacing: 12) {
+						SettingsIcon(systemName: "trash.fill", tint: savedBytes > 0 ? .red : .gray)
 						Text("Clear Saved History")
 							.foregroundColor(savedBytes > 0 ? .red : .secondary)
 						Spacer()
@@ -116,6 +124,7 @@ struct SettingsView: View {
 				PreferencesPicker(selection: preferences.$keyboardArrowsStyle,
 													label: Text("Arrow Keys"),
 													valueLabel: Text(preferences.keyboardArrowsStyle.name),
+										icon: "arrow.up.arrow.down", iconTint: .blue,
 													asLink: true) {
 					ForEach(KeyboardArrowsStyle.allCases, id: \.self) { key in
 						HStack(alignment: .center) {
@@ -133,6 +142,7 @@ struct SettingsView: View {
 				PreferencesPicker(selection: preferences.$keyboardTrackpadSensitivity,
 													label: Text("Trackpad Sensitivity"),
 													valueLabel: Text(preferences.keyboardTrackpadSensitivity.name),
+										icon: "hand.point.up.left.fill", iconTint: .appTeal,
 													asStepper: true)
 			}
 
@@ -141,31 +151,37 @@ struct SettingsView: View {
 				// Demonstrated from the toggle itself rather than by observing the value. An observation
 				// fires when the screen appears too, which is why opening Settings used to ring the bell
 				// — and turning one *off* is not an occasion to play it either.
-				Toggle("Make beep sound", isOn: Binding(
+				Toggle(isOn: Binding(
 					get: { preferences.bellSound },
 					set: { isOn in
 						preferences.bellSound = isOn
 						if isOn { HapticController.playBell() }
-					}))
+					})) {
+					SettingsRow(icon: "speaker.wave.2.fill", tint: .orange) { Text("Make beep sound") }
+				}
 				if CHHapticEngine.capabilitiesForHardware().supportsHaptics {
-					Toggle("Make haptic vibration", isOn: Binding(
+					Toggle(isOn: Binding(
 						get: { preferences.bellVibrate },
 						set: { isOn in
 							preferences.bellVibrate = isOn
 							if isOn { HapticController.playBell() }
-						}))
+						})) {
+						SettingsRow(icon: "iphone.radiowaves.left.and.right", tint: .pink) { Text("Make haptic vibration") }
+					}
 				}
-				Toggle("Show heads-up display", isOn: preferences.$bellHUD)
+				Toggle(isOn: preferences.$bellHUD) {
+					SettingsRow(icon: "bell.fill", tint: .yellow) { Text("Show heads-up display") }
+				}
 			}
 
 			PreferencesGroup {
 				NavigationLink(destination: SettingsAdvancedView(),
-											 label: { Text("Advanced") })
+											 label: { SettingsRow(icon: "gearshape.2.fill", tint: .gray) { Text("Advanced") } })
 			}
 
 			PreferencesGroup {
 				NavigationLink(destination: SettingsAboutView(),
-											 label: { Text("About") })
+											 label: { SettingsRow(icon: "info.circle.fill", tint: .blue) { Text("About") } })
 			}
 		}
 			.listStyle(InsetGroupedListStyle())

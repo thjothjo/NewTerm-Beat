@@ -68,11 +68,13 @@ extension PreferencesPicker where Label == Text, ValueLabel == Text, InnerConten
 	init(selection: Binding<SelectionValue>,
 			 label: Label,
 			 valueLabel: ValueLabel,
+			 icon: String? = nil,
+			 iconTint: Color = .gray,
 			 asLink: Bool = false,
 			 @ViewBuilder content: () -> Content) {
 		self.selectionBinding = selection
 		self.label = label
-		self.keyValueLabel = KeyValueView(title: label, value: valueLabel)
+		self.keyValueLabel = KeyValueView(icon: icon, iconTint: iconTint, title: label, value: valueLabel)
 		self.asLink = asLink
 		self.asStepper = false
 		self.content = content()
@@ -98,10 +100,12 @@ extension PreferencesPicker where Label == Text, ValueLabel == Text,
 	init(selection: Binding<SelectionValue>,
 			 label: Label,
 			 valueLabel: ValueLabel,
+			 icon: String? = nil,
+			 iconTint: Color = .gray,
 			 asStepper: Bool = false) {
 		self.selectionBinding = selection
 		self.label = label
-		let keyValueLabel = KeyValueView(title: label, value: valueLabel)
+		let keyValueLabel = KeyValueView(icon: icon, iconTint: iconTint, title: label, value: valueLabel)
 		self.keyValueLabel = keyValueLabel
 		self.asLink = false
 		self.asStepper = asStepper

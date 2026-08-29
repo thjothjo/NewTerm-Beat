@@ -297,36 +297,46 @@ struct TabToolbarView: View {
 		return verticalSizeClass == .compact ? "rectangle.split.2x1" : "rectangle.split.1x2"
 	}
 
+	/// Four buttons all painted accent at the same weight gave the bar no hierarchy — splitting a pane
+	/// shouted as loudly as opening a new tab. New Tab is the one thing done constantly and the only
+	/// one that is destructive to nothing, so it keeps the accent; the rest step back to secondary and
+	/// come forward on their own when you look for them.
 	private var buttons: some View {
 		HStack(spacing: 0) {
-			Button(action: { state.delegate?.toggleSplit() },
-						 label: { Image(systemName: splitButtonImage) })
-				.squareFrame(sideLength: Self.height)
-				.padding(.horizontal, 3)
-				.accessibilityLabel(isSelectedTabSplit ? "Close Split" : "Split Terminal")
+			barButton(systemName: splitButtonImage,
+								label: isSelectedTabSplit ? "Close Split" : "Split Terminal",
+								action: { state.delegate?.toggleSplit() })
 
-			Button(action: { state.delegate?.openPasswordManager() },
-						 label: { Image(systemName: "key.fill") })
-				.squareFrame(sideLength: Self.height)
-				.padding(.horizontal, 3)
-				.accessibilityLabel("Password Manager")
+			barButton(systemName: "key.fill",
+								label: "Password Manager",
+								action: { state.delegate?.openPasswordManager() })
 
-			Button(action: { state.delegate?.openSettings() },
-						 label: { Image(systemName: .gear) })
-				.squareFrame(sideLength: Self.height)
-				.padding(.horizontal, 3)
-				.accessibilityLabel("Settings")
+			barButton(systemName: "gear",
+								label: "Settings",
+								action: { state.delegate?.openSettings() })
 
-			Button(action: { state.delegate?.addTerminal() },
-						 label: { Image(systemName: .plus) })
-				.squareFrame(sideLength: Self.height)
-				.padding(.horizontal, 3)
+			barButton(systemName: "plus",
+								label: "New Tab",
+								isPrimary: true,
+								action: { state.delegate?.addTerminal() })
 				.padding(.trailing, 3)
-				.accessibilityLabel("New Tab")
 		}
-			.foregroundColor(.accentColor)
 			.font(.system(size: 17 * 0.9, weight: .medium))
 			.imageScale(.large)
+	}
+
+	private func barButton(systemName: String,
+												 label: String,
+												 isPrimary: Bool = false,
+												 action: @escaping () -> Void) -> some View {
+		Button(action: action, label: {
+			Image(systemName: systemName)
+				.font(.system(size: 17 * 0.9, weight: isPrimary ? .semibold : .regular))
+				.foregroundColor(isPrimary ? .accentColor : .secondaryLabel)
+		})
+			.squareFrame(sideLength: Self.height)
+			.padding(.horizontal, 3)
+			.accessibilityLabel(label)
 	}
 
 }
