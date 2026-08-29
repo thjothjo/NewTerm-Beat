@@ -154,6 +154,7 @@ public class TerminalController {
 	}
 
 	public func windowDidEnterBackground() {
+		activityController.applicationDidChangeForeground(false)
 		// Throttle the update timer to save battery. On iPhone, we shouldn’t be visible at all in this
 		// case, so throttle right down to once per second so we can maintain the dirty bit.
 		startUpdateTimer(fps: UIApplication.shared.supportsMultipleScenes ? 10 : 1)
@@ -161,6 +162,7 @@ public class TerminalController {
 	}
 
 	public func windowWillEnterForeground() {
+		activityController.applicationDidChangeForeground(true)
 		// Go back to full speed.
 		isWindowVisible = true
 		if isVisible {
@@ -243,6 +245,24 @@ public class TerminalController {
 	public var initialCommand: String?
 	private var hasFlushedInitialCommand = false
 
+	/// Puts a long-running agent on the Dynamic Island once the app is backgrounded.
+	public let activityController = TerminalActivityController()
+
+	/// What the user has typed since the last return, so the command can be recognised when they run
+	/// it. Reading it back off the screen would mean parsing the prompt, which every shell draws
+	/// differently.
+	private var pendingCommandLine = ""
+
+	/// The project this terminal was opened in, for the activity to name. The directory's own name,
+	/// because that is what the project is called.
+	private var activityProjectName: String? {
+		guard let directory = initialDirectory, !directory.isEmpty else {
+			return nil
+		}
+		return (directory as NSString).lastPathComponent
+	}
+
+
 	public func startSubProcess() throws {
 		subProcess = SubProcess()
 		subProcess!.delegate = self
@@ -271,6 +291,9 @@ public class TerminalController {
 	// MARK: - Terminal
 
 	public func readInputStream(_ data: [UTF8Char]) {
+		if let text = String(bytes: data, encoding: .utf8) {
+			activityController.didReceiveOutput(text)
+		}
 		terminalQueue.async {
 			self.readBuffer += data
 
@@ -313,7 +336,38 @@ public class TerminalController {
 	}
 
 	public func write(_ data: [UTF8Char]) {
+		noteTypedInput(data)
 		subProcess?.write(data: data)
+	}
+
+	/// Builds up the command line as it's typed, and hands it over on return.
+	///
+	/// Only what we send to the pty, which is exactly what the user typed — output echoed back has
+	/// already been through the shell's line editing and can't be told apart from a program's own
+	/// output.
+	private func noteTypedInput(_ data: [UTF8Char]) {
+		for byte in data {
+			switch byte {
+			case 0x0D, 0x0A:
+				let line = pendingCommandLine.trimmingCharacters(in: .whitespaces)
+				pendingCommandLine = ""
+				if !line.isEmpty {
+					activityController.commandDidStart(line, project: activityProjectName)
+				}
+			case 0x7F, 0x08:
+				if !pendingCommandLine.isEmpty {
+					pendingCommandLine.removeLast()
+				}
+			case 0x03, 0x04:
+				// ^C and ^D end whatever is running, and abandon the line being typed.
+				pendingCommandLine = ""
+				activityController.commandDidFinish()
+			case 0x20...0x7E:
+				pendingCommandLine.append(Character(UnicodeScalar(byte)))
+			default:
+				break
+			}
+		}
 	}
 
 	public func write(_ data: Data) {

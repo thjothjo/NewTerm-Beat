@@ -36,10 +36,23 @@ plutil -replace CFBundleName        -string "$DISPLAY_NAME" "$APP/Info.plist"
 plutil -insert  CFBundleDisplayName -string "$DISPLAY_NAME" "$APP/Info.plist" 2>/dev/null \
 	|| plutil -replace CFBundleDisplayName -string "$DISPLAY_NAME" "$APP/Info.plist"
 
+echo "==> rebrand widget extension"
+# The extension's id has to stay prefixed with the app's, or the system won't associate the two and
+# the Live Activity never finds its UI.
+for APPEX in "$APP"/PlugIns/*.appex; do
+	[ -d "$APPEX" ] || continue
+	plutil -replace CFBundleIdentifier -string "$BUNDLE_ID.widget" "$APPEX/Info.plist"
+done
+
 echo "==> sign (ldid)"
 ldid -SApp/entitlements.plist "$APP/NewTerm"
 ldid -SApp/entitlements.plist "$APP/NewTermLoginHelper"
 find "$APP/Frameworks" -name "*.dylib" -exec ldid -S {} \;
+# Signed with no entitlements, the same as the widget extensions other jailbreak apps ship.
+for APPEX in "$APP"/PlugIns/*.appex; do
+	[ -d "$APPEX" ] || continue
+	ldid -S "$APPEX/$(basename "${APPEX%.appex}")"
+done
 
 echo "==> control + postinst"
 VERSION="3.0~beta1+beat.$(git rev-list --count HEAD).$(git rev-parse --short HEAD)"

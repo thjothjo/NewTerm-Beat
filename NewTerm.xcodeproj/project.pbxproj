@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4EW3000000000000000001 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
+		4EW2000000000000000004 /* TerminalActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000003 /* TerminalActivityController.swift */; };
+		4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
+		4EW1000000000000000011 /* NewTermWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW100000000000000000E /* NewTermWidgetBundle.swift */; };
+		4EW1000000000000000012 /* TerminalLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW100000000000000000F /* TerminalLiveActivity.swift */; };
+		4EW100000000000000000D /* NewTermWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 4EW1000000000000000002 /* NewTermWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1E4A7332274A0CED00211604 /* KeyboardToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4A7331274A0CED00211604 /* KeyboardToolbarView.swift */; };
 		1E4A7334274A0D5F00211604 /* KeyboardKeyButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4A7333274A0D5F00211604 /* KeyboardKeyButtonStyle.swift */; };
 		1EEB4F66262CF591005E5B79 /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEB4F65262CF591005E5B79 /* SafariView.swift */; };
@@ -104,6 +110,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		4EW100000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CF22F9A91FFB97F7003175DE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4EW1000000000000000001;
+			remoteInfo = NewTermWidget;
+		};
+		4EW1000000000000000014 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CF22F9A91FFB97F7003175DE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CF71BC8322BB6DBA00AFB1E1;
+			remoteInfo = "NewTerm Common";
+		};
 		4E3237A726FB569500AEDA06 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CF22F9A91FFB97F7003175DE /* Project object */;
@@ -121,6 +141,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		4EW100000000000000000C /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4EW100000000000000000D /* NewTermWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4EBBCB132889051B002EAE00 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -154,6 +185,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4EW2000000000000000003 /* TerminalActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityController.swift; sourceTree = "<group>"; };
+		4EW2000000000000000001 /* TerminalActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityAttributes.swift; sourceTree = "<group>"; };
+		4EW1000000000000000002 /* NewTermWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NewTermWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4EW100000000000000000E /* NewTermWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTermWidgetBundle.swift; sourceTree = "<group>"; };
+		4EW100000000000000000F /* TerminalLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalLiveActivity.swift; sourceTree = "<group>"; };
+		4EW1000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1E4A7331274A0CED00211604 /* KeyboardToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardToolbarView.swift; sourceTree = "<group>"; };
 		1E4A7333274A0D5F00211604 /* KeyboardKeyButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButtonStyle.swift; sourceTree = "<group>"; };
 		1EEB4F65262CF591005E5B79 /* SafariView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariView.swift; sourceTree = "<group>"; };
@@ -262,6 +299,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4EW1000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4EBBCB122889051B002EAE00 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -291,9 +335,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4EW1000000000000000009 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				4EW100000000000000000E /* NewTermWidgetBundle.swift */,
+				4EW100000000000000000F /* TerminalLiveActivity.swift */,
+				4EW1000000000000000010 /* Info.plist */,
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
 		4E980823261860A900E41883 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4EW2000000000000000001 /* TerminalActivityAttributes.swift */,
 				4E980824261860CA00E41883 /* AppFont.swift */,
 				4E980831261AC9FA00E41883 /* AppTheme.swift */,
 			);
@@ -352,10 +407,12 @@
 				CF71BC3622BB626700AFB1E1 /* Common */,
 				CFBB96EF22B548D700585BE6 /* Resources */,
 				4EBBCB162889051B002EAE00 /* NewTermLoginHelper */,
+				4EW1000000000000000009 /* Widget */,
 				CFBB975B22B54AA600585BE6 /* Frameworks */,
 				CFBB966122B546DA00585BE6 /* NewTerm.app */,
 				CF71BC8422BB6DBA00AFB1E1 /* NewTermCommon.framework */,
 				4EBBCB152889051B002EAE00 /* NewTermLoginHelper */,
+				4EW1000000000000000002 /* NewTermWidget.appex */,
 			);
 			sourceTree = "<group>";
 		};
@@ -375,6 +432,7 @@
 		CF71BC3E22BB62B400AFB1E1 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				4EW2000000000000000003 /* TerminalActivityController.swift */,
 				CFBB96C322B5481B00585BE6 /* Preferences.swift */,
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
 				4EAA10032A0100030000ABCD /* SessionStore.swift */,
@@ -590,6 +648,23 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		4EW1000000000000000001 /* NewTermWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4EW1000000000000000003 /* Build configuration list for PBXNativeTarget "NewTermWidget" */;
+			buildPhases = (
+				4EW1000000000000000006 /* Sources */,
+				4EW1000000000000000007 /* Frameworks */,
+				4EW1000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NewTermWidget;
+			productName = NewTermWidget;
+			productReference = 4EW1000000000000000002 /* NewTermWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		4EBBCB142889051B002EAE00 /* NewTermLoginHelper */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4EBBCB1B2889051B002EAE00 /* Build configuration list for PBXNativeTarget "NewTermLoginHelper" */;
@@ -638,12 +713,14 @@
 				CFBB965F22B546DA00585BE6 /* Resources */,
 				CF71BC0422BB511700AFB1E1 /* Embed Frameworks */,
 				4EBBCB1E28890B34002EAE00 /* Copy Executables */,
+				4EW100000000000000000C /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				4EBBCB1D28890B29002EAE00 /* PBXTargetDependency */,
 				CF71BC9622BB6DEA00AFB1E1 /* PBXTargetDependency */,
+				4EW100000000000000000A /* PBXTargetDependency */,
 			);
 			name = "NewTerm (iOS)";
 			packageProductDependencies = (
@@ -698,11 +775,19 @@
 				CFBB966022B546DA00585BE6 /* NewTerm (iOS) */,
 				CF71BC8322BB6DBA00AFB1E1 /* NewTerm Common */,
 				4EBBCB142889051B002EAE00 /* NewTermLoginHelper */,
+				4EW1000000000000000001 /* NewTermWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4EW1000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CF71BC8222BB6DBA00AFB1E1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -752,6 +837,16 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4EW1000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4EW3000000000000000001 /* TerminalActivityAttributes.swift in Sources */,
+				4EW1000000000000000011 /* NewTermWidgetBundle.swift in Sources */,
+				4EW1000000000000000012 /* TerminalLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4EBBCB112889051B002EAE00 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -764,6 +859,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4EW2000000000000000004 /* TerminalActivityController.swift in Sources */,
+				4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */,
 				4EBBCB21288AB710002EAE00 /* UnicodeUtil.swift in Sources */,
 				4E980826261873CE00E41883 /* AppFont.swift in Sources */,
 				4E2492D026230E59002C47CB /* TerminalController+ITermExtensions.swift in Sources */,
@@ -854,6 +951,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4EW100000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4EW1000000000000000001 /* NewTermWidget */;
+			targetProxy = 4EW100000000000000000B /* PBXContainerItemProxy */;
+		};
+		4EW1000000000000000013 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CF71BC8322BB6DBA00AFB1E1 /* NewTerm Common */;
+			targetProxy = 4EW1000000000000000014 /* PBXContainerItemProxy */;
+		};
 		4EBBCB1D28890B29002EAE00 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4EBBCB142889051B002EAE00 /* NewTermLoginHelper */;
@@ -899,6 +1006,64 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		4EW1000000000000000004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NewTerm;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ws.hbang.Terminal.widget;
+				PRODUCT_NAME = NewTermWidget;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4EW1000000000000000005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NewTerm;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ws.hbang.Terminal.widget;
+				PRODUCT_NAME = NewTermWidget;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		4EBBCB192889051B002EAE00 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1372,6 +1537,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4EW1000000000000000003 /* Build configuration list for PBXNativeTarget "NewTermWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4EW1000000000000000004 /* Debug */,
+				4EW1000000000000000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		4EBBCB1B2889051B002EAE00 /* Build configuration list for PBXNativeTarget "NewTermLoginHelper" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
