@@ -21,7 +21,11 @@ extension ToolbarKey {
 		case .down:     return EscapeSequences.down
 		case .left:     return EscapeSequences.left
 		case .right:    return EscapeSequences.right
-		case .delete:   return EscapeSequences.delete
+		// Backspace, not the forward-delete escape. `\e[3~` is the correct key for a terminal, but it
+		// depends on the program having bound it: shells and TUIs that haven't swallow the `\e[3` and
+		// insert the trailing `~`, and beep because there was nothing to delete. On a phone the key
+		// labelled Delete has one job, and backspace is the byte every program understands.
+		case .delete:   return EscapeSequences.backspace
 		case .fnKey(let index): return EscapeSequences.fn[index - 1]
 		case .shiftTab: return EscapeSequences.backTab
 		case .fixedSpace, .variableSpace, .arrows,

@@ -418,19 +418,23 @@ public class TerminalController {
 			// blank in its place. The blank only got drawn again if the terminal happened to report that
 			// row as changed, so a line that had finished changing — the one you just filled up, the
 			// moment the next one wrapped underneath it — stayed blank.
-			// The terminal's own row count is the truth, and nothing else gets a vote.
+			// Big enough for everything either source knows about, and never smaller.
 			//
-			// It used to be `max(scrollInvariantRows, updateRange.endY + 1)`. The update range is
-			// measured before the rows are re-counted, so when content is deleted — clearing the screen,
-			// or an app redrawing after a resize — it still names rows that have just gone away. Taking
-			// the maximum grew the array to fit those, and everything past the real end was a blank
-			// nothing ever filled in: the terminal appeared to lose its contents the more was deleted.
-			let neededCount = scrollInvariantRows
+			// Sizing strictly to `scrollInvariantRows` looks right and is not: it's derived from
+			// `getTopVisibleRow()`, which reports the viewport rather than the whole buffer, and a
+			// redraw that momentarily reports zero would trim the scrollback out of the array for good
+			// — later frames only rewrite rows that changed, so nothing ever puts it back. Growing to
+			// fit the update range as well costs a few rows that may turn out to be empty; getting the
+			// trim wrong costs the user their screen.
+			let neededCount = max(scrollInvariantRows, updateRange.endY + 1)
 			if self.lines.count > neededCount {
 				self.lines.removeSubrange(neededCount...)
 			}
+			// Filled from the terminal as they're added rather than left as placeholders. A row that
+			// was appended blank only gets drawn if some later frame happens to name it as changed, and
+			// a line that has finished changing never is — which is what left gaps in the output.
 			while self.lines.count < neededCount {
-				self.lines.append(AnyView(EmptyView()))
+				self.lines.append(self.stringSupplier.attributedString(forScrollInvariantRow: self.lines.count))
 			}
 
 			// Update lines that changed, clamped to the rows that still exist. Built by intersection

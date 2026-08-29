@@ -881,12 +881,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Nothing is run automatically. Starting an agent, or sending it a prompt, is worth a glance
 	/// before committing to — and a slash command is nearly always followed by an argument anyway.
 	private func insertAICommand(_ command: AICommand) {
-		// A persona replaces the line rather than adding to it — picking Reviewer and then Explain
-		// means "be Explain", not both at once. ^U is what the shell's own line editor uses to clear
-		// the line, so this is the same key the user would have pressed.
-		if command.replacesInput {
-			terminalController.write([0x15])
-		}
+		// Deliberately types and nothing more. Clearing the line first — ^U, the shell's own kill-line
+		// — looked right and was not: not every shell binds it, and in one that doesn't it goes to the
+		// program as a control byte with results nobody wants. Two personas in a row concatenating is
+		// worse than nothing; a stray control byte in someone's session is worse than that.
 		terminalController.write(Array(command.command.utf8))
 	}
 
