@@ -32,12 +32,19 @@ public struct ColorMap: Hashable {
 	private var colorCache = [Attribute.Color: UIColor]()
 
 	public init(theme: AppTheme) {
-		background = UIColor(propertyListValue: theme.background) ?? .systemGroupedBackground
-		foreground = UIColor(propertyListValue: theme.text) ?? .systemGray6
-		foregroundBold = UIColor(propertyListValue: theme.boldText) ?? .label
-		foregroundCursor = UIColor(propertyListValue: theme.cursor) ?? .systemGreen
-		backgroundCursor = foregroundCursor
 		isDark = theme.isDark
+		// The same reasoning as for the ANSI table below: a fallback that is a system colour has to be
+		// read as the theme's appearance, not the device's.
+		let themeTraits = UITraitCollection(userInterfaceStyle: theme.isDark ? .dark : .light)
+		background = (UIColor(propertyListValue: theme.background) ?? .systemGroupedBackground)
+			.resolvedColor(with: themeTraits)
+		foreground = (UIColor(propertyListValue: theme.text) ?? .systemGray6)
+			.resolvedColor(with: themeTraits)
+		foregroundBold = (UIColor(propertyListValue: theme.boldText) ?? .label)
+			.resolvedColor(with: themeTraits)
+		foregroundCursor = (UIColor(propertyListValue: theme.cursor) ?? .systemGreen)
+			.resolvedColor(with: themeTraits)
+		backgroundCursor = foregroundCursor
 
 		// TODO: For some reason .systemCyan doesn’t exist on macOS 12? Revisit this soon.
 		var cyan: UIColor!
@@ -79,7 +86,15 @@ public struct ColorMap: Hashable {
 				}
 			}
 		}
-		self.ansiColors = ansiColors
+
+		// Pinned to the theme's own light or dark, not the device's.
+		//
+		// A theme without a colour table of its own falls back to system colours, and those resolve
+		// against whatever appearance is current — so a light theme on a device in dark mode drew its
+		// text with the dark-mode `.label`, which is white, on the theme's white background. The text
+		// was there and invisible. The theme says which end of the ramp it wants; nothing else does.
+		let traits = UITraitCollection(userInterfaceStyle: isDark ? .dark : .light)
+		self.ansiColors = ansiColors.mapValues { $0.resolvedColor(with: traits) }
 	}
 
 	public mutating func color(for termColor: Attribute.Color, isForeground: Bool, isBold: Bool = false, isCursor: Bool = false) -> UIColor {
