@@ -215,6 +215,103 @@ protocol KeyboardToolbarViewDelegate: AnyObject {
 	func keyboardToolbarDidSelectAICommand(_ command: AICommand)
 }
 
+/// One item in a picker row — a project, an SSH host, an agent command.
+///
+/// These rows are lists you choose from, not keys you press, and styling them as keys is what made
+/// them read as an undifferentiated wall of buttons. A chip says what kind of thing it is with an
+/// icon, what it is called, and where it came from, and marks the one in effect the way the tab bar
+/// marks the open tab.
+///
+/// It also fixes the reason the rows were unreadable in a light theme: the old ones painted their
+/// labels `.white` regardless of appearance, so once the keys became frosted glass the text was
+/// white on near-white. Everything here is a semantic colour.
+struct PickerChip: View {
+	var icon: String
+	/// What kind of thing this is, carried as colour on the glyph alone.
+	///
+	/// Every chip being the same neutral glass made a row of them read as one undifferentiated block.
+	/// Colouring the 13pt icon — and nothing else — is enough to tell a project from a host from an
+	/// agent at a glance, without turning the bar into a row of coloured buttons.
+	var iconTint: Color = .secondary
+	var title: String
+	var subtitle: String?
+	/// The one currently in effect — the project you are inside. Tinted, like the selected tab.
+	var isSelected = false
+	/// An action rather than an item: “New”. Accent-coloured so the eye separates the two at a glance.
+	var isAction = false
+	/// Vertical is the narrow column beside the landscape strip, where only the name fits.
+	var axis: Axis = .horizontal
+
+	static let height: CGFloat = 45
+
+	private var isTinted: Bool { isSelected || isAction }
+
+	var body: some View {
+		let shape = RoundedRectangle(cornerRadius: Design.keyRadius, style: .continuous)
+
+		HStack(spacing: axis == .vertical ? 4 : 7) {
+			Image(systemName: icon)
+				.font(.system(size: axis == .vertical ? 10 : 13, weight: .semibold))
+				.foregroundColor(isTinted ? .accentColor : iconTint)
+
+			VStack(alignment: .leading, spacing: 0) {
+				Text(title)
+					.font(.system(size: axis == .vertical ? 11 : (isBigDevice ? 16 : 15), weight: .medium))
+					.foregroundColor(isTinted ? Color.accentColor : .primary)
+				// Dropped in the column: it is one key wide, and the name already has to be truncated
+				// to fit.
+				if axis == .horizontal, let subtitle = subtitle, !subtitle.isEmpty {
+					Text(subtitle)
+						.font(.system(size: 10))
+						.foregroundColor(.secondary)
+				}
+			}
+				.lineLimit(1)
+				.truncationMode(.tail)
+		}
+			.padding(.horizontal, axis == .vertical ? 6 : 10)
+			.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+			.frame(height: Self.height)
+			.background(background(shape: shape))
+			.contentShape(shape)
+	}
+
+	@ViewBuilder
+	private func background<S: InsettableShape>(shape: S) -> some View {
+		if isSelected {
+			Design.glass(shape, strokeOpacity: 0)
+				.overlay(shape.fill(Color.accentColor.opacity(0.20)))
+				.overlay(shape.strokeBorder(Color.accentColor.opacity(0.55), lineWidth: 1))
+		} else {
+			Design.glass(shape)
+		}
+	}
+}
+
+/// What a row shows when it has nothing to list.
+///
+/// A bare line of grey text read as a rendering failure. An icon and a sentence that says what to do
+/// about it reads as an answer.
+struct PickerEmptyState: View {
+	var icon: String
+	var text: String
+	var axis: Axis = .horizontal
+
+	var body: some View {
+		HStack(spacing: 6) {
+			Image(systemName: icon)
+				.font(.system(size: 12, weight: .medium))
+			Text(text)
+				.font(.system(size: 12))
+				.lineLimit(axis == .vertical ? 2 : 1)
+		}
+			.foregroundColor(.secondary)
+			.padding(.horizontal, 8)
+			.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+			.frame(height: PickerChip.height)
+	}
+}
+
 /// The agent CLIs installed here, and the prompts they already know.
 struct AIPickerRow: View {
 	weak var delegate: KeyboardToolbarViewDelegate?
@@ -237,32 +334,24 @@ struct AIPickerRow: View {
 		ScrollView(axis == .horizontal ? .horizontal : .vertical, showsIndicators: false) {
 			stack {
 				if commands.isEmpty {
-					Text(String.localize("No agent CLIs installed"))
-						.font(.system(size: 12))
-						.foregroundColor(.secondary)
-						.padding(.horizontal, 6)
-						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+					PickerEmptyState(icon: "sparkles",
+													 text: String.localize("No agent CLIs installed"),
+													 axis: axis)
 				} else {
 					ForEach(commands) { command in
 						Button {
 							UIDevice.current.playInputClick()
 							delegate?.keyboardToolbarDidSelectAICommand(command)
 						} label: {
-							VStack(alignment: .leading, spacing: 0) {
-								Text(command.name)
-									.font(.system(size: axis == .vertical ? 11 : 15, weight: .regular))
-								if axis == .horizontal {
-									Text(command.source)
-										.font(.system(size: 10))
-										.opacity(0.6)
-								}
-							}
-								.lineLimit(1)
-								.truncationMode(.tail)
-								.foregroundColor(.white)
-								.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+							// A CLI starts something; a prompt is something you hand to what's already
+							// running. Different icons because they behave differently.
+							PickerChip(icon: command.kind == .cli ? "terminal" : "sparkles",
+												 iconTint: command.kind == .cli ? .green : .purple,
+												 title: command.name,
+												 subtitle: command.source,
+												 axis: axis)
 						}
-							.buttonStyle(.keyboardKey(hasShadow: true))
+							.buttonStyle(.plain)
 					}
 				}
 			}
@@ -308,24 +397,18 @@ struct SSHHostPickerRow: View {
 					UIDevice.current.playInputClick()
 					delegate?.keyboardToolbarDidRequestNewSSHHost()
 				} label: {
-					HStack(spacing: 3) {
-						Image(systemName: .plus)
-							.imageScale(.small)
-						if axis == .horizontal {
-							Text(String.localize("New"))
-						}
-					}
-						.frame(maxWidth: axis == .vertical ? .infinity : nil)
+					PickerChip(icon: "plus",
+										 title: axis == .horizontal ? String.localize("New") : "",
+										 isAction: true,
+										 axis: axis)
 				}
-					.buttonStyle(.keyboardKey(hasShadow: true))
+					.buttonStyle(.plain)
 					.accessibilityLabel(String.localize("New SSH Host"))
 
 				if hosts.isEmpty {
-					Text(String.localize("No hosts in ~/.ssh/config"))
-						.font(.system(size: 12))
-						.foregroundColor(.secondary)
-						.padding(.horizontal, 6)
-						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+					PickerEmptyState(icon: "network.slash",
+													 text: String.localize("No hosts in ~/.ssh/config"),
+													 axis: axis)
 				} else {
 					ForEach(hosts) { host in
 						Button {
@@ -334,21 +417,13 @@ struct SSHHostPickerRow: View {
 						} label: {
 							// The alias is what gets typed, so it leads; what it resolves to is only there to
 							// tell two similar aliases apart, and is dropped entirely in the narrow column.
-							VStack(alignment: .leading, spacing: 0) {
-								Text(host.name)
-									.font(.system(size: axis == .vertical ? 11 : 15, weight: .regular))
-								if axis == .horizontal && !host.detail.isEmpty {
-									Text(host.detail)
-										.font(.system(size: 10))
-										.opacity(0.6)
-								}
-							}
-								.lineLimit(1)
-								.truncationMode(.tail)
-								.foregroundColor(.white)
-								.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+							PickerChip(icon: "network",
+												 iconTint: .teal,
+												 title: host.name,
+												 subtitle: host.detail,
+												 axis: axis)
 						}
-							.buttonStyle(.keyboardKey(hasShadow: true))
+							.buttonStyle(.plain)
 					}
 				}
 			}
@@ -596,58 +671,34 @@ struct ProjectPickerRow: View {
 					UIDevice.current.playInputClick()
 					delegate?.keyboardToolbarDidRequestNewProject()
 				} label: {
-					HStack(spacing: 3) {
-						Image(systemName: .plus)
-							.imageScale(.small)
-						// No room for the word beside the plus in a one-key-wide column, and the plus on its
-						// own says the same thing.
-						if axis == .horizontal {
-							Text(String.localize("New"))
-						}
-					}
-						// Widened from inside the label so the key's background grows with it. Widening the
-						// button from outside only stretches an invisible frame and leaves the key floating
-						// in the middle of the column.
-						.frame(maxWidth: axis == .vertical ? .infinity : nil)
+					// No room for the word beside the plus in a one-key-wide column, and the plus on its
+					// own says the same thing.
+					PickerChip(icon: "plus",
+										 title: axis == .horizontal ? String.localize("New") : "",
+										 isAction: true,
+										 axis: axis)
 				}
-					.buttonStyle(.keyboardKey(hasShadow: true))
+					.buttonStyle(.plain)
 					.accessibilityLabel(String.localize("New Project"))
 
 				if projects.isEmpty {
-					Text(String.localize("No projects yet — tap New"))
-						.font(.system(size: 12))
-						.foregroundColor(.secondary)
-						.padding(.horizontal, 6)
-						.frame(maxWidth: axis == .vertical ? .infinity : nil, alignment: .leading)
+					PickerEmptyState(icon: "folder.badge.plus",
+													 text: String.localize("No projects yet — tap New"),
+													 axis: axis)
 				} else {
 					ForEach(Array(zip(projects, projects.indices)), id: \.0) { project, index in
 						// Deliberately not a Button: a Button swallows the press, and neither
 						// onLongPressGesture nor simultaneousGesture(LongPressGesture()) fires on one. The
 						// tab bar uses the same plain-view-plus-gestures shape for the same reason, so the
 						// key styling is reproduced here by hand.
-						Text(project.name)
-							// Smaller in the column, which is one key wide: at the row size a name gets four
-							// characters before the ellipsis, which is no name at all.
-							.font(.system(size: axis == .vertical ? 11 : (isBigDevice ? 18 : 15),
-														weight: .regular).monospacedDigit())
-							.foregroundColor(project.url.path == activePath ? .black : .white)
-							// A long name has to end in an ellipsis rather than wrap: the key is a fixed
-							// height, so a second line has nowhere to go but outside it.
-							.lineLimit(1)
-							.truncationMode(.tail)
-							.padding(.horizontal, axis == .vertical ? 3 : 8)
-							.padding(.vertical, 6)
-							.frame(minWidth: axis == .vertical ? 0 : Self.rowHeight,
-										 maxWidth: axis == .vertical ? .infinity : nil)
-							.frame(height: Self.rowHeight)
-							.background(
-								// Same lit look a toggled key gets, because that's what it is: the one project
-								// currently being shown on its own.
-								Color(project.url.path == activePath ? .keyBackgroundSelected : .keyBackgroundNormal)
-									.cornerRadius(isBigDevice ? 6 : 4)
-									.shadow(color: .black.opacity(0.8), radius: 0, x: 0, y: 1)
-							)
-							.contentShape(Rectangle())
+						// A filled folder for the one you're inside, an outline for the rest — the icon says
+						// which is which before the tint does.
+						PickerChip(icon: project.url.path == activePath ? "folder.fill" : "folder",
+											 iconTint: .orange,
+											 title: project.name,
+											 isSelected: project.url.path == activePath,
+											 axis: axis)
+							.frame(minWidth: axis == .vertical ? 0 : Self.rowHeight)
 							.onTapGesture {
 								UIDevice.current.playInputClick()
 								if isEditing {
