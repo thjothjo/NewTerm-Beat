@@ -52,10 +52,24 @@ public final class ScrollbackStore {
 
 	/// `data` is the whole captured tail for the tab. Writing is off the caller's thread and atomic.
 	public func save(_ data: Data, id: String) {
+		guard Preferences.shared.saveScrollback else {
+			// Turned off after something sensitive was on screen — take what's already there with it,
+			// otherwise the setting only stops the next secret being written, not this one.
+			discard(id: id)
+			return
+		}
 		queue.async {
 			do {
-				try FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
-				try Self.trimmedToBoundary(data).write(to: Self.url(for: id), options: .atomic)
+				try FileManager.default.createDirectory(at: Self.directory,
+																								withIntermediateDirectories: true,
+																								attributes: [.posixPermissions: 0o700])
+				// Whatever was on screen is in here — tokens echoed by a script, a password a program
+				// printed back. Locked until first unlock, so it isn't readable off a device that's been
+				// powered on but never unlocked, and owner-only on disk.
+				try Self.trimmedToBoundary(data).write(to: Self.url(for: id),
+																							 options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+				try? FileManager.default.setAttributes([.posixPermissions: 0o600],
+																							 ofItemAtPath: Self.url(for: id).path)
 			} catch {
 				// Losing scrollback is a cosmetic regression, never worth taking anything else down for.
 				self.logger.error("Couldn’t save scrollback \(id): \(String(describing: error))")
@@ -73,6 +87,23 @@ public final class ScrollbackStore {
 		queue.async {
 			try? FileManager.default.removeItem(at: Self.url(for: id))
 		}
+	}
+
+	/// Throws away every tab's saved output.
+	///
+	/// The escape hatch for the case the cap can't help with: a key or a password went past on screen
+	/// and is now sitting in a file. Synchronous, because the point is to be able to say it's gone.
+	public func discardAll() {
+		queue.sync {
+			try? FileManager.default.removeItem(at: Self.directory)
+		}
+	}
+
+	/// Bytes currently held across all tabs, for saying how much there is to clear.
+	public func totalBytes() -> Int {
+		let contents = (try? FileManager.default.contentsOfDirectory(at: Self.directory,
+																																 includingPropertiesForKeys: [.fileSizeKey])) ?? []
+		return contents.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) }
 	}
 
 	/// Keep only the last `maxBytes`, then walk forward off any UTF-8 continuation bytes so the first

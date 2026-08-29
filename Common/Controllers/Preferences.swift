@@ -223,6 +223,16 @@ public class Preferences: NSObject, ObservableObject {
 		willSet { objectWillChange.send() }
 	}
 
+	/// Keep each tab's recent output on disk so it comes back after the app is killed.
+	///
+	/// Worth being able to turn off: the saved bytes are whatever was on screen, which includes a
+	/// token a script echoed or a password a program printed back, and they sit in a file until the
+	/// tab is closed.
+	@AppStorage("saveScrollback")
+	public var saveScrollback: Bool = true {
+		willSet { objectWillChange.send() }
+	}
+
 	/// Open projects inside a tmux session named after the project. This is what makes a session
 	/// outlive the app being killed; turn it off if tmux isn’t installed and the fallback bothers you.
 	@AppStorage("useTmuxForProjects")

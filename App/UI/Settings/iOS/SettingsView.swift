@@ -43,6 +43,9 @@ struct SettingsView: View {
 	/// the screen appeared — can be told apart from the user actually toggling something.
 	@State private var lastBellSettings: [Bool]?
 
+	/// How much terminal output is on disk right now, so the button can say what it's about to clear.
+	@State private var savedBytes = 0
+
 	var windowScene: UIWindowScene?
 
 	@State private var keyboardToolbarState = KeyboardToolbarViewState()
@@ -93,6 +96,25 @@ struct SettingsView: View {
 											 label: { Text("AI Shortcuts") })
 			}
 
+			PreferencesGroup(header: Text("Privacy"),
+											 footer: Text("Saved output is whatever was on screen, which can include a token or a password a program printed back. Turning this off clears what's already saved.")) {
+				Toggle("Save Terminal History", isOn: preferences.$saveScrollback)
+
+				Button {
+					ScrollbackStore.shared.discardAll()
+					savedBytes = 0
+				} label: {
+					HStack {
+						Text("Clear Saved History")
+							.foregroundColor(savedBytes > 0 ? .red : .secondary)
+						Spacer()
+						Text(ByteCountFormatter.string(fromByteCount: Int64(savedBytes), countStyle: .file))
+							.foregroundColor(.secondary)
+					}
+				}
+					.disabled(savedBytes == 0)
+			}
+
 			PreferencesGroup(header: Text("Keyboard"),
 											 footer: Text("Touch and hold the Space bar, then drag around the keyboard to move the cursor.")) {
 				PreferencesPicker(selection: preferences.$keyboardArrowsStyle,
@@ -138,6 +160,14 @@ struct SettingsView: View {
 			}
 		}
 			.listStyle(InsetGroupedListStyle())
+			.onAppear { savedBytes = ScrollbackStore.shared.totalBytes() }
+			.onChange(of: preferences.saveScrollback) { isOn in
+				// Off means gone, not merely "no more from now on".
+				if !isOn {
+					ScrollbackStore.shared.discardAll()
+				}
+				savedBytes = ScrollbackStore.shared.totalBytes()
+			}
 			// Demonstrating the bell is only meaningful when one of these is actually toggled. Comparing
 			// against the value seen last is what makes that so: the observation fires once when the
 			// screen appears, and every opening of Settings used to ring the bell for no reason.
