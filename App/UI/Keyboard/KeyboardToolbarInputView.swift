@@ -17,6 +17,13 @@ class KeyboardToolbarInputView: UIInputView {
 	private var contentHeight: NSLayoutConstraint!
 	/// What SwiftUI reports the rows need, padding included.
 	private var measuredRowsHeight: CGFloat = 50
+	/// Whether a height has been settled on once already.
+	///
+	/// The first one is not a change. UIKit's own keyboard notification already describes the bar at
+	/// whatever height it had when it was posted, so reporting the first measurement as a delta added
+	/// the bar's height a second time — measured, it left the terminal inset about three lines too far
+	/// and the output no longer reached the bar.
+	private var hasSettledHeight = false
 	private let state: KeyboardToolbarViewState
 
 	/// Told by how much the bar just grew or shrank, so whoever lays out around the keyboard can
@@ -90,6 +97,14 @@ class KeyboardToolbarInputView: UIInputView {
 	override func didMoveToWindow() {
 		super.didMoveToWindow()
 		updateHeight()
+		// Unconditionally, because by now the height is usually already right and `updateHeight` would
+		// return without saying anything. The correction is measured from where the bar is, and until
+		// it has a window there is nowhere to measure from — so this is the first moment it can be
+		// sent. Without it the terminal kept whatever inset the launch-time keyboard notification gave
+		// it, four lines short of the bar, until a row was opened and closed.
+		if window != nil {
+			onHeightChanged?(0)
+		}
 	}
 
 	override func layoutSubviews() {
@@ -123,12 +138,18 @@ class KeyboardToolbarInputView: UIInputView {
 		guard measuredRowsHeight > 0, abs(measuredRowsHeight - contentHeight.constant) > 0.5 else {
 			return
 		}
-		let delta = measuredRowsHeight - contentHeight.constant
+		// Zero on the first pass: UIKit's own keyboard notification already describes the bar at the
+		// height it had when it was posted, so reporting that first measurement as a change added the
+		// bar's height a second time. The absolute correction still goes out, which is what settles the
+		// inset at launch — without it the terminal started four lines short of the bar and only came
+		// right once a row had been opened and closed.
+		let delta = hasSettledHeight ? measuredRowsHeight - contentHeight.constant : 0
 		contentHeight.constant = measuredRowsHeight
 		// Before the layout, not after. The bar draws as soon as it is laid out; telling the terminal a
 		// turn later meant the new row was on screen for two frames before the terminal moved out from
 		// under it — captured at 30fps, the row appeared over the last lines of output and the text
 		// only reflowed afterwards.
+		hasSettledHeight = true
 		onHeightChanged?(delta)
 		invalidateIntrinsicContentSize()
 		setNeedsLayout()

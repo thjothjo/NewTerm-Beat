@@ -124,6 +124,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.keyboardVisibilityChanged(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryHeightChanged(_:)), name: TerminalKeyInput.accessoryHeightDidChangeNotification, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryFrameChanged(_:)), name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -137,6 +138,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
 		NotificationCenter.default.removeObserver(self, name: TerminalKeyInput.accessoryHeightDidChangeNotification, object: nil)
+		NotificationCenter.default.removeObserver(self, name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
 	}
 
 	override func updateViewConstraints() {
@@ -345,6 +347,14 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		// output for two frames before the text reflowed out from under it.
 		keyboardHeight += delta
 		applyKeyboardInsets(animationDuration: 0, curve: nil)
+	}
+
+	/// Where the bar actually ended up, which settles any drift the delta left behind.
+	@objc func accessoryFrameChanged(_ notification: Notification) {
+		guard let frame = notification.userInfo?[TerminalKeyInput.accessoryFrameKey] as? CGRect else {
+			return
+		}
+		apply(keyboardFrame: frame, animationDuration: 0, curve: nil)
 	}
 
 	private func apply(keyboardFrame: CGRect, animationDuration: TimeInterval, curve: UInt?) {

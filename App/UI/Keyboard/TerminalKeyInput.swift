@@ -185,16 +185,42 @@ class TerminalKeyInput: TextInputBase {
 	/// placed it again, which is a turn later, and by then the new row has already been drawn over the
 	/// terminal.
 	private func notifyAccessoryHeightChanged(by delta: CGFloat) {
-		guard delta != 0 else {
+		// The change first, so the terminal makes room in the same pass the row is drawn in. Zero means
+		// the bar has only just settled on a height rather than changed one, and there is nothing to
+		// make room for — but the correction below still has to go out.
+		if delta != 0 {
+			NotificationCenter.default.post(name: Self.accessoryHeightDidChangeNotification,
+																			object: self,
+																			userInfo: [Self.accessoryHeightDeltaKey: delta])
+		}
+		// Then the truth, once UIKit has placed the bar. Deltas alone drift: UIKit's own keyboard
+		// notification already accounts for the bar, the safe area moves underneath both, and adding up
+		// changes from three sources that each think they own the number left the terminal 34pt out
+		// after a single open and close. This is measured from where the bar actually is, so whatever
+		// the arithmetic did, the next turn puts it right.
+		DispatchQueue.main.async { [weak self] in
+			self?.postAccessoryFrame()
+		}
+	}
+
+	private func postAccessoryFrame() {
+		guard let window = toolbar.window else {
 			return
 		}
-		NotificationCenter.default.post(name: Self.accessoryHeightDidChangeNotification,
+		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
+		let keyboardFrame = CGRect(x: barFrame.minX,
+															 y: barFrame.minY,
+															 width: barFrame.width,
+															 height: window.bounds.maxY - barFrame.minY)
+		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
 																		object: self,
-																		userInfo: [Self.accessoryHeightDeltaKey: delta])
+																		userInfo: [Self.accessoryFrameKey: keyboardFrame])
 	}
 
 	static let accessoryHeightDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryHeightDidChange")
 	static let accessoryHeightDeltaKey = "delta"
+	static let accessoryFrameDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryFrameDidChange")
+	static let accessoryFrameKey = "frame"
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
 	/// live in the shortcuts bar rather than a row of our own.
