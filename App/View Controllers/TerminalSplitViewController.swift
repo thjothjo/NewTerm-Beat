@@ -356,11 +356,18 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 	/// Where the bar actually ended up, which settles any drift the delta left behind.
 	@objc func accessoryFrameChanged(_ notification: Notification) {
+		if let floating = notification.userInfo?[TerminalKeyInput.accessoryFloatingKey] as? CGFloat {
+			floatingAccessoryHeight = floating
+		}
 		guard let frame = notification.userInfo?[TerminalKeyInput.accessoryFrameKey] as? CGRect else {
 			return
 		}
 		apply(keyboardFrame: frame, animationDuration: 0, curve: nil)
 	}
+
+	/// The rows a toggle opened. UIKit's keyboard frame describes the whole bar, and these are meant to
+	/// cover the terminal rather than shrink it, so they come back off.
+	private var floatingAccessoryHeight: CGFloat = 0
 
 	private func apply(keyboardFrame: CGRect, animationDuration: TimeInterval, curve: UInt?) {
 		keyboardHeight = view.convert(keyboardFrame, from: nil)
@@ -381,7 +388,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 			let bottomInset = self.view.window?.safeAreaInsets.bottom
 				?? self.parent?.view.safeAreaInsets.bottom
 				?? 0
-			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - bottomInset)
+			self.additionalSafeAreaInsets.bottom = max(0, self.keyboardHeight - self.floatingAccessoryHeight - bottomInset)
 		}
 
 		guard let curve = curve else {

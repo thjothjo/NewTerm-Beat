@@ -801,6 +801,18 @@ struct KeyboardBarHeightKey: PreferenceKey {
 	}
 }
 
+/// The height of the row that is always there, which is the only part the terminal has to clear.
+///
+/// Everything a toggle opens sits above it and is allowed to cover the terminal: those rows come and
+/// go, and resizing the terminal for each one meant a reflow, a re-scroll and a visible stutter every
+/// time one was opened.
+struct KeyboardBarBaseHeightKey: PreferenceKey {
+	static var defaultValue: CGFloat = 0
+	static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+		value = max(value, nextValue())
+	}
+}
+
 struct KeyboardToolbarView: View {
 	/// Key height from `KeyboardKeyButtonStyle`, plus the row’s top padding.
 	private static let keyRowHeight: CGFloat = 45 + 5
@@ -817,6 +829,9 @@ struct KeyboardToolbarView: View {
 	/// rows' worth with four to show and never moved again, in either direction. `fixedSize` below
 	/// keeps this stack at its own height regardless, which is what makes it measurable at all.
 	var onHeightMeasured: ((CGFloat) -> Void)?
+
+	/// Reports the always-present row's height, which is all the terminal is inset by.
+	var onBaseHeightMeasured: ((CGFloat) -> Void)?
 
 	@EnvironmentObject var state: KeyboardToolbarViewState
 
@@ -919,6 +934,7 @@ struct KeyboardToolbarView: View {
 							 .sideBar, .sideBarMore:
 						scrollableIfNeeded(keyStack(for: toolbar))
 							.frame(maxWidth: .infinity)
+							.background(basePreference(for: toolbar))
 					}
 				}
 			}
@@ -939,6 +955,22 @@ struct KeyboardToolbarView: View {
 			.onPreferenceChange(KeyboardBarHeightKey.self) { height in
 				onHeightMeasured?(height)
 			}
+			.onPreferenceChange(KeyboardBarBaseHeightKey.self) { height in
+				onBaseHeightMeasured?(height + state.bottomInset)
+			}
+	}
+
+	/// Measures only the row that is always on screen. What a toggle opens sits above it.
+	@ViewBuilder
+	private func basePreference(for toolbar: Toolbar) -> some View {
+		switch toolbar {
+		case .primary, .padPrimaryLeading, .padPrimaryTrailing:
+			GeometryReader { proxy in
+				Color.clear.preference(key: KeyboardBarBaseHeightKey.self, value: proxy.size.height)
+			}
+		default:
+			Color.clear
+		}
 	}
 }
 

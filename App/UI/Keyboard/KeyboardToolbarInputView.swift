@@ -17,6 +17,8 @@ class KeyboardToolbarInputView: UIInputView {
 	private var contentHeight: NSLayoutConstraint!
 	/// What SwiftUI reports the rows need, padding included.
 	private var measuredRowsHeight: CGFloat = 50
+	/// The always-present row's height, which is the part the terminal has to clear.
+	private var measuredBaseHeight: CGFloat = 50
 	/// Whether a height has been settled on once already.
 	///
 	/// The first one is not a change. UIKit's own keyboard notification already describes the bar at
@@ -42,6 +44,12 @@ class KeyboardToolbarInputView: UIInputView {
 		// there is asking for trouble. By the next turn the new rows are committed, which is the whole
 		// point — the old code invalidated from the model change instead and measured the rows that
 		// were still on screen.
+		// What the terminal is inset by: only the row that is always there. Everything a toggle opens
+		// sits above it and covers the terminal instead of resizing it, so opening one costs no reflow,
+		// no re-scroll, and none of the stutter that came with them.
+		view.onBaseHeightMeasured = { [weak self] height in
+			self?.applyBaseHeight(height)
+		}
 		view.onHeightMeasured = { [weak self] height in
 			// Not deferred. The preference arrives as part of SwiftUI's update, which is the same pass
 			// that draws the new row — waiting a turn meant the row was on screen over the terminal's
@@ -94,6 +102,24 @@ class KeyboardToolbarInputView: UIInputView {
 		updateHeight()
 	}
 
+	private func applyBaseHeight(_ height: CGFloat) {
+		guard height > 0, abs(height - measuredBaseHeight) > 0.5 else {
+			return
+		}
+		let delta = hasSettledBase ? height - measuredBaseHeight : 0
+		measuredBaseHeight = height
+		hasSettledBase = true
+		onHeightChanged?(delta)
+	}
+
+	/// The height of the part the terminal clears, for whoever needs to place themselves above it.
+	var baseHeight: CGFloat { measuredBaseHeight }
+
+	/// The rows that a toggle opened, which float over the terminal rather than shrinking it.
+	var floatingHeight: CGFloat { max(0, measuredRowsHeight - measuredBaseHeight) }
+
+	private var hasSettledBase = false
+
 	override func didMoveToWindow() {
 		super.didMoveToWindow()
 		updateHeight()
@@ -143,14 +169,12 @@ class KeyboardToolbarInputView: UIInputView {
 		// bar's height a second time. The absolute correction still goes out, which is what settles the
 		// inset at launch — without it the terminal started four lines short of the bar and only came
 		// right once a row had been opened and closed.
-		let delta = hasSettledHeight ? measuredRowsHeight - contentHeight.constant : 0
 		contentHeight.constant = measuredRowsHeight
 		// Before the layout, not after. The bar draws as soon as it is laid out; telling the terminal a
 		// turn later meant the new row was on screen for two frames before the terminal moved out from
 		// under it — captured at 30fps, the row appeared over the last lines of output and the text
 		// only reflowed afterwards.
 		hasSettledHeight = true
-		onHeightChanged?(delta)
 		invalidateIntrinsicContentSize()
 		setNeedsLayout()
 		layoutIfNeeded()

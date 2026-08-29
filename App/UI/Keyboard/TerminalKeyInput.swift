@@ -214,20 +214,28 @@ class TerminalKeyInput: TextInputBase {
 		guard let window = toolbar.window else {
 			return
 		}
+		// Only the bottom of the bar — the row that is always there. What a toggle opened sits above it
+		// and is meant to cover the terminal, not push it.
 		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
+		let top = barFrame.maxY - toolbar.baseHeight
 		let keyboardFrame = CGRect(x: barFrame.minX,
-															 y: barFrame.minY,
+															 y: top,
 															 width: barFrame.width,
-															 height: window.bounds.maxY - barFrame.minY)
+															 height: window.bounds.maxY - top)
 		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
 																		object: self,
-																		userInfo: [Self.accessoryFrameKey: keyboardFrame])
+																		userInfo: [Self.accessoryFrameKey: keyboardFrame,
+																							 Self.accessoryFloatingKey: toolbar.floatingHeight])
 	}
 
 	static let accessoryHeightDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryHeightDidChange")
 	static let accessoryHeightDeltaKey = "delta"
 	static let accessoryFrameDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryFrameDidChange")
 	static let accessoryFrameKey = "frame"
+	/// How much of the bar is rows a toggle opened. Those cover the terminal instead of shrinking it,
+	/// so whoever lays out around the keyboard has to take them back off the overlap UIKit reports —
+	/// UIKit's own keyboard frame describes the whole bar.
+	static let accessoryFloatingKey = "floating"
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys
 	/// live in the shortcuts bar rather than a row of our own.
