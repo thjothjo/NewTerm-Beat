@@ -342,9 +342,15 @@ struct TabToolbarView: View {
 }
 
 struct TabToolbarItemView: View {
-	/// Roughly a dozen characters at this font size — enough to tell `bunnyhub` from `newterm`
-	/// without any one tab taking over the bar.
-	private static let maximumTitleWidth: CGFloat = 88
+	/// Enough to tell `bunnyhub` from `newterm` without any one tab taking over the bar.
+	private static let maximumTitleLength = 14
+
+	private static func shortened(_ title: String) -> String {
+		guard title.count > maximumTitleLength else {
+			return title
+		}
+		return title.prefix(maximumTitleLength).trimmingCharacters(in: .whitespaces) + "…"
+	}
 
 	private static let cornerRadius = Design.chipRadius
 
@@ -370,16 +376,17 @@ struct TabToolbarItemView: View {
 			// which meant the bell and activity dots doubled as a one-tap “destroy this session”.
 			indicator
 
-			Text(terminal.title)
+			// Trimmed as a string, not with `frame(maxWidth:)`. A capped frame makes the label flexible,
+			// and the row stretches itself to fill the bar — so with only a few tabs open SwiftUI shared
+			// the slack out by *squeezing* every label instead, and each one read "Ter…" until enough
+			// tabs were open to fill the width.
+			Text(Self.shortened(terminal.title))
 				.font(.system(size: 12, weight: isSelected ? .semibold : .medium))
 				// The selected tab is the one you are looking at; the rest are a list you are choosing
 				// from. Weight and colour say which is which, so the chip doesn’t have to shout.
 				.foregroundColor(isSelected ? .label : .secondaryLabel)
 				.lineLimit(1)
-				.truncationMode(.tail)
-				// Capped so a long title — a project folder, or whatever the shell sets — can’t push the
-				// other tabs off the bar. Wide enough to tell two projects apart, which is the point.
-				.frame(maxWidth: Self.maximumTitleWidth, alignment: .leading)
+				.fixedSize()
 				.accessibilityHidden(true)
 		}
 			.height(height - 6)
