@@ -928,6 +928,10 @@ struct KeyboardToolbarView: View {
 						CocoaScrollView(.horizontal, showsIndicators: false) {
 							keyStack(for: toolbar)
 						}
+							// Stated, because a scroll view has no height of its own and the stack around these
+							// rows is sized to its content — without it the row collapsed to nothing and
+							// pressing Fn lit the key while showing no keys at all.
+							.frame(height: Self.keyRowHeight)
 							.frame(maxWidth: .infinity)
 
 					case .primary, .padPrimaryLeading, .padPrimaryTrailing, .secondary,
