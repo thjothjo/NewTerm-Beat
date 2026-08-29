@@ -141,6 +141,10 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.setNeedsInputViewReload),
 																					name: UITextInputMode.currentInputModeDidChangeNotification,
 																					object: nil)
+		NotificationCenter.default.addObserver(self,
+																					selector: #selector(self.keyboardDidHide),
+																					name: UIResponder.keyboardDidHideNotification,
+																					object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -249,6 +253,55 @@ class TerminalKeyInput: TextInputBase {
 	var usesSideBar: Bool { Self.usesSideBar(for: traitCollection) }
 
 	override var inputAccessoryView: UIView? { usesSideBar ? nil : toolbar }
+
+	/// A stand-in for the keyboard, so putting the keyboard away doesn't take the bar with it.
+	///
+	/// The accessory bar belongs to the first responder, and dismissing the keyboard resigns it — so
+	/// the bar went too. Swapping the keyboard for a view with no height keeps the responder, and the
+	/// bar stays docked where it was.
+	private final class HiddenInputView: UIView {
+		override var intrinsicContentSize: CGSize {
+			CGSize(width: UIView.noIntrinsicMetric, height: 0)
+		}
+	}
+
+	private let hiddenInputView = HiddenInputView()
+
+	/// Whether the keyboard is standing down while the bar stays.
+	private(set) var isKeyboardHidden = false
+
+	/// Set by the view controller: whether this terminal is the one on screen.
+	var wantsDockedBar = false
+
+	override var inputView: UIView? { isKeyboardHidden ? hiddenInputView : nil }
+
+	/// Brings the real keyboard back.
+	func showKeyboard() {
+		guard isKeyboardHidden else {
+			return
+		}
+		isKeyboardHidden = false
+		reloadInputViews()
+		if !isFirstResponder {
+			_ = becomeFirstResponder()
+		}
+	}
+
+	@objc private func keyboardDidHide() {
+		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
+		// view controller's own lifecycle alone, so without the second check the bar came back docked
+		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
+		// arrival as the keyboard hiding too.
+		guard wantsDockedBar,
+					!isKeyboardHidden,
+					let window = window,
+					window.rootViewController?.presentedViewController == nil,
+					!isFirstResponder else {
+			return
+		}
+		isKeyboardHidden = true
+		_ = becomeFirstResponder()
+	}
 
 	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
 		super.traitCollectionDidChange(previousTraitCollection)

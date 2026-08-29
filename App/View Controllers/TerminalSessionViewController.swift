@@ -234,6 +234,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	override func viewWillAppear(_ animated: Bool) {
 		super.viewWillAppear(animated)
 
+		keyInput.wantsDockedBar = true
 		keyInput.becomeFirstResponder()
 		terminalController.terminalWillAppear()
 	}
@@ -251,6 +252,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	override func viewWillDisappear(_ animated: Bool) {
 		super.viewWillDisappear(animated)
 
+		keyInput.wantsDockedBar = false
 		keyInput.resignFirstResponder()
 		terminalController.terminalWillDisappear()
 	}
@@ -563,7 +565,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			return
 		}
 
-		if !keyInput.isFirstResponder {
+		if keyInput.isKeyboardHidden {
+			// The bar stayed docked while the keyboard was away; tapping the terminal asks for it back.
+			keyInput.showKeyboard()
+		} else if !keyInput.isFirstResponder {
 			keyInput.becomeFirstResponder()
 			delegate?.terminalDidBecomeActive(viewController: self)
 		}
