@@ -226,6 +226,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		NotificationCenter.default.addObserver(self, selector: #selector(self.setNeedsSideBarUpdate), name: UIDevice.orientationDidChangeNotification, object: nil)
 
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(self.accessoryFrameChanged), name: TerminalKeyInput.accessoryFrameDidChangeNotification, object: nil)
 
 		updateSideBar()
 	}
@@ -265,6 +266,16 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		// Belt and braces: traitCollectionDidChange is the usual trigger, but rotation doesn’t always
 		// deliver it before the first layout of the new size.
 		updateSideBar()
+		updateScreenSize()
+	}
+
+	/// The bar has settled on a height, whether or not that moved the safe area.
+	///
+	/// The first measurement after launch deliberately reports no change — UIKit's keyboard
+	/// notification already accounted for the bar — so nothing else asks the terminal to work out how
+	/// many rows now fit. It kept the count from before the bar settled, which is fewer than fit, and
+	/// the shortfall showed as a gap under the last line that only closed once a row had been opened.
+	@objc private func accessoryFrameChanged() {
 		updateScreenSize()
 	}
 
