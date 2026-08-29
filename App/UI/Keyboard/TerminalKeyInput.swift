@@ -499,9 +499,12 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 			attachImageHandler?()
 			closeSideBarPanel()
 
-		// The toggles run the panel rather than use it, and Control is held for the key that comes
-		// after it — closing on either would take the panel away mid-gesture.
-		case .control, .fnKeys:
+		case .fnKeys:
+			closeOtherPanels(keeping: .fnKeys)
+
+		// Held for the key that comes after it — closing anything on it would take a panel away
+		// mid-gesture.
+		case .control:
 			break
 
 		default:
@@ -518,7 +521,9 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 		}
 	}
 
-	/// Leaves only `key` open, since the landscape panel has room for one column.
+	/// Leaves only `key`'s content open. One at a time in both orientations: the landscape panel has
+	/// room for one column, and in portrait the rows stack — Projects, SSH and AI all open at once
+	/// was three rows of pickers between the terminal and the keys.
 	///
 	/// Deferred a turn deliberately. A toggle key has already changed `toggledKeys` inside the button's
 	/// own action by the time this runs, and SwiftUI has an update in flight against that value —
@@ -526,11 +531,14 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	/// publisher rather than the view, did follow, so the panel ended up narrowed to the new column
 	/// while still showing the old one's contents.
 	private func closeOtherPanels(keeping key: ToolbarKey) {
-		guard usesSideBar else {
-			return
+		// Only the other content keys, so an armed Control survives opening a panel. More stays out of
+		// it in portrait — there it's the row holding these keys, and closing it would pull the key the
+		// user just pressed out from under their finger.
+		var others = Set<ToolbarKey>([.fnKeys, .projects, .ssh, .ai])
+		if usesSideBar {
+			others.insert(.more)
 		}
-		// Only the other panel keys, so an armed Control survives opening a panel.
-		let others = Set<ToolbarKey>([.more, .fnKeys, .projects, .ssh, .ai]).subtracting([key])
+		others.remove(key)
 		DispatchQueue.main.async { [weak self] in
 			self?.state.toggledKeys.subtract(others)
 		}

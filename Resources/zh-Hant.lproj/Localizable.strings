@@ -6,175 +6,137 @@
 	<string>關於 NewTerm</string>
 	<key>AI</key>
 	<string>AI</string>
-	<key>AI Commands</key>
-	<string>AI 指令</string>
-	<key>Add</key>
-	<string>加入</string>
-	<key>Added to ~/.ssh/config. Connecting runs ssh with the name.</key>
-	<string>會寫入 ~/.ssh/config。連線時執行 ssh 加這個名稱。</string>
-	<key>Attach Image</key>
-	<string>附加圖片</string>
+	<key>About</key>
+	<string>關於</string>
+	<key>Advanced</key>
+	<string>進階</string>
+	<key>Arrow Keys</key>
+	<string>方向鍵</string>
+	<key>Bell</key>
+	<string>響鈴</string>
 	<key>Built in Themes</key>
 	<string>內建主題</string>
 	<key>CLEAR_TERMINAL</key>
-	<string>清除終端機文字</string>
+	<string>Clear Terminal</string>
 	<key>CLOSE_TAB</key>
-	<string>關閉分頁</string>
+	<string>Close Tab</string>
 	<key>CLOSE_WINDOW</key>
-	<string>關閉視窗</string>
+	<string>Close Window</string>
 	<key>CLOSE_WINDOW_ACTION</key>
-	<string>關閉視窗</string>
+	<string>Close Window</string>
 	<key>CLOSE_WINDOW_TITLE</key>
-	<string>關閉視窗？</string>
-	<key>Check out NewTerm, a modern, super fast terminal app for iOS and macOS! 🧑‍💻</key>
-	<string>推薦 NewTerm —— iOS 和 macOS 上現代、極快的終端機 App！🧑‍💻</string>
-	<key>Control</key>
-	<string>Control</string>
+	<string>Close Window?</string>
+	<key>Copies go into this folder. It’s created on the first copy if it isn’t there yet.</key>
+	<string>副本會放進這個資料夾。若不存在，會在第一次拷貝時建立。</string>
 	<key>Copy</key>
 	<string>拷貝</string>
-	<key>Couldn’t Add Host</key>
-	<string>無法加入主機</string>
-	<key>Couldn’t Attach Image</key>
-	<string>無法附加圖片</string>
-	<key>Couldn’t Create Project</key>
-	<string>無法建立專案</string>
-	<key>Couldn’t Move Project</key>
-	<string>無法移動專案</string>
-	<key>Couldn’t initialize a terminal. %@</key>
-	<string>無法初始化終端機。%@</string>
-	<key>Couldn’t prepare terminal for logging in. %@</key>
-	<string>無法為登入準備終端機。%@</string>
-	<key>Couldn’t start a terminal process. %@</key>
-	<string>無法啟動終端機處理程序。%@</string>
-	<key>Create</key>
-	<string>建立</string>
-	<key>Creates a folder in %@.</key>
-	<string>在 %@ 中建立一個資料夾。</string>
-	<key>Ctrl</key>
-	<string>ctrl</string>
+	<key>Copy from iCloud Drive</key>
+	<string>從 iCloud 雲碟拷貝</string>
+	<key>Copy to iCloud Drive</key>
+	<string>拷貝到 iCloud 雲碟</string>
+	<key>Couldn’t copy</key>
+	<string>無法拷貝</string>
 	<key>Dark Theme</key>
 	<string>深色主題</string>
-	<key>Del</key>
-	<string>刪除</string>
-	<key>Delete %@</key>
-	<string>刪除 %@</string>
-	<key>Delete Forward</key>
-	<string>向後刪除</string>
-	<key>Down</key>
-	<string>下</string>
-	<key>Esc</key>
-	<string>esc</string>
-	<key>Escape</key>
-	<string>Escape</string>
-	<key>Fn</key>
-	<string>Fn</string>
-	<key>Function Keys</key>
-	<string>功能鍵</string>
-	<key>Host name or IP</key>
-	<string>主機名稱或 IP</string>
-	<key>Img</key>
-	<string>圖片</string>
-	<key>Installed</key>
-	<string>已安裝</string>
-	<key>Internal state error</key>
-	<string>內部狀態錯誤</string>
+	<key>Email Support</key>
+	<string>郵件支援</string>
+	<key>Folder</key>
+	<string>資料夾</string>
+	<key>Font</key>
+	<string>字體</string>
+	<key>General</key>
+	<string>一般</string>
+	<key>Keyboard</key>
+	<string>鍵盤</string>
 	<key>LOCALE_SYSTEM</key>
-	<string>系統語言： %@</string>
-	<key>Left</key>
-	<string>左</string>
+	<string>系統語言：%@</string>
+	<key>Language</key>
+	<string>語言</string>
 	<key>Light Theme</key>
 	<string>淺色主題</string>
+	<key>Locale</key>
+	<string>地區</string>
+	<key>Make beep sound</key>
+	<string>提示音</string>
+	<key>Make haptic vibration</key>
+	<string>觸覺震動</string>
 	<key>Match System Appearance</key>
 	<string>跟隨系統外觀</string>
-	<key>More</key>
-	<string>更多</string>
-	<key>Move to Trash</key>
-	<string>移到垃圾桶</string>
-	<key>Move “%@” to Trash?</key>
-	<string>把「%@」移到垃圾桶？</string>
 	<key>NEW_TAB</key>
-	<string>新分頁</string>
+	<string>New Tab</string>
 	<key>NEW_WINDOW</key>
-	<string>新視窗</string>
-	<key>Name</key>
-	<string>名稱</string>
-	<key>Name (e.g. server)</key>
-	<string>名稱（例如 server）</string>
-	<key>New</key>
-	<string>新增</string>
-	<key>New Project</key>
-	<string>新增專案</string>
-	<key>New SSH Host</key>
-	<string>新增 SSH 主機</string>
-	<key>No agent CLIs installed</key>
-	<string>沒有已安裝的 AI 命令列</string>
-	<key>No hosts in ~/.ssh/config</key>
-	<string>~/.ssh/config 裡還沒有主機</string>
-	<key>No projects yet — tap New</key>
-	<string>還沒有專案 — 點「新增」</string>
+	<string>New Window</string>
+	<key>No projects yet.</key>
+	<string>還沒有專案。</string>
+	<key>OK</key>
+	<string>OK</string>
+	<key>On AC Power</key>
+	<string>接上電源時</string>
+	<key>On Battery</key>
+	<string>使用電池時</string>
+	<key>Open in tmux</key>
+	<string>在 tmux 中開啟</string>
 	<key>PASSWORD_MANAGER</key>
-	<string>密碼管理員</string>
+	<string>Password Manager</string>
 	<key>PROCESS_COMPLETED_TITLE</key>
-	<string>會議中止</string>
-	<key>Port (optional)</key>
-	<string>連接埠（選填）</string>
-	<key>Proj</key>
-	<string>專案</string>
-	<key>Project names can’t be empty, start with a dot, or contain a slash.</key>
-	<string>專案名稱不能為空、不能以點開頭、不能包含斜線。</string>
+	<string>Session Ended</string>
+	<key>Performance</key>
+	<string>效能</string>
+	<key>Preserve battery life by switching to Power Saver when Low Power Mode is enabled.</key>
+	<string>開啟低耗電模式時自動切換到省電檔以延長續航。</string>
 	<key>Projects</key>
 	<string>專案</string>
-	<key>Right</key>
-	<string>右</string>
+	<key>Projects stay on this device. Nothing is copied anywhere until you ask for it.</key>
+	<string>專案保留在本裝置上。除非你主動操作，不會拷貝到任何地方。</string>
+	<key>Reduce Performance in Low Power Mode</key>
+	<string>低耗電模式下降低效能</string>
 	<key>SETTINGS</key>
 	<string>設定</string>
 	<key>SHOW_NEXT_TAB</key>
-	<string>顯示下一個分頁</string>
+	<string>Show Next Tab</string>
 	<key>SHOW_PREVIOUS_TAB</key>
-	<string>顯示上一個分頁</string>
+	<string>Show Previous Tab</string>
 	<key>SPLIT_HORIZONTALLY</key>
-	<string>水平分割</string>
+	<string>Split Horizontally</string>
 	<key>SPLIT_VERTICALLY</key>
-	<string>垂直分割</string>
+	<string>Split Vertically</string>
 	<key>SSH</key>
 	<string>SSH</string>
-	<key>SSH Hosts</key>
-	<string>SSH 主機</string>
-	<key>Shift-Tab</key>
-	<string>Shift-Tab</string>
+	<key>Settings Sync</key>
+	<string>設定同步</string>
+	<key>Share NewTerm</key>
+	<string>分享 NewTerm</string>
+	<key>Show heads-up display</key>
+	<string>顯示浮動提示</string>
 	<key>Switches between a light and a dark theme when iOS does.</key>
 	<string>iOS 切換深淺色時，自動在淺色與深色主題之間切換。</string>
+	<key>System Language</key>
+	<string>系統語言</string>
 	<key>TERMINAL</key>
-	<string>終端機</string>
-	<key>TERMINAL_LAUNCH_FAILED</key>
-	<string>Shell 處理程序未預期關閉。</string>
+	<string>Terminal</string>
 	<key>TERMINAL_LAUNCH_FAILED_BODY</key>
-	<string>有關更多詳細資訊，請參考終端機視窗中的錯誤訊息。
-您可能需要檢查啟動腳本或重新安裝核心套件來解決此問題。</string>
+	<string>Refer to the error message in the terminal window for more details.
+You may need to review startup scripts or reinstall core packages to fix this issue.</string>
 	<key>TERMINAL_LAUNCH_FAILED_TITLE</key>
-	<string>無法啟動終端機，因為 Shell 處理程序未預期關閉。</string>
+	<string>Couldn’t start the terminal because the shell process quit unexpectedly.</string>
 	<key>TOGGLE_SPLIT</key>
-	<string>分割／取消分割</string>
-	<key>Tab</key>
-	<string>Tab</string>
-	<key>Terminal</key>
-	<string>終端機</string>
-	<key>The folder and everything in it moves to .Trash inside your projects folder. You can put it back with a file manager.</key>
-	<string>該資料夾及其中所有內容會移到專案目錄下的 .Trash 裡。之後可以用檔案管理器還原。</string>
+	<string>Split / Unsplit</string>
+	<key>The Performance setting is recommended.</key>
+	<string>建議使用「效能」檔。</string>
+	<key>The copy already in iCloud Drive will be replaced. Anything changed there and not copied back is lost.</key>
+	<string>iCloud 雲碟裡已有的副本會被替換。在那邊改過但沒拷回來的內容會遺失。</string>
 	<key>Theme</key>
 	<string>主題</string>
 	<key>This build can’t reach iCloud Drive.</key>
 	<string>此版本無法存取 iCloud 雲碟。</string>
-	<key>Unknown (%i)</key>
-	<string>未知（%i）</string>
-	<key>Up</key>
-	<string>上</string>
-	<key>User (optional)</key>
-	<string>使用者（選填）</string>
-	<key>has activity</key>
-	<string>有新輸出</string>
-	<key>has bell</key>
-	<string>響鈴</string>
+	<key>Touch and hold the Space bar, then drag around the keyboard to move the cursor.</key>
+	<string>按住空白鍵並在鍵盤上拖曳即可移動游標。</string>
+	<key>Trackpad Sensitivity</key>
+	<string>觸控板靈敏度</string>
+	<key>When a terminal application needs to notify you of something, it rings the bell.</key>
+	<string>終端機程式需要提醒你時會響鈴。</string>
+	<key>iCloud Drive</key>
+	<string>iCloud 雲碟</string>
 	<key>iCloud Drive isn’t set up on this device.</key>
 	<string>本裝置未啟用 iCloud 雲碟。</string>
 </dict>

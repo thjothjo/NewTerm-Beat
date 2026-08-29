@@ -829,7 +829,9 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// command the user could have typed, which is the thing they can then edit, repeat with ⌃R, or
 	/// copy somewhere else.
 	private func connectSSH(to host: SSHHost) {
-		terminalController.write(Array((SSHConfig.connectCommand(for: host) + "\n").utf8))
+		// \r, not \n: the pty's Enter is carriage return — a newline lands in the buffer without
+		// running it. Same byte the initial-command path sends.
+		terminalController.write(Array(SSHConfig.connectCommand(for: host).utf8) + EscapeSequences.return)
 	}
 
 	/// Adds a host to `~/.ssh/config`.
