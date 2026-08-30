@@ -231,6 +231,19 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		updateSideBar()
 	}
 
+	/// Whether this tab is actually on screen. Tabs are never removed from the hierarchy, only
+	/// hidden, and `viewWillAppear` fires for a tab as it is added — so the appearance callbacks
+	/// alone can't tell the visible tab from the five behind it. The hidden flag can.
+	private var isOnScreen: Bool {
+		guard view.window != nil else { return false }
+		var v: UIView? = view
+		while let current = v {
+			if current.isHidden { return false }
+			v = current.superview
+		}
+		return true
+	}
+
 	override func viewWillAppear(_ animated: Bool) {
 		super.viewWillAppear(animated)
 
@@ -241,6 +254,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	override func viewDidAppear(_ animated: Bool) {
 		super.viewDidAppear(animated)
+
+		// Resizes that arrived while this tab was hidden were skipped, so recompute now that it is
+		// back on screen. No-ops when the size already matches.
+		updateScreenSize()
 
 		hasAppeared = true
 
@@ -494,6 +511,17 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	func updateScreenSize() {
 		if isSplitViewResizing {
+			return
+		}
+
+		// Hidden tabs wait. They are still in the view hierarchy — selecting a tab hides the old one
+		// rather than removing it — so the keyboard appearing resized every terminal that was open,
+		// each one reflowing its buffer and making its shell redraw. With six tabs that is six pty
+		// resizes for one keyboard.
+		//
+		// A terminal that has never been sized is let through: its shell needs a size to start with,
+		// and it has nothing to reflow yet.
+		guard isOnScreen || screenSize == nil else {
 			return
 		}
 
