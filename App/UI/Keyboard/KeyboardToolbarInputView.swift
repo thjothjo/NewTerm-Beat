@@ -77,8 +77,18 @@ class KeyboardToolbarInputView: UIInputView {
 
 		DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
 			guard let self = self else { return }
-			let names = self.subviews.map { "\(NSStringFromClass(type(of: $0)))(hidden=\($0.isHidden),bg=\(String(describing: $0.backgroundColor)))" }
-			DeviceLog.write("bar subviews: \(names.joined(separator: " | ")) selfBG=\(String(describing: self.backgroundColor))")
+			func describe(_ view: UIView, depth: Int) -> [String] {
+				let pad = String(repeating: "  ", count: depth)
+				var out = ["\(pad)\(NSStringFromClass(type(of: view)))(hidden=\(view.isHidden),bg=\(String(describing: view.backgroundColor)))"]
+				if view !== self.hostingView {
+					for subview in view.subviews {
+						out += describe(subview, depth: depth + 1)
+					}
+				}
+				return out
+			}
+			let names = self.subviews.flatMap { describe($0, depth: 1) }
+			DeviceLog.write("bar tree:\n\(names.joined(separator: "\n")) selfBG=\(String(describing: self.backgroundColor))")
 		}
 
 		NSLayoutConstraint.activate([
@@ -156,10 +166,26 @@ class KeyboardToolbarInputView: UIInputView {
 	/// block rather than as separate buttons. It isn't exposed, so it is found by name and hidden.
 	private func hideBackdrop() {
 		for subview in subviews where subview !== hostingView {
-			let name = NSStringFromClass(type(of: subview))
-			if name.contains("Backdrop") || name.contains("Background") || name.contains("Visual") {
-				subview.isHidden = true
-			}
+			clearBackdrop(subview)
+		}
+	}
+
+	/// The backdrop isn't always a direct subview — measured on the phone, the bar's own children are
+	/// two `_UIInputViewContent` and nothing named like a backdrop at all, so whatever paints the slab
+	/// is inside one of them.
+	private func clearBackdrop(_ view: UIView) {
+		guard view !== hostingView else {
+			return
+		}
+		if view is UIVisualEffectView || NSStringFromClass(type(of: view)).contains("Backdrop") {
+			view.isHidden = true
+			return
+		}
+		if view.backgroundColor != nil && view.backgroundColor != .clear {
+			view.backgroundColor = .clear
+		}
+		for subview in view.subviews {
+			clearBackdrop(subview)
 		}
 	}
 

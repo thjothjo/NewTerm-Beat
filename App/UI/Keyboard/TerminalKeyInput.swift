@@ -332,10 +332,17 @@ class TerminalKeyInput: TextInputBase {
 
 	@objc private func keyboardDidShow(_ notification: Notification) {
 		let frame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-		DeviceLog.write("didShow h=\(frame.height) hidden=\(isKeyboardHidden) fr=\(isFirstResponder)")
-		// The stand-in has no height, so its arrival is reported the same way. That isn't a keyboard.
-		if !isKeyboardHidden {
-			isKeyboardOnScreen = true
+		// What UIKit calls the keyboard includes the accessory bar, and when the bar is docked on its
+		// own that is all it is — the stand-in behind it has no height. So a report no taller than the
+		// bar is not a keyboard. Reading one as a keyboard latched this on with nothing on screen, and
+		// every tap after that decided the keyboard was already there and did nothing at all.
+		let barHeight = inputAccessoryView?.bounds.height ?? 0
+		let isReal = frame.height > barHeight + 1
+		DeviceLog.write("didShow h=\(frame.height) bar=\(barHeight) real=\(isReal) hidden=\(isKeyboardHidden) fr=\(isFirstResponder)")
+		// Only for the responder that owns the bar. The notification goes to every tab, and the five
+		// that aren't on screen have no accessory to measure against.
+		if isFirstResponder {
+			isKeyboardOnScreen = isReal && !isKeyboardHidden
 		}
 	}
 
