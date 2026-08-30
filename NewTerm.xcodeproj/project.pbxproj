@@ -84,7 +84,6 @@
 		CF6B3BAA244C4538000A608B /* LogoHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6B3BA9244C4537000A608B /* LogoHeaderView.swift */; };
 		CF71BC9322BB6DEA00AFB1E1 /* NewTermCommon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF71BC8422BB6DBA00AFB1E1 /* NewTermCommon.framework */; };
 		CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C322B5481B00585BE6 /* Preferences.swift */; };
-		DE00000000000000000001 /* DeviceLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE00000000000000000002 /* DeviceLog.swift */; };
 		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
 		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10052A0100050000ABCD /* ScrollbackStore.swift */; };
@@ -286,7 +285,6 @@
 		CFBB96C022B5481B00585BE6 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CFBB96C222B5481B00585BE6 /* SubProcess.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubProcess.swift; sourceTree = "<group>"; };
 		CFBB96C322B5481B00585BE6 /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
-		DE00000000000000000002 /* DeviceLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLog.swift; sourceTree = "<group>"; };
 		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
 		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4EAA10052A0100050000ABCD /* ScrollbackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackStore.swift; sourceTree = "<group>"; };
@@ -447,7 +445,6 @@
 				4EW4000000000000000001 /* AIShortcutStore.swift */,
 				4EW2000000000000000003 /* TerminalActivityController.swift */,
 				CFBB96C322B5481B00585BE6 /* Preferences.swift */,
-				DE00000000000000000002 /* DeviceLog.swift */,
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
 				4EAA10032A0100030000ABCD /* SessionStore.swift */,
 				4EAA10052A0100050000ABCD /* ScrollbackStore.swift */,
@@ -892,7 +889,6 @@
 				4EBBCB0D2886C1BE002EAE00 /* Darwin+Additions.swift in Sources */,
 				CF71BCF122BB8AAB00AFB1E1 /* FontMetrics.swift in Sources */,
 				CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */,
-				DE00000000000000000001 /* DeviceLog.swift in Sources */,
 				4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */,
 				4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */,
 				4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */,

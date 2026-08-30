@@ -7,7 +7,6 @@
 //
 
 import UIKit
-import NewTermCommon
 import Combine
 import SwiftUIX
 
@@ -75,37 +74,6 @@ class KeyboardToolbarInputView: UIInputView {
 		hostingView._disableSafeAreaInsets()
 		addSubview(hostingView)
 
-		DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-			guard let self = self else { return }
-			self.captureDiagnosticShots()
-			func describe(_ view: UIView, depth: Int) -> [String] {
-				let pad = String(repeating: "  ", count: depth)
-				var out = ["\(pad)\(NSStringFromClass(type(of: view)))(hidden=\(view.isHidden),bg=\(String(describing: view.backgroundColor)))"]
-				if view !== self.hostingView {
-					for subview in view.subviews {
-						out += describe(subview, depth: depth + 1)
-					}
-				}
-				return out
-			}
-			var chain = [String]()
-			var ancestor: UIView? = self.superview
-			while let view = ancestor {
-				chain.append("\(NSStringFromClass(type(of: view)))(bg=\(String(describing: view.backgroundColor)),opaque=\(view.isOpaque))")
-				ancestor = view.superview
-			}
-			DeviceLog.write("bar ancestors: \(chain.joined(separator: " < "))")
-			if let host = self.superview {
-				let siblings = host.subviews.map { view -> String in
-					let mark = view === self ? "**US** " : ""
-					return "\(mark)\(NSStringFromClass(type(of: view))) frame=\(view.frame) bg=\(String(describing: view.backgroundColor)) hidden=\(view.isHidden) alpha=\(view.alpha)"
-				}
-				DeviceLog.write("bar siblings: \(siblings.joined(separator: " ||| "))")
-			}
-			let names = self.subviews.flatMap { describe($0, depth: 1) }
-			DeviceLog.write("bar tree:\n\(names.joined(separator: "\n")) selfBG=\(String(describing: self.backgroundColor))")
-		}
-
 		NSLayoutConstraint.activate([
 			hostingView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
 			hostingView.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
@@ -126,53 +94,6 @@ class KeyboardToolbarInputView: UIInputView {
 
 	required init?(coder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
-	}
-
-	/// Renders what the phone is actually showing into the app's preferences. There is no way to take
-	/// a screenshot of the device from outside it, and every file path the app tries is refused.
-	private func captureDiagnosticShots() {
-		// Only the bar that is actually laid out. There is one of these per tab and they all fire; the
-		// ones belonging to tabs that were never on screen are a few points across.
-		guard bounds.width > 200, bounds.height > 20, window != nil else {
-			return
-		}
-		let barImage = UIGraphicsImageRenderer(bounds: bounds).image { _ in
-			drawHierarchy(in: bounds, afterScreenUpdates: true)
-		}
-		if let data = barImage.pngData() {
-			DeviceLog.shot("bar", data)
-		}
-
-		// The window the bar lives in, on its own. If the grey band is here but not in the bar's own
-		// snapshot, it is painted by the views UIKit wraps the accessory in rather than by us.
-		if let barWindow = window {
-			let format = UIGraphicsImageRendererFormat.default()
-			format.scale = 1
-			let image = UIGraphicsImageRenderer(bounds: barWindow.bounds, format: format).image { _ in
-				barWindow.drawHierarchy(in: barWindow.bounds, afterScreenUpdates: true)
-			}
-			if let data = image.pngData() {
-				DeviceLog.shot("barwindow", data)
-			}
-			DeviceLog.write("bar window: \(NSStringFromClass(type(of: barWindow))) frame=\(barWindow.frame) bar frame=\(convert(bounds, to: nil))")
-		}
-
-		// Every window in the scene, bottom to top: the bar lives in the keyboard's window, the
-		// terminal in the app's, and the band could be either.
-		guard let scene = window?.windowScene else {
-			return
-		}
-		let screen = scene.screen.bounds
-		let format = UIGraphicsImageRendererFormat.default()
-		format.scale = 1
-		let screenImage = UIGraphicsImageRenderer(bounds: screen, format: format).image { _ in
-			for window in scene.windows.sorted(by: { $0.windowLevel < $1.windowLevel }) {
-				window.drawHierarchy(in: window.frame, afterScreenUpdates: true)
-			}
-		}
-		if let data = screenImage.pngData() {
-			DeviceLog.shot("screen", data)
-		}
 	}
 
 	/// Re-measures the bar after rows have been added or taken away.

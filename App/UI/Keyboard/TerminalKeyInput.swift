@@ -145,10 +145,6 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.keyboardDidHide(_:)),
 																					name: UIResponder.keyboardWillHideNotification,
 																					object: nil)
-		NotificationCenter.default.addObserver(self,
-																					selector: #selector(self.keyboardWillShow(_:)),
-																					name: UIResponder.keyboardWillShowNotification,
-																					object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -271,9 +267,6 @@ class TerminalKeyInput: TextInputBase {
 
 	private let hiddenInputView = HiddenInputView()
 
-	/// Only for the log: which of the tabs' key inputs a line came from.
-	private lazy var logID = String(UInt(bitPattern: ObjectIdentifier(self).hashValue) % 100)
-
 	/// Whether the keyboard is standing down while the bar stays.
 	private(set) var isKeyboardHidden = false
 
@@ -324,7 +317,6 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Brings the real keyboard back, from wherever it went.
 	func showKeyboard() {
-		DeviceLog.write("[\(logID)] showKeyboard hidden=\(isKeyboardHidden) onScreen=\(isKeyboardOnScreen) fr=\(isFirstResponder) docked=\(wantsDockedBar)")
 		if isKeyboardHidden {
 			// Standing down behind the docked bar: swapping the stand-in back out is enough.
 			isKeyboardHidden = false
@@ -347,31 +339,20 @@ class TerminalKeyInput: TextInputBase {
 		// back once UIKit has taken it away, so give the responder up and take it again.
 		isRaisingKeyboard = true
 		_ = super.resignFirstResponder()
-		let became = becomeFirstResponder()
+		_ = becomeFirstResponder()
 		isRaisingKeyboard = false
-		DeviceLog.write("[\(logID)] recovery became=\(became) fr=\(isFirstResponder)")
 		// UIKit refuses the responder while a dismissal is still winding down. One more turn is enough,
 		// and without it that refusal is the end of the road — nothing else asks again.
 		DispatchQueue.main.async { [weak self] in
 			guard let self = self, !self.isFirstResponder, self.wantsDockedBar, self.isOnScreen else {
 				return
 			}
-			let retried = self.becomeFirstResponder()
-			DeviceLog.write("[\(self.logID)] retry became=\(retried) fr=\(self.isFirstResponder)")
+			_ = self.becomeFirstResponder()
 		}
 	}
 
-
-	@objc private func keyboardWillShow(_ notification: Notification) {
-		guard isFirstResponder else {
-			return
-		}
-		let frame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-		DeviceLog.write("[\(logID)] willShow h=\(frame.height) hidden=\(isKeyboardHidden)")
-	}
 
 	@objc private func keyboardDidHide(_ notification: Notification) {
-		DeviceLog.write("[\(logID)] willHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
 		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
@@ -494,15 +475,13 @@ class TerminalKeyInput: TextInputBase {
 		if let passwordInputView = passwordInputView {
 			return passwordInputView.becomeFirstResponder()
 		} else {
-			let became = super.becomeFirstResponder()
-			DeviceLog.write("[\(logID)] become -> \(became) hidden=\(isKeyboardHidden)")
+			_ = super.becomeFirstResponder()
 			return true
 		}
 	}
 
 	@discardableResult
 	override func resignFirstResponder() -> Bool {
-		DeviceLog.write("[\(logID)] resign called, fr=\(isFirstResponder)")
 		return super.resignFirstResponder()
 	}
 
