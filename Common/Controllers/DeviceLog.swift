@@ -10,7 +10,12 @@ import Foundation
 
 public enum DeviceLog {
 
-	public static let path = "/var/mobile/newterm-beat.log"
+	/// Tried in order. The first one that accepts a write is kept.
+	public static let paths = ["/var/mobile/newterm-beat.log",
+														 "/var/tmp/newterm-beat.log",
+														 NSTemporaryDirectory() + "newterm-beat.log"]
+
+	private static var resolvedPath: String?
 
 	private static let queue = DispatchQueue(label: "ws.hbang.Terminal.devicelog")
 	private static let formatter: DateFormatter = {
@@ -25,13 +30,19 @@ public enum DeviceLog {
 			guard let data = line.data(using: .utf8) else {
 				return
 			}
-			let url = URL(fileURLWithPath: path)
-			if let handle = try? FileHandle(forWritingTo: url) {
-				handle.seekToEndOfFile()
-				handle.write(data)
-				try? handle.close()
-			} else {
-				try? data.write(to: url)
+			for path in resolvedPath.map({ [$0] }) ?? paths {
+				let url = URL(fileURLWithPath: path)
+				if let handle = try? FileHandle(forWritingTo: url) {
+					handle.seekToEndOfFile()
+					handle.write(data)
+					try? handle.close()
+					resolvedPath = path
+					return
+				}
+				if (try? data.write(to: url)) != nil {
+					resolvedPath = path
+					return
+				}
 			}
 		}
 	}

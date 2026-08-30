@@ -15,6 +15,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	private lazy var app = UIApplication.shared
 
 	func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+		DeviceLog.write("=== launch \(Bundle.main.bundleIdentifier ?? "?") \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?") ===")
 		UIScrollView.appearance().keyboardDismissMode = .interactive
 		// The keyboard rows scroll when they hold more keys than fit, and a scroll view sits on touches
 		// for ~150ms before passing them on in case they turn into a drag. On a row of keys that reads
