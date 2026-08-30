@@ -89,6 +89,10 @@ struct TerminalView: View {
 								.onChange(of: metrics, perform: applyGeometry)
 						})
 				}
+						// A screen that isn't full doesn't move under the finger, the way a desktop terminal
+					// behaves. Without this the view bounces on any drag, and the keyboard arriving or
+					// leaving slid a half-empty screen around for no reason.
+					.terminalScrollBounce()
 					.coordinateSpace(name: Self.scrollCoordinateSpace)
 					.background(Color(state.colorMap.background))
 					// Outside the lazy stack, so it is laid out even when line 0 has scrolled away.
@@ -364,5 +368,17 @@ struct TerminalView_Previews: PreviewProvider {
 	static var previews: some View {
 		TerminalSampleView()
 			.preferredColorScheme(.dark)
+	}
+}
+
+private extension View {
+	/// Bounces only when there is something to scroll to.
+	@ViewBuilder
+	func terminalScrollBounce() -> some View {
+		if #available(iOS 16.4, *) {
+			scrollBounceBehavior(.basedOnSize)
+		} else {
+			self
+		}
 	}
 }
