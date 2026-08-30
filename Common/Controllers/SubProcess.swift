@@ -255,6 +255,14 @@ public class SubProcess {
 			.map { "\($0)=\($1)" }
 		let envp = (inherited + Self.baseEnvp + [
 			"LANG=\(localeCode)",
+			// Whether the terminal is light or dark, which is what a full-screen program asks before it
+			// picks its own colours. The convention is the second field — 15 for a light background, 0
+			// for a dark one. Unset, which it was, nearly every one of them assumes dark: on a light
+			// theme grok painted itself a black panel over the white screen.
+			//
+			// A shell that is already running keeps the value it started with, the same as any other
+			// variable; changing the theme reaches the next session.
+			"COLORFGBG=\(Preferences.shared.colorMap.isDark ? "15;0" : "0;15")",
 			// Inherited by everything the shell starts, which is what lets a later launch recognise
 			// what this one left behind. See OrphanReaper.
 			OrphanReaper.environmentEntry
