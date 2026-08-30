@@ -280,6 +280,28 @@ class TerminalKeyInput: TextInputBase {
 	/// Set by the view controller: whether this terminal is the one on screen.
 	var wantsDockedBar = false
 
+	/// Whether this terminal really is the one on screen.
+	///
+	/// `wantsDockedBar` isn't enough on its own. Selecting a tab hides the previous one rather than
+	/// removing it, so every tab gets `viewWillAppear` and every tab's bar thinks it is the one in
+	/// front. Measured on the phone: when the visible terminal's keyboard hid, the tab *behind* it
+	/// docked its own bar, took the first responder with it, and did so holding a zero-height input
+	/// view — after which no tap could bring a keyboard back, because the responder belonged to a
+	/// terminal nobody could see.
+	private var isOnScreen: Bool {
+		guard window != nil else {
+			return false
+		}
+		var view: UIView? = self
+		while let current = view {
+			if current.isHidden {
+				return false
+			}
+			view = current.superview
+		}
+		return true
+	}
+
 	override var inputView: UIView? { isKeyboardHidden ? hiddenInputView : nil }
 
 	/// Whether the system keyboard is on screen, measured rather than remembered.
@@ -331,7 +353,7 @@ class TerminalKeyInput: TextInputBase {
 		// UIKit refuses the responder while a dismissal is still winding down. One more turn is enough,
 		// and without it that refusal is the end of the road — nothing else asks again.
 		DispatchQueue.main.async { [weak self] in
-			guard let self = self, !self.isFirstResponder, self.wantsDockedBar else {
+			guard let self = self, !self.isFirstResponder, self.wantsDockedBar, self.isOnScreen else {
 				return
 			}
 			let retried = self.becomeFirstResponder()
@@ -356,6 +378,7 @@ class TerminalKeyInput: TextInputBase {
 		// arrival as the keyboard hiding too.
 		guard !isRaisingKeyboard,
 					wantsDockedBar,
+					isOnScreen,
 					!isKeyboardHidden,
 					let window = window,
 					window.rootViewController?.presentedViewController == nil,
