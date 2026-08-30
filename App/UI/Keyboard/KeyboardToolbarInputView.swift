@@ -95,6 +95,13 @@ class KeyboardToolbarInputView: UIInputView {
 				ancestor = view.superview
 			}
 			DeviceLog.write("bar ancestors: \(chain.joined(separator: " < "))")
+			if let host = self.superview {
+				let siblings = host.subviews.map { view -> String in
+					let mark = view === self ? "**US** " : ""
+					return "\(mark)\(NSStringFromClass(type(of: view))) frame=\(view.frame) bg=\(String(describing: view.backgroundColor)) hidden=\(view.isHidden) alpha=\(view.alpha)"
+				}
+				DeviceLog.write("bar siblings: \(siblings.joined(separator: " ||| "))")
+			}
 			let names = self.subviews.flatMap { describe($0, depth: 1) }
 			DeviceLog.write("bar tree:\n\(names.joined(separator: "\n")) selfBG=\(String(describing: self.backgroundColor))")
 		}
