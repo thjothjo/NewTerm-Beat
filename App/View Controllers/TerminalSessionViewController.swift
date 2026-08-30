@@ -247,6 +247,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	override func viewWillAppear(_ animated: Bool) {
 		super.viewWillAppear(animated)
 
+		DeviceLog.write("viewWillAppear")
 		keyInput.wantsDockedBar = true
 		keyInput.becomeFirstResponder()
 		terminalController.terminalWillAppear()
@@ -269,6 +270,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	override func viewWillDisappear(_ animated: Bool) {
 		super.viewWillDisappear(animated)
 
+		DeviceLog.write("viewWillDisappear")
 		keyInput.wantsDockedBar = false
 		keyInput.resignFirstResponder()
 		terminalController.terminalWillDisappear()

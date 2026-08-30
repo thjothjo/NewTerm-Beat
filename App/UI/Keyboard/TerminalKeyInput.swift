@@ -145,6 +145,10 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.keyboardDidHide(_:)),
 																					name: UIResponder.keyboardDidHideNotification,
 																					object: nil)
+		NotificationCenter.default.addObserver(self,
+																					selector: #selector(self.keyboardWillShow(_:)),
+																					name: UIResponder.keyboardWillShowNotification,
+																					object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -267,6 +271,9 @@ class TerminalKeyInput: TextInputBase {
 
 	private let hiddenInputView = HiddenInputView()
 
+	/// Only for the log: which of the tabs' key inputs a line came from.
+	private lazy var logID = String(UInt(bitPattern: ObjectIdentifier(self).hashValue) % 100)
+
 	/// Whether the keyboard is standing down while the bar stays.
 	private(set) var isKeyboardHidden = false
 
@@ -295,7 +302,7 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Brings the real keyboard back, from wherever it went.
 	func showKeyboard() {
-		DeviceLog.write("showKeyboard hidden=\(isKeyboardHidden) onScreen=\(isKeyboardOnScreen) fr=\(isFirstResponder) docked=\(wantsDockedBar)")
+		DeviceLog.write("[\(logID)] showKeyboard hidden=\(isKeyboardHidden) onScreen=\(isKeyboardOnScreen) fr=\(isFirstResponder) docked=\(wantsDockedBar)")
 		if isKeyboardHidden {
 			// Standing down behind the docked bar: swapping the stand-in back out is enough.
 			isKeyboardHidden = false
@@ -320,7 +327,7 @@ class TerminalKeyInput: TextInputBase {
 		_ = super.resignFirstResponder()
 		let became = becomeFirstResponder()
 		isRaisingKeyboard = false
-		DeviceLog.write("showKeyboard recovery became=\(became) fr=\(isFirstResponder)")
+		DeviceLog.write("[\(logID)] recovery became=\(became) fr=\(isFirstResponder)")
 		// UIKit refuses the responder while a dismissal is still winding down. One more turn is enough,
 		// and without it that refusal is the end of the road — nothing else asks again.
 		DispatchQueue.main.async { [weak self] in
@@ -328,13 +335,21 @@ class TerminalKeyInput: TextInputBase {
 				return
 			}
 			let retried = self.becomeFirstResponder()
-			DeviceLog.write("showKeyboard retry became=\(retried) fr=\(self.isFirstResponder)")
+			DeviceLog.write("[\(self.logID)] retry became=\(retried) fr=\(self.isFirstResponder)")
 		}
 	}
 
 
+	@objc private func keyboardWillShow(_ notification: Notification) {
+		guard isFirstResponder else {
+			return
+		}
+		let frame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+		DeviceLog.write("[\(logID)] willShow h=\(frame.height) hidden=\(isKeyboardHidden)")
+	}
+
 	@objc private func keyboardDidHide(_ notification: Notification) {
-		DeviceLog.write("didHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
+		DeviceLog.write("[\(logID)] didHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
 		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
@@ -450,14 +465,16 @@ class TerminalKeyInput: TextInputBase {
 		if let passwordInputView = passwordInputView {
 			return passwordInputView.becomeFirstResponder()
 		} else {
-			_ = super.becomeFirstResponder()
+			let became = super.becomeFirstResponder()
+			DeviceLog.write("[\(logID)] become -> \(became) hidden=\(isKeyboardHidden)")
 			return true
 		}
 	}
 
 	@discardableResult
 	override func resignFirstResponder() -> Bool {
-		super.resignFirstResponder()
+		DeviceLog.write("[\(logID)] resign called, fr=\(isFirstResponder)")
+		return super.resignFirstResponder()
 	}
 
 	override var canBecomeFirstResponder: Bool { true }
