@@ -30,6 +30,38 @@ open class StringSupplier {
 
 	public init() {}
 
+	/// Whether a row holds nothing worth drawing.
+	///
+	/// The buffer always carries a full screen of rows, so a terminal showing one line of output still
+	/// hands over a screen's worth of empty ones. Drawn, they make the content taller than the view,
+	/// which lets it scroll, which puts the line that mattered above the top edge.
+	public func isBlank(scrollInvariantRow row: Int) -> Bool {
+		guard let terminal = terminal,
+					let line = terminal.getScrollInvariantLine(row: row) else {
+			return true
+		}
+
+		// A row with nothing on it but the cursor still has to be drawn.
+		if cursorVisible && row - terminal.getTopVisibleRow() == terminal.getCursorLocation().y {
+			return false
+		}
+
+		for column in 0..<terminal.cols {
+			let data = line[column]
+			let character = data.getCharacter()
+			if character != " " && character != "\0" {
+				return false
+			}
+			// Blank, but not invisible: a status bar drawn as coloured spaces is still something. Only
+			// the background is asked about — the buffer fills empty cells with whatever attribute was
+			// current, so comparing the whole attribute finds every row non-blank.
+			if data.attribute.bg != .defaultColor {
+				return false
+			}
+		}
+		return true
+	}
+
 	public func attributedString(forScrollInvariantRow row: Int) -> AnyView {
 		guard let terminal = terminal else {
 			fatalError()

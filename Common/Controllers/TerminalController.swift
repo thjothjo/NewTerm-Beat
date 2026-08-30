@@ -490,7 +490,16 @@ public class TerminalController {
 			// still reading it — a data race on the array’s storage, with no bound on what it corrupts.
 			// The copy is free in practice: the delegate keeps a reference either way, so the write
 			// after this already triggered COW.
-			let snapshot = self.lines
+			// Trailing blank rows aren't handed over. The array is sized to the whole buffer — a full
+			// screen, plus whatever the update range asked for — so a terminal showing one line still
+			// produced a screen's worth of empty rows below it. That made the content taller than the
+			// view, which let it scroll, which is how the one line that mattered ended up above the top
+			// edge without the user having typed anything.
+			var visibleCount = self.lines.count
+			while visibleCount > 0, self.stringSupplier.isBlank(scrollInvariantRow: visibleCount - 1) {
+				visibleCount -= 1
+			}
+			let snapshot = Array(self.lines[0..<visibleCount])
 			DispatchQueue.main.async {
 				self.delegate?.refresh(lines: snapshot)
 
