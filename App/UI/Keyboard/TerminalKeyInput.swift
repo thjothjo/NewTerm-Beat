@@ -319,6 +319,15 @@ class TerminalKeyInput: TextInputBase {
 		let became = becomeFirstResponder()
 		isRaisingKeyboard = false
 		DeviceLog.write("showKeyboard recovery became=\(became) fr=\(isFirstResponder)")
+		// UIKit refuses the responder while a dismissal is still winding down. One more turn is enough,
+		// and without it that refusal is the end of the road — nothing else asks again.
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self, !self.isFirstResponder, self.wantsDockedBar else {
+				return
+			}
+			let retried = self.becomeFirstResponder()
+			DeviceLog.write("showKeyboard retry became=\(retried) fr=\(self.isFirstResponder)")
+		}
 	}
 
 	@objc private func keyboardDidShow(_ notification: Notification) {

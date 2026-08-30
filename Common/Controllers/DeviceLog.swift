@@ -11,7 +11,8 @@ import Foundation
 public enum DeviceLog {
 
 	/// Tried in order. The first one that accepts a write is kept.
-	public static let paths = ["/var/mobile/newterm-beat.log",
+	public static let paths = ["/var/mobile/.newterm/debug.log",
+														 "/var/mobile/newterm-beat.log",
 														 "/var/tmp/newterm-beat.log",
 														 NSTemporaryDirectory() + "newterm-beat.log"]
 
