@@ -75,8 +75,9 @@ class KeyboardToolbarInputView: UIInputView {
 		hostingView._disableSafeAreaInsets()
 		addSubview(hostingView)
 
-		DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+		DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
 			guard let self = self else { return }
+			self.captureDiagnosticShots()
 			func describe(_ view: UIView, depth: Int) -> [String] {
 				let pad = String(repeating: "  ", count: depth)
 				var out = ["\(pad)\(NSStringFromClass(type(of: view)))(hidden=\(view.isHidden),bg=\(String(describing: view.backgroundColor)))"]
@@ -111,6 +112,37 @@ class KeyboardToolbarInputView: UIInputView {
 
 	required init?(coder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
+	}
+
+	/// Renders what the phone is actually showing into the app's preferences. There is no way to take
+	/// a screenshot of the device from outside it, and every file path the app tries is refused.
+	private func captureDiagnosticShots() {
+		guard bounds.width > 0, bounds.height > 0 else {
+			return
+		}
+		let barImage = UIGraphicsImageRenderer(bounds: bounds).image { _ in
+			drawHierarchy(in: bounds, afterScreenUpdates: true)
+		}
+		if let data = barImage.pngData() {
+			DeviceLog.shot("bar", data)
+		}
+
+		// Every window in the scene, bottom to top: the bar lives in the keyboard's window, the
+		// terminal in the app's, and the band could be either.
+		guard let scene = window?.windowScene else {
+			return
+		}
+		let screen = scene.screen.bounds
+		let format = UIGraphicsImageRendererFormat.default()
+		format.scale = 1
+		let screenImage = UIGraphicsImageRenderer(bounds: screen, format: format).image { _ in
+			for window in scene.windows.sorted(by: { $0.windowLevel < $1.windowLevel }) {
+				window.drawHierarchy(in: window.frame, afterScreenUpdates: true)
+			}
+		}
+		if let data = screenImage.pngData() {
+			DeviceLog.shot("screen", data)
+		}
 	}
 
 	/// Re-measures the bar after rows have been added or taken away.

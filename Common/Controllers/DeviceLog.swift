@@ -32,6 +32,14 @@ public enum DeviceLog {
 		}
 	}
 
+	/// Stores a PNG in the same place, because the phone refuses every file path the app tries and
+	/// there is no way to take a screenshot of it from outside.
+	public static func shot(_ name: String, _ data: Data) {
+		queue.async {
+			UserDefaults.standard.set(data, forKey: "debugShot_\(name)")
+		}
+	}
+
 	public static func reset() {
 		queue.async {
 			buffer.removeAll()
