@@ -132,8 +132,16 @@ public class TerminalController {
 
 	@objc private func preferencesUpdated() {
 		let preferences = Preferences.shared
-		stringSupplier.colorMap = preferences.colorMap
+		let colorMap = preferences.colorMap
+		stringSupplier.colorMap = colorMap
 		stringSupplier.fontMetrics = preferences.fontMetrics
+
+		// Programs ask the terminal what its text and background colours are, and pick a light or a
+		// dark palette of their own from the answer. SwiftTerm answers from its own properties, which
+		// nothing had ever set — so every theme reported grey on black, and on a light theme Codex drew
+		// its composer for a dark terminal: a black band with dim text on a white screen.
+		terminal?.foregroundColor = colorMap.terminalForeground
+		terminal?.backgroundColor = colorMap.terminalBackground
 
 		powerStateChanged()
 		terminal?.refresh(startRow: 0, endRow: terminal?.rows ?? 0)

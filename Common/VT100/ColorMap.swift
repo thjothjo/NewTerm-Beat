@@ -29,6 +29,25 @@ public struct ColorMap: Hashable {
 
 	public var userInterfaceStyle: UIUserInterfaceStyle { isDark ? .dark : .light }
 
+	/// The theme's text and background colours in the form the terminal reports them, for programs
+	/// that ask what they are (OSC 10 and 11) before choosing their own palette.
+	public var terminalForeground: SwiftTerm.Color { Self.terminalColor(foreground, fallback: isDark) }
+	public var terminalBackground: SwiftTerm.Color { Self.terminalColor(background, fallback: !isDark) }
+
+	/// Falls back to plain white or black, whichever the theme is closer to, so a colour that can't be
+	/// read still answers with the right side of light versus dark.
+	private static func terminalColor(_ color: UIColor, fallback white: Bool) -> SwiftTerm.Color {
+		var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+		guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+			let value: UInt16 = white ? .max : 0
+			return SwiftTerm.Color(red: value, green: value, blue: value)
+		}
+		func component(_ value: CGFloat) -> UInt16 {
+			UInt16(min(max(value, 0), 1) * CGFloat(UInt16.max))
+		}
+		return SwiftTerm.Color(red: component(red), green: component(green), blue: component(blue))
+	}
+
 	private var colorCache = [Attribute.Color: UIColor]()
 
 	public init(theme: AppTheme) {
