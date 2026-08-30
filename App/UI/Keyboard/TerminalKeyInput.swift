@@ -222,10 +222,10 @@ class TerminalKeyInput: TextInputBase {
 		guard let window = toolbar.window else {
 			return
 		}
-		// Only the bottom of the bar — the row that is always there. What a toggle opened sits above it
-		// and is meant to cover the terminal, not push it.
+		// The whole bar, and the whole bar floats: keys sit over the terminal rather than taking rows
+		// from it. Only the keyboard below them is allowed to make the terminal smaller.
 		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
-		let top = barFrame.maxY - toolbar.baseHeight
+		let top = barFrame.minY
 		let keyboardFrame = CGRect(x: barFrame.minX,
 															 y: top,
 															 width: barFrame.width,
@@ -233,16 +233,16 @@ class TerminalKeyInput: TextInputBase {
 		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
 																		object: self,
 																		userInfo: [Self.accessoryFrameKey: keyboardFrame,
-																							 Self.accessoryFloatingKey: toolbar.floatingHeight])
+																							 Self.accessoryFloatingKey: barFrame.height])
 	}
 
 	static let accessoryHeightDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryHeightDidChange")
 	static let accessoryHeightDeltaKey = "delta"
 	static let accessoryFrameDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryFrameDidChange")
 	static let accessoryFrameKey = "frame"
-	/// How much of the bar is rows a toggle opened. Those cover the terminal instead of shrinking it,
-	/// so whoever lays out around the keyboard has to take them back off the overlap UIKit reports —
-	/// UIKit's own keyboard frame describes the whole bar.
+	/// How much of what UIKit reports as the keyboard is really the bar. All of it floats over the
+	/// terminal rather than shrinking it, so whoever lays out around the keyboard takes it back off the
+	/// overlap — UIKit's own keyboard frame counts the bar as part of the keyboard.
 	static let accessoryFloatingKey = "floating"
 
 	/// Landscape on iPhone. iPad keeps the accessory bar — it has the height to spare, and its keys

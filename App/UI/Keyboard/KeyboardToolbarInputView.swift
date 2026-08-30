@@ -34,7 +34,10 @@ class KeyboardToolbarInputView: UIInputView {
 
 	init(delegate: KeyboardToolbarViewDelegate?, toolbars: [Toolbar], state: KeyboardToolbarViewState) {
 		self.state = state
-		super.init(frame: .zero, inputViewStyle: .keyboard)
+		// `.default`, not `.keyboard`: the keyboard style paints the system's backdrop behind the whole
+		// bar, and a row of keys on one slab reads as a single block rather than as separate buttons.
+		// Each key already carries its own background.
+		super.init(frame: .zero, inputViewStyle: .default)
 
 		translatesAutoresizingMaskIntoConstraints = false
 		allowsSelfSizing = true

@@ -351,6 +351,10 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		// drawn over the terminal's last lines. Captured at 30fps: the row appeared on top of the
 		// output for two frames before the text reflowed out from under it.
 		keyboardHeight += delta
+		// And onto the floating part, where it cancels: every row of the bar covers the terminal rather
+		// than shrinking it, so opening or closing one leaves the terminal exactly where it was. The
+		// authoritative frame follows a turn later and settles any drift.
+		floatingAccessoryHeight += delta
 		applyKeyboardInsets(animationDuration: 0, curve: nil)
 	}
 
@@ -365,8 +369,8 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		apply(keyboardFrame: frame, animationDuration: 0, curve: nil)
 	}
 
-	/// The rows a toggle opened. UIKit's keyboard frame describes the whole bar, and these are meant to
-	/// cover the terminal rather than shrink it, so they come back off.
+	/// The bar. UIKit's keyboard frame counts it as part of the keyboard, and it is meant to cover the
+	/// terminal rather than shrink it, so it comes back off.
 	private var floatingAccessoryHeight: CGFloat = 0
 
 	private func apply(keyboardFrame: CGRect, animationDuration: TimeInterval, curve: UInt?) {
