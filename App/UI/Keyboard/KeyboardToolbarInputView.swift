@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import NewTermCommon
 import Combine
 import SwiftUIX
 
@@ -41,6 +42,8 @@ class KeyboardToolbarInputView: UIInputView {
 
 		translatesAutoresizingMaskIntoConstraints = false
 		allowsSelfSizing = true
+		backgroundColor = .clear
+		isOpaque = false
 
 		var view = KeyboardToolbarView(delegate: delegate, toolbars: toolbars)
 		// Deferred a turn: `onChange` runs inside SwiftUI's update, and re-entering UIKit layout from
@@ -71,6 +74,12 @@ class KeyboardToolbarInputView: UIInputView {
 		// changes as the bar resizes.
 		hostingView._disableSafeAreaInsets()
 		addSubview(hostingView)
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+			guard let self = self else { return }
+			let names = self.subviews.map { "\(NSStringFromClass(type(of: $0)))(hidden=\($0.isHidden),bg=\(String(describing: $0.backgroundColor)))" }
+			DeviceLog.write("bar subviews: \(names.joined(separator: " | ")) selfBG=\(String(describing: self.backgroundColor))")
+		}
 
 		NSLayoutConstraint.activate([
 			hostingView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
@@ -138,7 +147,20 @@ class KeyboardToolbarInputView: UIInputView {
 
 	override func layoutSubviews() {
 		super.layoutSubviews()
+		hideBackdrop()
 		updateHeight()
+	}
+
+	/// `.default` is documented as having no background, and on some releases that is all it takes. On
+	/// others UIKit still puts its own backdrop in — the slab that made a row of keys read as one
+	/// block rather than as separate buttons. It isn't exposed, so it is found by name and hidden.
+	private func hideBackdrop() {
+		for subview in subviews where subview !== hostingView {
+			let name = NSStringFromClass(type(of: subview))
+			if name.contains("Backdrop") || name.contains("Background") || name.contains("Visual") {
+				subview.isHidden = true
+			}
+		}
 	}
 
 	override func safeAreaInsetsDidChange() {

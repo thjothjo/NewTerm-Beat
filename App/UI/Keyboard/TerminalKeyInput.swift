@@ -142,11 +142,11 @@ class TerminalKeyInput: TextInputBase {
 																					name: UITextInputMode.currentInputModeDidChangeNotification,
 																					object: nil)
 		NotificationCenter.default.addObserver(self,
-																					selector: #selector(self.keyboardDidHide),
+																					selector: #selector(self.keyboardDidHide(_:)),
 																					name: UIResponder.keyboardDidHideNotification,
 																					object: nil)
 		NotificationCenter.default.addObserver(self,
-																					selector: #selector(self.keyboardDidShow),
+																					selector: #selector(self.keyboardDidShow(_:)),
 																					name: UIResponder.keyboardDidShowNotification,
 																					object: nil)
 	}
@@ -293,6 +293,7 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Brings the real keyboard back, from wherever it went.
 	func showKeyboard() {
+		DeviceLog.write("showKeyboard hidden=\(isKeyboardHidden) onScreen=\(isKeyboardOnScreen) fr=\(isFirstResponder) docked=\(wantsDockedBar)")
 		if isKeyboardHidden {
 			// Standing down behind the docked bar: swapping the stand-in back out is enough.
 			isKeyboardHidden = false
@@ -315,18 +316,22 @@ class TerminalKeyInput: TextInputBase {
 		// back once UIKit has taken it away, so give the responder up and take it again.
 		isRaisingKeyboard = true
 		_ = super.resignFirstResponder()
-		_ = becomeFirstResponder()
+		let became = becomeFirstResponder()
 		isRaisingKeyboard = false
+		DeviceLog.write("showKeyboard recovery became=\(became) fr=\(isFirstResponder)")
 	}
 
-	@objc private func keyboardDidShow() {
+	@objc private func keyboardDidShow(_ notification: Notification) {
+		let frame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+		DeviceLog.write("didShow h=\(frame.height) hidden=\(isKeyboardHidden) fr=\(isFirstResponder)")
 		// The stand-in has no height, so its arrival is reported the same way. That isn't a keyboard.
 		if !isKeyboardHidden {
 			isKeyboardOnScreen = true
 		}
 	}
 
-	@objc private func keyboardDidHide() {
+	@objc private func keyboardDidHide(_ notification: Notification) {
+		DeviceLog.write("didHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
 		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its

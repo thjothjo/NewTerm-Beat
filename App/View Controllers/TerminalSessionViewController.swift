@@ -584,15 +584,18 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		// A tap while something is selected just dismisses the selection, the same as any other text
 		// view — it shouldn’t also follow whatever link happens to be underneath.
 		if state.selection != nil {
+			DeviceLog.write("tap -> cleared selection, no keyboard")
 			clearSelection()
 			return
 		}
 
 		if let cell = cell(at: gestureRecognizer.location(in: textView)),
 			 openItem(atRow: cell.row, column: cell.col) {
+			DeviceLog.write("tap -> opened item, no keyboard")
 			return
 		}
 
+		DeviceLog.write("tap selection=\(state.selection != nil) hidden=\(keyInput.isKeyboardHidden) onScreen=\(keyInput.isKeyboardOnScreen) fr=\(keyInput.isFirstResponder)")
 		// Whichever way the keyboard went away — docked behind the bar, dismissed by dragging the
 		// terminal down — tapping asks for it back.
 		let wasFirstResponder = keyInput.isFirstResponder
@@ -939,6 +942,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Nothing is run automatically. Starting an agent, or sending it a prompt, is worth a glance
 	/// before committing to — and a slash command is nearly always followed by an argument anyway.
 	private func insertAICommand(_ command: AICommand) {
+		DeviceLog.write("insertAICommand fr=\(keyInput.isFirstResponder) hidden=\(keyInput.isKeyboardHidden) onScreen=\(keyInput.isKeyboardOnScreen)")
 		// Deliberately types and nothing more. Clearing the line first — ^U, the shell's own kill-line
 		// — looked right and was not: not every shell binds it, and in one that doesn't it goes to the
 		// program as a control byte with results nobody wants. Two personas in a row concatenating is

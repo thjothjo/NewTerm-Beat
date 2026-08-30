@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		4EW5000000000000000002 /* SettingsAIShortcutsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW5000000000000000001 /* SettingsAIShortcutsView.swift */; };
 		4EW4000000000000000002 /* AIShortcutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW4000000000000000001 /* AIShortcutStore.swift */; };
+		4EW6000000000000000002 /* SSHKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW6000000000000000001 /* SSHKeys.swift */; };
+		4EW7000000000000000002 /* SettingsSSHView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW7000000000000000001 /* SettingsSSHView.swift */; };
 		4EW3000000000000000001 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
 		4EW2000000000000000004 /* TerminalActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000003 /* TerminalActivityController.swift */; };
 		4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
@@ -82,6 +84,7 @@
 		CF6B3BAA244C4538000A608B /* LogoHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6B3BA9244C4537000A608B /* LogoHeaderView.swift */; };
 		CF71BC9322BB6DEA00AFB1E1 /* NewTermCommon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF71BC8422BB6DBA00AFB1E1 /* NewTermCommon.framework */; };
 		CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBB96C322B5481B00585BE6 /* Preferences.swift */; };
+		DE00000000000000000001 /* DeviceLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE00000000000000000002 /* DeviceLog.swift */; };
 		4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10012A0100010000ABCD /* ProjectManager.swift */; };
 		4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10032A0100030000ABCD /* SessionStore.swift */; };
 		4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAA10052A0100050000ABCD /* ScrollbackStore.swift */; };
@@ -190,6 +193,8 @@
 /* Begin PBXFileReference section */
 		4EW5000000000000000001 /* SettingsAIShortcutsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAIShortcutsView.swift; sourceTree = "<group>"; };
 		4EW4000000000000000001 /* AIShortcutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIShortcutStore.swift; sourceTree = "<group>"; };
+		4EW6000000000000000001 /* SSHKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeys.swift; sourceTree = "<group>"; };
+		4EW7000000000000000001 /* SettingsSSHView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSSHView.swift; sourceTree = "<group>"; };
 		4EW2000000000000000003 /* TerminalActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityController.swift; sourceTree = "<group>"; };
 		4EW2000000000000000001 /* TerminalActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityAttributes.swift; sourceTree = "<group>"; };
 		4EW1000000000000000002 /* NewTermWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NewTermWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -281,6 +286,7 @@
 		CFBB96C022B5481B00585BE6 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CFBB96C222B5481B00585BE6 /* SubProcess.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubProcess.swift; sourceTree = "<group>"; };
 		CFBB96C322B5481B00585BE6 /* Preferences.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		DE00000000000000000002 /* DeviceLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLog.swift; sourceTree = "<group>"; };
 		4EAA10012A0100010000ABCD /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
 		4EAA10032A0100030000ABCD /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4EAA10052A0100050000ABCD /* ScrollbackStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackStore.swift; sourceTree = "<group>"; };
@@ -441,11 +447,13 @@
 				4EW4000000000000000001 /* AIShortcutStore.swift */,
 				4EW2000000000000000003 /* TerminalActivityController.swift */,
 				CFBB96C322B5481B00585BE6 /* Preferences.swift */,
+				DE00000000000000000002 /* DeviceLog.swift */,
 				4EAA10012A0100010000ABCD /* ProjectManager.swift */,
 				4EAA10032A0100030000ABCD /* SessionStore.swift */,
 				4EAA10052A0100050000ABCD /* ScrollbackStore.swift */,
 				4EAA10312A0100310000DEAD /* AICatalog.swift */,
 				4EAA10212A0100210000CAFE /* SSHConfig.swift */,
+				4EW6000000000000000001 /* SSHKeys.swift */,
 				4EAA10112A0100110000BEEF /* OrphanReaper.swift */,
 				CFBB96C222B5481B00585BE6 /* SubProcess.swift */,
 				CFBB96C522B5481B00585BE6 /* TerminalController.swift */,
@@ -505,6 +513,7 @@
 				4E5E817426F2EBE000C4DB6D /* SettingsPerformanceView.swift */,
 				4EAA100126F2EBE000C4DB70 /* SettingsICloudView.swift */,
 				4EW5000000000000000001 /* SettingsAIShortcutsView.swift */,
+				4EW7000000000000000001 /* SettingsSSHView.swift */,
 				4E1028D0275C4BD9001A34AB /* SettingsAdvancedView.swift */,
 				4E980827261879D200E41883 /* SettingsAboutView.swift */,
 				4E0A979F2685CDE30022F569 /* SettingsAcknowledgementsView.swift */,
@@ -883,11 +892,13 @@
 				4EBBCB0D2886C1BE002EAE00 /* Darwin+Additions.swift in Sources */,
 				CF71BCF122BB8AAB00AFB1E1 /* FontMetrics.swift in Sources */,
 				CF71BC9722BB6E0300AFB1E1 /* Preferences.swift in Sources */,
+				DE00000000000000000001 /* DeviceLog.swift in Sources */,
 				4EAA10022A0100020000ABCD /* ProjectManager.swift in Sources */,
 				4EAA10042A0100040000ABCD /* SessionStore.swift in Sources */,
 				4EAA10062A0100060000ABCD /* ScrollbackStore.swift in Sources */,
 				4EAA10322A0100320000DEAD /* AICatalog.swift in Sources */,
 				4EAA10222A0100220000CAFE /* SSHConfig.swift in Sources */,
+				4EW6000000000000000002 /* SSHKeys.swift in Sources */,
 				4EAA10122A0100120000BEEF /* OrphanReaper.swift in Sources */,
 				CF71BC9822BB6E0300AFB1E1 /* SubProcess.swift in Sources */,
 				4E9FB97526172293005AFCC8 /* StringSupplier.swift in Sources */,
@@ -937,6 +948,7 @@
 				4E5E817526F2EBE000C4DB6D /* SettingsPerformanceView.swift in Sources */,
 				4EAA100226F2EBE000C4DB70 /* SettingsICloudView.swift in Sources */,
 				4EW5000000000000000002 /* SettingsAIShortcutsView.swift in Sources */,
+				4EW7000000000000000002 /* SettingsSSHView.swift in Sources */,
 				CFBB96CD22B5481B00585BE6 /* TerminalKeyInput.swift in Sources */,
 				4E9FB99426184356005AFCC8 /* SettingsView.swift in Sources */,
 				4E460129261FF23F004DBCC2 /* SettingsSceneDelegate.swift in Sources */,
