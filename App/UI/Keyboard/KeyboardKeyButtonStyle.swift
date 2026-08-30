@@ -41,11 +41,11 @@ struct KeyboardKeyButtonStyle: ButtonStyle {
 			.animation(nil)
 	}
 
-	/// A frosted key rather than a flat grey one.
+	/// An outline, with nothing behind it.
 	///
-	/// The old fill was a fixed grey per appearance, which floated over the terminal without belonging
-	/// to it. Blurring what is behind the key ties the two together, and the hairline is what stops
-	/// the keys dissolving into the bar on a light theme.
+	/// The keys used to be frosted. Against a light terminal that fill is a pale grey, and with 5pt
+	/// between keys the row read as one continuous band across the bottom of the screen rather than as
+	/// separate buttons. Without it each key is just its outline over whatever the terminal is showing.
 	@ViewBuilder
 	private func background<S: InsettableShape>(shape: S, isPressed: Bool) -> some View {
 		if selected {
@@ -53,10 +53,11 @@ struct KeyboardKeyButtonStyle: ButtonStyle {
 				.fill(Color.accentColor)
 				.overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: Design.stroke))
 		} else {
-			Design.glass(shape)
+			shape
 				// Pressed lightens on a dark keyboard and darkens on a light one, because it is the label
 				// colour that inverts between them.
-				.overlay(shape.fill(Color.primary.opacity(isPressed ? 0.18 : 0)))
+				.fill(Color.primary.opacity(isPressed ? 0.18 : 0))
+				.overlay(shape.strokeBorder(Color.primary.opacity(0.22), lineWidth: Design.stroke))
 				.shadow(color: shadow ? .black.opacity(0.25) : .clear,
 								radius: shadow ? 1.5 : 0,
 								x: 0,
