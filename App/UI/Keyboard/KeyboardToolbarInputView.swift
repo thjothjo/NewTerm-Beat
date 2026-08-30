@@ -124,7 +124,9 @@ class KeyboardToolbarInputView: UIInputView {
 	/// Renders what the phone is actually showing into the app's preferences. There is no way to take
 	/// a screenshot of the device from outside it, and every file path the app tries is refused.
 	private func captureDiagnosticShots() {
-		guard bounds.width > 0, bounds.height > 0 else {
+		// Only the bar that is actually laid out. There is one of these per tab and they all fire; the
+		// ones belonging to tabs that were never on screen are a few points across.
+		guard bounds.width > 200, bounds.height > 20, window != nil else {
 			return
 		}
 		let barImage = UIGraphicsImageRenderer(bounds: bounds).image { _ in
@@ -132,6 +134,20 @@ class KeyboardToolbarInputView: UIInputView {
 		}
 		if let data = barImage.pngData() {
 			DeviceLog.shot("bar", data)
+		}
+
+		// The window the bar lives in, on its own. If the grey band is here but not in the bar's own
+		// snapshot, it is painted by the views UIKit wraps the accessory in rather than by us.
+		if let barWindow = window {
+			let format = UIGraphicsImageRendererFormat.default()
+			format.scale = 1
+			let image = UIGraphicsImageRenderer(bounds: barWindow.bounds, format: format).image { _ in
+				barWindow.drawHierarchy(in: barWindow.bounds, afterScreenUpdates: true)
+			}
+			if let data = image.pngData() {
+				DeviceLog.shot("barwindow", data)
+			}
+			DeviceLog.write("bar window: \(NSStringFromClass(type(of: barWindow))) frame=\(barWindow.frame) bar frame=\(convert(bounds, to: nil))")
 		}
 
 		// Every window in the scene, bottom to top: the bar lives in the keyboard's window, the
