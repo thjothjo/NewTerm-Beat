@@ -145,10 +145,6 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.keyboardDidHide(_:)),
 																					name: UIResponder.keyboardDidHideNotification,
 																					object: nil)
-		NotificationCenter.default.addObserver(self,
-																					selector: #selector(self.keyboardDidShow(_:)),
-																					name: UIResponder.keyboardDidShowNotification,
-																					object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -279,13 +275,19 @@ class TerminalKeyInput: TextInputBase {
 
 	override var inputView: UIView? { isKeyboardHidden ? hiddenInputView : nil }
 
-	/// Whether the system keyboard is actually on screen.
+	/// Whether the system keyboard is on screen, measured rather than remembered.
 	///
-	/// Tracked from the notifications rather than read off first-responder state, because the two can
-	/// disagree: the keyboard can go away while this view stays the first responder, and then nothing
-	/// in `keyboardDidHide` fires, `isKeyboardHidden` stays false, and tapping the terminal found
-	/// itself already the first responder and did nothing at all. The keyboard never came back.
-	private(set) var isKeyboardOnScreen = false
+	/// The bar sits on top of the keyboard, so with one up the bar's bottom edge is a keyboard's
+	/// height clear of the bottom of the window; docked on its own it reaches the bottom. Reading it
+	/// this way can't go stale. Tracking it from the notifications did: the bar reports itself as a
+	/// keyboard when it docks, which set the flag with nothing on screen, and nothing ever cleared it
+	/// — so every tap after that decided the keyboard was already there and did nothing at all.
+	var isKeyboardOnScreen: Bool {
+		guard let window = toolbar.window, toolbar.bounds.height > 0 else {
+			return false
+		}
+		return toolbar.convert(toolbar.bounds, to: nil).maxY < window.bounds.maxY - 1
+	}
 
 	/// Set while deliberately handing the responder back and taking it again, so the hide that
 	/// produces isn't mistaken for the user dismissing the keyboard.
@@ -330,21 +332,6 @@ class TerminalKeyInput: TextInputBase {
 		}
 	}
 
-	@objc private func keyboardDidShow(_ notification: Notification) {
-		let frame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-		// What UIKit calls the keyboard includes the accessory bar, and when the bar is docked on its
-		// own that is all it is — the stand-in behind it has no height. So a report no taller than the
-		// bar is not a keyboard. Reading one as a keyboard latched this on with nothing on screen, and
-		// every tap after that decided the keyboard was already there and did nothing at all.
-		let barHeight = inputAccessoryView?.bounds.height ?? 0
-		let isReal = frame.height > barHeight + 1
-		DeviceLog.write("didShow h=\(frame.height) bar=\(barHeight) real=\(isReal) hidden=\(isKeyboardHidden) fr=\(isFirstResponder)")
-		// Only for the responder that owns the bar. The notification goes to every tab, and the five
-		// that aren't on screen have no accessory to measure against.
-		if isFirstResponder {
-			isKeyboardOnScreen = isReal && !isKeyboardHidden
-		}
-	}
 
 	@objc private func keyboardDidHide(_ notification: Notification) {
 		DeviceLog.write("didHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
@@ -352,7 +339,6 @@ class TerminalKeyInput: TextInputBase {
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
 		// arrival as the keyboard hiding too.
-		isKeyboardOnScreen = false
 		guard !isRaisingKeyboard,
 					wantsDockedBar,
 					!isKeyboardHidden,

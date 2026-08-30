@@ -2,23 +2,19 @@
 //  DeviceLog.swift
 //  NewTerm Common
 //
-//  Temporary on-device instrumentation. Writes to a file because the phone has no console we can
-//  read over SSH while the app is in the user's hands.
+//  Temporary on-device instrumentation. Goes into the app's own preferences, because that is the one
+//  place on the phone the app is demonstrably able to write — measured, every file path tried,
+//  including its own temporary directory, was refused.
 //
 
 import Foundation
 
 public enum DeviceLog {
 
-	/// Tried in order. The first one that accepts a write is kept.
-	public static let paths = ["/var/mobile/.newterm/debug.log",
-														 "/var/mobile/newterm-beat.log",
-														 "/var/tmp/newterm-beat.log",
-														 NSTemporaryDirectory() + "newterm-beat.log"]
-
-	private static var resolvedPath: String?
+	public static let defaultsKey = "debugLog"
 
 	private static let queue = DispatchQueue(label: "ws.hbang.Terminal.devicelog")
+	private static var buffer = [String]()
 	private static let formatter: DateFormatter = {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "HH:mm:ss.SSS"
@@ -26,25 +22,20 @@ public enum DeviceLog {
 	}()
 
 	public static func write(_ message: @autoclosure () -> String) {
-		let line = "\(formatter.string(from: Date())) \(message())\n"
+		let line = "\(formatter.string(from: Date())) \(message())"
 		queue.async {
-			guard let data = line.data(using: .utf8) else {
-				return
+			buffer.append(line)
+			if buffer.count > 300 {
+				buffer.removeFirst(buffer.count - 300)
 			}
-			for path in resolvedPath.map({ [$0] }) ?? paths {
-				let url = URL(fileURLWithPath: path)
-				if let handle = try? FileHandle(forWritingTo: url) {
-					handle.seekToEndOfFile()
-					handle.write(data)
-					try? handle.close()
-					resolvedPath = path
-					return
-				}
-				if (try? data.write(to: url)) != nil {
-					resolvedPath = path
-					return
-				}
-			}
+			UserDefaults.standard.set(buffer, forKey: defaultsKey)
+		}
+	}
+
+	public static func reset() {
+		queue.async {
+			buffer.removeAll()
+			UserDefaults.standard.removeObject(forKey: defaultsKey)
 		}
 	}
 }
