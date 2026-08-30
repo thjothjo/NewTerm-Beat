@@ -231,11 +231,19 @@ class KeyboardToolbarInputView: UIInputView {
 			clearBackdrop(subview)
 		}
 
-		// The slab isn't ours. Captured on the phone: the bar's own children are two empty
-		// `_UIInputViewContent`, every background nil, and the grey is still there behind the keys —
-		// it belongs to the views UIKit puts the accessory *into*. Those are above us in the tree, so
-		// clearing our own subviews never reached them.
-		var ancestor = superview
+		// The band isn't ours, and it isn't any ancestor's background either. UIKit puts a
+		// `UIKBInputBackdropView` *beside* the bar in the same host view, at exactly the bar's size,
+		// and that is what paints it. Captured on the phone: the bar's own snapshot is transparent
+		// while its window's has the grey band in the bar's rect.
+		guard let host = superview else {
+			return
+		}
+		for sibling in host.subviews where sibling !== self {
+			if NSStringFromClass(type(of: sibling)).contains("Backdrop") {
+				sibling.isHidden = true
+			}
+		}
+		var ancestor: UIView? = host
 		while let view = ancestor, !(view is UIWindow) {
 			if NSStringFromClass(type(of: view)).contains("Input") {
 				view.backgroundColor = .clear
