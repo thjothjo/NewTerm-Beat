@@ -102,7 +102,7 @@ struct TerminalView: View {
 					.onChange(of: state.revision, perform: { _ in followOutput(scrollView) })
 					// The keyboard appearing or the device rotating. Scrolling never changes the size of
 					// the viewport, only the offset within it.
-					.onChange(of: outer.size, perform: { _ in followOutput(scrollView) })
+					.onChange(of: outer.size, perform: { size in followOutput(scrollView, viewportHeight: size.height) })
 					// Coming back from the background, SwiftUI hands the scroll view back at the top.
 					.onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
 						followOutput(scrollView)
@@ -176,9 +176,19 @@ struct TerminalView: View {
 	}
 
 	/// Pins the view to the newest output, if the user hasn’t scrolled up to read something.
-	private func followOutput(_ scrollView: ScrollViewProxy) {
+	private func followOutput(_ scrollView: ScrollViewProxy, viewportHeight: CGFloat? = nil) {
 		guard followsOutput,
 					let last = state.lines.indices.last else {
+			return
+		}
+		// Nothing to follow while it all fits: the last line is on screen already. Asking to scroll to
+		// it anyway is what pushed a short session up off the top of the screen as the keyboard took
+		// the room away, and snapped it back when the keyboard left. Left alone, the content simply
+		// stays where it is and rides the safe-area animation down with the keyboard.
+		//
+		// Measured against the viewport the change is bringing in, not the one on record — the two
+		// disagree for exactly the layout pass this runs in.
+		guard state.lastContentHeight > (viewportHeight ?? state.lastViewportHeight) else {
 			return
 		}
 		scrollView.scrollTo(last, anchor: .bottom)

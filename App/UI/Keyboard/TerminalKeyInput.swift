@@ -145,6 +145,10 @@ class TerminalKeyInput: TextInputBase {
 																					selector: #selector(self.keyboardDidHide),
 																					name: UIResponder.keyboardDidHideNotification,
 																					object: nil)
+		NotificationCenter.default.addObserver(self,
+																					selector: #selector(self.keyboardDidShow),
+																					name: UIResponder.keyboardDidShowNotification,
+																					object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -275,15 +279,50 @@ class TerminalKeyInput: TextInputBase {
 
 	override var inputView: UIView? { isKeyboardHidden ? hiddenInputView : nil }
 
-	/// Brings the real keyboard back.
+	/// Whether the system keyboard is actually on screen.
+	///
+	/// Tracked from the notifications rather than read off first-responder state, because the two can
+	/// disagree: the keyboard can go away while this view stays the first responder, and then nothing
+	/// in `keyboardDidHide` fires, `isKeyboardHidden` stays false, and tapping the terminal found
+	/// itself already the first responder and did nothing at all. The keyboard never came back.
+	private(set) var isKeyboardOnScreen = false
+
+	/// Set while deliberately handing the responder back and taking it again, so the hide that
+	/// produces isn't mistaken for the user dismissing the keyboard.
+	private var isRaisingKeyboard = false
+
+	/// Brings the real keyboard back, from wherever it went.
 	func showKeyboard() {
-		guard isKeyboardHidden else {
+		if isKeyboardHidden {
+			// Standing down behind the docked bar: swapping the stand-in back out is enough.
+			isKeyboardHidden = false
+			reloadInputViews()
+			if !isFirstResponder {
+				_ = becomeFirstResponder()
+			}
 			return
 		}
-		isKeyboardHidden = false
-		reloadInputViews()
-		if !isFirstResponder {
+
+		guard !isKeyboardOnScreen else {
+			return
+		}
+		guard isFirstResponder else {
 			_ = becomeFirstResponder()
+			return
+		}
+
+		// Still the first responder, but with no keyboard. Reloading the input views doesn't bring one
+		// back once UIKit has taken it away, so give the responder up and take it again.
+		isRaisingKeyboard = true
+		_ = super.resignFirstResponder()
+		_ = becomeFirstResponder()
+		isRaisingKeyboard = false
+	}
+
+	@objc private func keyboardDidShow() {
+		// The stand-in has no height, so its arrival is reported the same way. That isn't a keyboard.
+		if !isKeyboardHidden {
+			isKeyboardOnScreen = true
 		}
 	}
 
@@ -292,7 +331,9 @@ class TerminalKeyInput: TextInputBase {
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
 		// arrival as the keyboard hiding too.
-		guard wantsDockedBar,
+		isKeyboardOnScreen = false
+		guard !isRaisingKeyboard,
+					wantsDockedBar,
 					!isKeyboardHidden,
 					let window = window,
 					window.rootViewController?.presentedViewController == nil,

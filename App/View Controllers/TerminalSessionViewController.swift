@@ -593,11 +593,11 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			return
 		}
 
-		if keyInput.isKeyboardHidden {
-			// The bar stayed docked while the keyboard was away; tapping the terminal asks for it back.
-			keyInput.showKeyboard()
-		} else if !keyInput.isFirstResponder {
-			keyInput.becomeFirstResponder()
+		// Whichever way the keyboard went away — docked behind the bar, dismissed by dragging the
+		// terminal down — tapping asks for it back.
+		let wasFirstResponder = keyInput.isFirstResponder
+		keyInput.showKeyboard()
+		if !wasFirstResponder {
 			delegate?.terminalDidBecomeActive(viewController: self)
 		}
 	}
