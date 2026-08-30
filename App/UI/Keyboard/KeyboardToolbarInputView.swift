@@ -88,6 +88,13 @@ class KeyboardToolbarInputView: UIInputView {
 				}
 				return out
 			}
+			var chain = [String]()
+			var ancestor: UIView? = self.superview
+			while let view = ancestor {
+				chain.append("\(NSStringFromClass(type(of: view)))(bg=\(String(describing: view.backgroundColor)),opaque=\(view.isOpaque))")
+				ancestor = view.superview
+			}
+			DeviceLog.write("bar ancestors: \(chain.joined(separator: " < "))")
 			let names = self.subviews.flatMap { describe($0, depth: 1) }
 			DeviceLog.write("bar tree:\n\(names.joined(separator: "\n")) selfBG=\(String(describing: self.backgroundColor))")
 		}
@@ -199,6 +206,18 @@ class KeyboardToolbarInputView: UIInputView {
 	private func hideBackdrop() {
 		for subview in subviews where subview !== hostingView {
 			clearBackdrop(subview)
+		}
+
+		// The slab isn't ours. Captured on the phone: the bar's own children are two empty
+		// `_UIInputViewContent`, every background nil, and the grey is still there behind the keys —
+		// it belongs to the views UIKit puts the accessory *into*. Those are above us in the tree, so
+		// clearing our own subviews never reached them.
+		var ancestor = superview
+		while let view = ancestor, !(view is UIWindow) {
+			if NSStringFromClass(type(of: view)).contains("Input") {
+				view.backgroundColor = .clear
+			}
+			ancestor = view.superview
 		}
 	}
 

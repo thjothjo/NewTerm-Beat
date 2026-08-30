@@ -143,7 +143,7 @@ class TerminalKeyInput: TextInputBase {
 																					object: nil)
 		NotificationCenter.default.addObserver(self,
 																					selector: #selector(self.keyboardDidHide(_:)),
-																					name: UIResponder.keyboardDidHideNotification,
+																					name: UIResponder.keyboardWillHideNotification,
 																					object: nil)
 		NotificationCenter.default.addObserver(self,
 																					selector: #selector(self.keyboardWillShow(_:)),
@@ -371,7 +371,7 @@ class TerminalKeyInput: TextInputBase {
 	}
 
 	@objc private func keyboardDidHide(_ notification: Notification) {
-		DeviceLog.write("[\(logID)] didHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
+		DeviceLog.write("[\(logID)] willHide hidden=\(isKeyboardHidden) fr=\(isFirstResponder) docked=\(wantsDockedBar) raising=\(isRaisingKeyboard) presented=\(window?.rootViewController?.presentedViewController != nil)")
 		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
 		// view controller's own lifecycle alone, so without the second check the bar came back docked
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
@@ -381,12 +381,18 @@ class TerminalKeyInput: TextInputBase {
 					isOnScreen,
 					!isKeyboardHidden,
 					let window = window,
-					window.rootViewController?.presentedViewController == nil,
-					!isFirstResponder else {
+					window.rootViewController?.presentedViewController == nil else {
 			return
 		}
+		// Swapped while the keyboard is still on its way down, so the bar rides it to the bottom and
+		// stays. Waiting for it to have gone meant the bar left with the keyboard and popped back half
+		// a second later — measured on the phone, 594ms of no bar at all.
 		isKeyboardHidden = true
-		_ = becomeFirstResponder()
+		if isFirstResponder {
+			reloadInputViews()
+		} else {
+			_ = becomeFirstResponder()
+		}
 	}
 
 	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
