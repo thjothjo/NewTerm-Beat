@@ -22,13 +22,36 @@ open class StringSupplier {
 	/// but the emoji font renders them at roughly 2.3× the monospace advance, so they would spill
 	/// over neighbouring cells and off-screen.
 	private static let minimumGlyphScale: CGFloat = 0.4
+	/// Near-theme full-row fills read as mismatched strips rather than useful terminal state.
+	/// ponytail: Keep the fixed threshold until a program exposes semantic roles for these rows.
+	private static let subtleBackgroundDifference: CGFloat = 16 / 255
 
 	open var terminal: Terminal!
 	open var colorMap: ColorMap!
 	open var fontMetrics: FontMetrics!
 	open var cursorVisible = true
 
-	public init() {}
+	public init() {
+		#if DEBUG
+		assert(Self.isSubtleVariant(UIColor(white: 244 / 255, alpha: 1), of: .white))
+		assert(Self.isSubtleVariant(.white, of: UIColor(white: 244 / 255, alpha: 1)))
+		assert(!Self.isSubtleVariant(UIColor(red: 0, green: 120 / 255, blue: 1, alpha: 1), of: .white))
+		#endif
+	}
+
+	private static func isSubtleVariant(_ color: UIColor, of background: UIColor) -> Bool {
+		var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+		var backgroundRed: CGFloat = 0, backgroundGreen: CGFloat = 0, backgroundBlue: CGFloat = 0, backgroundAlpha: CGFloat = 0
+		guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha),
+					background.getRed(&backgroundRed, green: &backgroundGreen, blue: &backgroundBlue, alpha: &backgroundAlpha) else {
+			return false
+		}
+		let difference = Self.subtleBackgroundDifference
+		return abs(red - backgroundRed) <= difference
+			&& abs(green - backgroundGreen) <= difference
+			&& abs(blue - backgroundBlue) <= difference
+			&& abs(alpha - backgroundAlpha) <= difference
+	}
 
 	/// Whether a row holds nothing worth drawing.
 	///
@@ -73,6 +96,21 @@ open class StringSupplier {
 
 		let cursorPosition = terminal.getCursorLocation()
 		let scrollbackRows = terminal.getTopVisibleRow()
+		let inheritsSubtleRowBackground: Bool = {
+			guard terminal.cols > 0 else {
+				return false
+			}
+			let background = line[0].attribute.bg
+			guard background != .defaultColor,
+						(0..<terminal.cols).allSatisfy({ column in
+							let attribute = line[column].attribute
+							return attribute.bg == background && !attribute.style.contains(.inverse)
+						}) else {
+				return false
+			}
+			let renderedBackground = colorMap.color(for: background, isForeground: false)
+			return Self.isSubtleVariant(renderedBackground, of: colorMap.background)
+		}()
 
 		var lastAttribute = Attribute.empty
 		var views = [AnyView]()
@@ -93,7 +131,8 @@ open class StringSupplier {
 			if isCursor || lastAttribute != data.attribute {
 				// Finish up the last run by appending it to the attributed string, then reset for the
 				// next run.
-				views.append(text(buffer, cols: bufferCols, attribute: lastAttribute))
+				views.append(text(buffer, cols: bufferCols, attribute: lastAttribute,
+												 inheritsBackground: inheritsSubtleRowBackground))
 				lastAttribute = data.attribute
 				buffer.removeAll()
 				bufferCols = 0
@@ -108,11 +147,14 @@ open class StringSupplier {
 			// framing pins every glyph to the grid the rest of the app measures against.
 			if cellCols > 1 {
 				if !buffer.isEmpty {
-					views.append(text(buffer, cols: bufferCols, attribute: lastAttribute))
+					views.append(text(buffer, cols: bufferCols, attribute: lastAttribute,
+													 inheritsBackground: inheritsSubtleRowBackground))
 					buffer.removeAll()
 					bufferCols = 0
 				}
-				views.append(text(String(character), cols: cellCols, attribute: lastAttribute, isCursor: isCursor, isWide: true))
+				views.append(text(String(character), cols: cellCols, attribute: lastAttribute,
+												 isCursor: isCursor, isWide: true,
+												 inheritsBackground: inheritsSubtleRowBackground))
 				j += cellCols
 				continue
 			}
@@ -121,7 +163,8 @@ open class StringSupplier {
 			bufferCols += cellCols
 
 			if isCursor {
-				views.append(text(buffer, cols: bufferCols, attribute: lastAttribute, isCursor: true))
+				views.append(text(buffer, cols: bufferCols, attribute: lastAttribute, isCursor: true,
+												 inheritsBackground: inheritsSubtleRowBackground))
 				buffer.removeAll()
 				bufferCols = 0
 			}
@@ -130,14 +173,20 @@ open class StringSupplier {
 		}
 
 		// Append the final run
-		views.append(text(buffer, cols: bufferCols, attribute: lastAttribute))
+		views.append(text(buffer, cols: bufferCols, attribute: lastAttribute,
+								 inheritsBackground: inheritsSubtleRowBackground))
 
 		return AnyView(HStack(alignment: .firstTextBaseline, spacing: 0) {
 			views.reduce(AnyView(EmptyView()), { $0 + $1 })
 		})
 	}
 
-	private func text(_ run: String, cols: Int, attribute: Attribute, isCursor: Bool = false, isWide: Bool = false) -> AnyView {
+	private func text(_ run: String,
+								cols: Int,
+								attribute: Attribute,
+								isCursor: Bool = false,
+								isWide: Bool = false,
+								inheritsBackground: Bool = false) -> AnyView {
 		var fgColor = attribute.fg
 		var bgColor = attribute.bg
 
@@ -191,7 +240,7 @@ open class StringSupplier {
 				// Background goes after the frame so it paints the whole cell run. Applied before it,
 				// it would track the glyphs’ intrinsic width instead, leaving gaps between cells for
 				// narrow runs and bleeding past them for wide ones.
-				.background(Color(background ?? .black))
+				.background(inheritsBackground && !isCursor ? Color.clear : Color(background ?? .black))
 				.clipped()
 		)
 	}
