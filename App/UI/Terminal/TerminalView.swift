@@ -69,7 +69,6 @@ struct TerminalView: View {
 					LazyVStack(alignment: .leading, spacing: 0) {
 						ForEach(Array(zip(state.lines, state.lines.indices)), id: \.1) { line, i in
 							line
-								.drawingGroup(opaque: true)
 								.id(i)
 						}
 					}
