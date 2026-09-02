@@ -24,7 +24,7 @@ open class StringSupplier {
 	private static let minimumGlyphScale: CGFloat = 0.4
 	/// Near-theme full-row fills read as mismatched strips rather than useful terminal state.
 	/// ponytail: Keep the fixed threshold until a program exposes semantic roles for these rows.
-	private static let subtleBackgroundDifference: CGFloat = 16 / 255
+	private static let subtleBackgroundDifference: CGFloat = 32 / 255
 
 	open var terminal: Terminal!
 	open var colorMap: ColorMap!
@@ -35,6 +35,7 @@ open class StringSupplier {
 		#if DEBUG
 		assert(Self.isSubtleVariant(UIColor(white: 244 / 255, alpha: 1), of: .white))
 		assert(Self.isSubtleVariant(.white, of: UIColor(white: 244 / 255, alpha: 1)))
+		assert(Self.isSubtleVariant(UIColor(white: 57 / 255, alpha: 1), of: UIColor(white: 30 / 255, alpha: 1)))
 		assert(!Self.isSubtleVariant(UIColor(red: 0, green: 120 / 255, blue: 1, alpha: 1), of: .white))
 		#endif
 	}
