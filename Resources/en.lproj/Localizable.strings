@@ -92,5 +92,143 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<string>One line saying what this is for. Shown under the name, on the key and here.</string>
 	<key>EDIT</key>
 	<string>Edit</string>
+	<key>ACKNOWLEDGEMENTS_UNAVAILABLE</key>
+	<string>Acknowledgements are unavailable.</string>
+	<!-- Settings row that opens the SSH panel. -->
+	<key>SSH_HOSTS_AND_KEYS</key>
+	<string>Hosts &amp; Keys</string>
+	<key>SSH_HOST_INVALID</key>
+	<string>Use one host name with no spaces or wildcards, and a port from 1 to 65535.</string>
+	<key>SSH_HOST_EXISTS</key>
+	<string>There’s already an SSH host called %@.</string>
+
+	<!-- Footer under the list of SSH keys. -->
+	<key>SSH_KEYS_FOOTER</key>
+	<string>Kept in ~/.ssh, where ssh looks for them. Pick one as a host’s key above, then put its public key in that server’s ~/.ssh/authorized_keys.</string>
+
+	<!-- Shown in place of the key list when ~/.ssh has none. -->
+	<key>SSH_NO_KEYS</key>
+	<string>No keys in ~/.ssh</string>
+
+	<key>SSH_GENERATE_KEY</key>
+	<string>Generate Key</string>
+
+	<key>SSH_GENERATE</key>
+	<string>Generate</string>
+
+	<!-- Footer under the field naming the key file to create. -->
+	<key>SSH_GENERATE_FOOTER</key>
+	<string>Made in ~/.ssh with no passphrase — there’s nowhere to type one at connect time. Ed25519 unless the server is old enough to refuse it. The name is the one ssh tries by default for that kind of key.</string>
+
+	<!-- Footer under the fields that say where a host is. -->
+	<key>SSH_HOST_NAME_FOOTER</key>
+	<string>The name is what you connect with: ssh runs with it, exactly as if you’d typed it. Leave a field empty and ssh uses its default.</string>
+
+	<!-- Footer under the key picker for one host. -->
+	<key>SSH_HOST_KEY_FOOTER</key>
+	<string>Written as IdentityFile. With no key chosen, ssh tries the usual ones in ~/.ssh, which is right when there’s only one.</string>
+
+	<key>SSH_HOST_NAME</key>
+	<string>Host Name</string>
+
+	<key>SSH_USER</key>
+	<string>User</string>
+
+	<key>SSH_PORT</key>
+	<string>Port</string>
+
+	<key>SSH_KEY</key>
+	<string>Key</string>
+
+	<!-- Key picker option for a host that names no key of its own. -->
+	<key>SSH_KEY_NONE</key>
+	<string>None</string>
+
+	<key>SSH_KEY_TYPE</key>
+	<string>Type</string>
+
+	<key>SSH_KEY_FILE</key>
+	<string>File</string>
+
+	<key>SSH_PUBLIC_KEY</key>
+	<string>Public Key</string>
+
+	<!-- Footer under a key’s public half. -->
+	<key>SSH_PUBLIC_KEY_FOOTER</key>
+	<string>Add this line to ~/.ssh/authorized_keys on the server to log in with this key instead of a password.</string>
+
+	<!-- Shown on the copy button just after it’s pressed. -->
+	<key>SSH_COPIED</key>
+	<string>Copied</string>
+
+	<!-- Alert shown when ssh-keygen isn’t installed. -->
+	<key>SSH_KEYGEN_MISSING</key>
+	<string>ssh-keygen isn’t installed. Install OpenSSH, or make a key with ssh-keygen in the terminal.</string>
+
+	<!-- Alert shown when a key of that name is already in ~/.ssh. %@ is the file name. -->
+	<key>SSH_KEY_EXISTS</key>
+	<string>There’s already a key called %@ in ~/.ssh. Pick another name, or delete that one first.</string>
+
+	<!-- Alert shown when ssh-keygen fails without saying why. -->
+	<key>SSH_KEYGEN_FAILED</key>
+	<string>ssh-keygen didn’t make the key.</string>
+
+	<!-- Title of the alert for changing a host already in the config. -->
+	<key>EDIT_SSH_HOST</key>
+	<string>Edit SSH Host</string>
+
+	<!-- Title of the alert confirming a host’s removal. %@ is the host’s name. -->
+	<key>DELETE_SSH_HOST</key>
+	<string>Delete “%@”?</string>
+
+	<key>DELETE_SSH_HOST_BODY</key>
+	<string>Its entry is removed from ~/.ssh/config. The rest of the file, and any keys, are left alone.</string>
+
+	<key>COULDNT_DELETE_HOST</key>
+	<string>Couldn’t Delete Host</string>
+
+	<key>Hosts</key>
+	<string>Hosts</string>
+
+	<key>Keys</key>
+	<string>Keys</string>
+	<!-- Alert shown when the name typed for a new key isn’t a plain file name. -->
+	<key>SSH_KEY_NAME_INVALID</key>
+	<string>A key’s name is a plain file name, with no spaces or slashes in it.</string>
+	<!-- Button that copies keys into ~/.ssh from a file or folder the user picks. -->
+	<key>SSH_IMPORT_KEY</key>
+	<string>Import from Files…</string>
+
+	<!-- Alert shown when nothing the user picked was a private key. -->
+	<key>SSH_IMPORT_NONE</key>
+	<string>Nothing picked was a private key. Choose the key file itself, or the folder it’s in.</string>
+
+	<!-- Footer under a key’s storage details. -->
+	<key>SSH_KEY_STORAGE_FOOTER</key>
+	<string>Both halves live in ~/.ssh. Deleting the key from the list removes them; the hosts that named it keep the line, so point them at another key.</string>
+
+	<key>SSH_KEY_PERMISSIONS</key>
+	<string>Permissions</string>
+
+	<!-- Shown under a key that others can read. %@ is the file mode, in octal. -->
+	<key>SSH_KEY_PERMISSIONS_OPEN</key>
+	<string>Permissions %@ — ssh will refuse it</string>
+
+	<key>SSH_KEY_FIX_PERMISSIONS</key>
+	<string>Set Permissions to 600</string>
+
+	<!-- Shown for a private key whose public half isn’t there. -->
+	<key>SSH_KEY_NO_PUBLIC</key>
+	<string>No public key alongside it</string>
+
+	<key>SSH_KEY_RECOVER_PUBLIC</key>
+	<string>Work It Out from the Key</string>
+
+	<!-- Alert shown when the public half can’t be read back out of a private key. -->
+	<key>SSH_PUBLIC_KEY_FAILED</key>
+	<string>Couldn’t read the public key out of this one. A key with a passphrase can’t be read without it.</string>
+	<!-- Footer under the comment field when making a key. -->
+	<key>SSH_KEY_COMMENT_FOOTER</key>
+	<string>Written on the end of the public key. It’s what tells this key apart from the others in a server’s authorized_keys months from now.</string>
 </dict>
 </plist>

@@ -84,15 +84,21 @@ public enum AIShortcutStore {
 	}
 
 	public static func shortcuts() -> [AIShortcut] {
-		guard let data = try? Data(contentsOf: fileURL) else {
-			return []
-		}
 		do {
-			return try JSONDecoder().decode(File.self, from: data).shortcuts
+			return try read()
 		} catch {
 			// A file the user or an agent is midway through editing. Showing nothing is better than
 			// throwing an error over the keyboard.
 			logger.notice("Couldn’t read \(displayPath): \(String(describing: error))")
+			return []
+		}
+	}
+
+	private static func read() throws -> [AIShortcut] {
+		do {
+			let data = try Data(contentsOf: fileURL)
+			return try JSONDecoder().decode(File.self, from: data).shortcuts
+		} catch let error as CocoaError where error.code == .fileReadNoSuchFile {
 			return []
 		}
 	}
@@ -110,7 +116,7 @@ public enum AIShortcutStore {
 	}
 
 	public static func add(_ shortcut: AIShortcut) throws {
-		var all = shortcuts()
+		var all = try read()
 		// Same name and kind replaces rather than duplicates, so an agent re-running "add my reviewer
 		// persona" doesn't leave two.
 		all.removeAll { $0.name == shortcut.name && $0.kind == shortcut.kind }
@@ -123,7 +129,7 @@ public enum AIShortcutStore {
 	/// Not `remove` then `add`: renaming one would otherwise move it to the end, and the order is the
 	/// order the keys appear in.
 	public static func update(_ old: AIShortcut, to new: AIShortcut) throws {
-		var all = shortcuts()
+		var all = try read()
 		guard let index = all.firstIndex(where: { $0.id == old.id }) else {
 			try add(new)
 			return
@@ -133,7 +139,7 @@ public enum AIShortcutStore {
 	}
 
 	public static func remove(_ shortcut: AIShortcut) throws {
-		try save(shortcuts().filter { $0.id != shortcut.id })
+		try save(try read().filter { $0.id != shortcut.id })
 	}
 
 	/// Writes a starting file, if there isn't one.

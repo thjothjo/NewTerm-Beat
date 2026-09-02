@@ -69,7 +69,7 @@ public enum AICatalog {
 
 	/// The shell's `PATH` isn't ours to read — it belongs to a process that doesn't exist yet — so the
 	/// directories a jailbreak actually installs into are checked directly.
-	private static var binaryDirectories: [String] {
+	static var binaryDirectories: [String] {
 		let relative = ["/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin"]
 		var directories = [String]()
 		for path in relative {

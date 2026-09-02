@@ -44,6 +44,7 @@ class RootViewController: UIViewController {
 		tabToolbar!.dataSource = self
 		addChild(tabToolbar!)
 		view.addSubview(tabToolbar!.view)
+		tabToolbar!.didMove(toParent: self)
 
 		// Tapping anywhere below the tab bar leaves tab edit mode — that’s the whole dismiss gesture,
 		// there’s no Done button. It doesn’t consume the touch, so the terminal still gets it.
@@ -59,12 +60,6 @@ class RootViewController: UIViewController {
 		} else {
 			addTerminal()
 		}
-
-		addKeyCommand(UIKeyCommand(title: .localize("SETTINGS", comment: "Title of Settings page."),
-															 image: UIImage(systemName: "gear"),
-															 action: #selector(self.openSettings),
-															 input: ",",
-															 modifierFlags: .command))
 
 		addKeyCommand(UIKeyCommand(title: .localize("NEW_TAB", comment: "VoiceOver label for the new tab button."),
 															 action: #selector(self.newTab),
@@ -176,9 +171,13 @@ class RootViewController: UIViewController {
 
 	private var sessionState: SessionState {
 		SessionState(tabs: terminals.indices.map { index in
-			SessionTabState(id: terminals[index].tabID,
-											projectPath: terminals[index].projectPath,
-											title: terminalName(at: index))
+			let paneIDs = (terminals[index] as? TerminalSplitViewController)?
+				.viewControllers
+				.compactMap { ($0 as? TerminalSessionViewController)?.scrollbackID }
+			return SessionTabState(id: terminals[index].tabID,
+										projectPath: terminals[index].projectPath,
+										title: terminalName(at: index),
+										paneIDs: paneIDs)
 		},
 								 selectedIndex: selectedTabIndex)
 	}
@@ -205,12 +204,21 @@ class RootViewController: UIViewController {
 		for tab in state.tabs {
 			// A project whose folder has gone — deleted, or moved to .Trash — still gets its tab back,
 			// just as a plain shell. Dropping the tab would read as the restore having failed.
-			if let path = tab.projectPath,
-				 FileManager.default.fileExists(atPath: path) {
-				initialCommand = ProjectManager.openCommand(forPath: path)
-				addTerminal(projectPath: path, tabID: tab.id)
-			} else {
-				addTerminal(projectPath: nil, tabID: tab.id)
+			let projectPath = tab.projectPath.flatMap {
+				FileManager.default.fileExists(atPath: $0) ? $0 : nil
+			}
+			let command = projectPath.flatMap(ProjectManager.openCommand(forPath:))
+			initialCommand = command
+			addTerminal(projectPath: projectPath,
+								tabID: tab.id,
+								scrollbackID: tab.paneIDs.first)
+			let index = selectedTabIndex
+			for paneID in tab.paneIDs.dropFirst().prefix(1) {
+				addTerminal(at: index,
+								axis: .horizontal,
+								initialCommand: command,
+								projectPath: projectPath,
+								scrollbackID: paneID)
 			}
 		}
 
@@ -263,15 +271,24 @@ class RootViewController: UIViewController {
 		addTerminal(projectPath: selectedProjectPath)
 	}
 
-	func addTerminal(projectPath: String?, tabID: String? = nil) {
+	func addTerminal(projectPath: String?, tabID: String? = nil, scrollbackID: String? = nil) {
 		let index = min(selectedTabIndex + 1, terminals.count)
-		addTerminal(at: index, initialCommand: initialCommand, projectPath: projectPath, tabID: tabID)
+		addTerminal(at: index,
+							initialCommand: initialCommand,
+							projectPath: projectPath,
+							tabID: tabID,
+							scrollbackID: scrollbackID)
 		selectTerminal(at: index)
 		initialCommand = nil
 		setNeedsSaveSession()
 	}
 
-	private func addTerminal(at index: Int, axis: NSLayoutConstraint.Axis? = nil, initialCommand: String? = nil, projectPath: String? = nil, tabID: String? = nil) {
+	private func addTerminal(at index: Int,
+									 axis: NSLayoutConstraint.Axis? = nil,
+									 initialCommand: String? = nil,
+									 projectPath: String? = nil,
+									 tabID: String? = nil,
+									 scrollbackID: String? = nil) {
 		// Splitting adds a second terminal to the container the tab already has, rather than wrapping
 		// the tab in another one.
 		//
@@ -288,10 +305,12 @@ class RootViewController: UIViewController {
 				return
 			}
 			let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
-																										 initialCommand: initialCommand)
+																				 initialCommand: initialCommand,
+																				 scrollbackID: scrollbackID ?? UUID().uuidString)
 			container.axis = axis
 			container.viewControllers = container.viewControllers + [newTerminal]
 			tabToolbar?.tabDidUpdate(at: index)
+			setNeedsSaveSession()
 			return
 		}
 
@@ -307,11 +326,10 @@ class RootViewController: UIViewController {
 		// The pane that fills the tab carries the tab's scrollback. A split's second pane is a fresh
 		// terminal with no history to restore, and takes the branch above.
 		let newTerminal = TerminalSessionViewController(initialDirectory: projectPath,
-																									 initialCommand: initialCommand,
-																									 scrollbackID: splitViewController.tabID)
+																		 initialCommand: initialCommand,
+																		 scrollbackID: scrollbackID ?? splitViewController.tabID)
 
 		addChild(splitViewController)
-		splitViewController.willMove(toParent: self)
 		if let tabToolbar = tabToolbar {
 			view.insertSubview(splitViewController.view, belowSubview: tabToolbar.view)
 		} else {
@@ -340,10 +358,17 @@ class RootViewController: UIViewController {
 
 		// Closing a tab is deliberate, so its saved scrollback shouldn't linger to be replayed into some
 		// unrelated future tab — drop it with the tab.
-		ScrollbackStore.shared.discard(id: viewController.tabID)
+		let paneIDs = (viewController as? TerminalSplitViewController)?
+			.viewControllers
+			.compactMap { ($0 as? TerminalSessionViewController)?.scrollbackID }
+			?? [viewController.tabID]
+		for paneID in paneIDs {
+			ScrollbackStore.shared.discard(id: paneID)
+		}
 
-		viewController.removeFromParent()
+		viewController.willMove(toParent: nil)
 		viewController.view.removeFromSuperview()
+		viewController.removeFromParent()
 
 		terminals.remove(at: index)
 		tabToolbar?.didRemoveTab(at: index)
@@ -375,8 +400,9 @@ class RootViewController: UIViewController {
 
 	@IBAction func removeAllTerminals() {
 		for terminalViewController in terminals {
-			terminalViewController.removeFromParent()
+			terminalViewController.willMove(toParent: nil)
 			terminalViewController.view.removeFromSuperview()
+			terminalViewController.removeFromParent()
 		}
 
 		terminals.removeAll()
@@ -484,6 +510,9 @@ class RootViewController: UIViewController {
 
 	private func destructScene() {
 		if UIApplication.shared.supportsMultipleScenes {
+			// `didDiscardSceneSessions` removes the snapshot and scrollback after UIKit confirms this
+			// succeeded. Deleting them before the request would lose data if destruction were rejected.
+			saveSessionImmediately()
 			// TODO: Probably need to directly use NSWindow APIs for this on Catalyst.
 			// https://developer.apple.com/forums/thread/127382
 			UIApplication.shared.requestSceneSessionDestruction(view.window!.windowScene!.session, options: nil, errorHandler: nil)
@@ -575,8 +604,9 @@ class RootViewController: UIViewController {
 			return
 		}
 		let tab = terminals[index]
-		tab.removeFromParent()
+		tab.willMove(toParent: nil)
 		tab.view.removeFromSuperview()
+		tab.removeFromParent()
 		terminals.remove(at: index)
 		tabToolbar?.didRemoveTab(at: index)
 		if index < selectedTabIndex {
@@ -620,7 +650,6 @@ class RootViewController: UIViewController {
 		newTab.delegate = self
 
 		addChild(newTab)
-		newTab.willMove(toParent: self)
 		if let tabToolbar = tabToolbar {
 			view.insertSubview(newTab.view, belowSubview: tabToolbar.view)
 		} else {
@@ -638,6 +667,10 @@ class RootViewController: UIViewController {
 		tabToolbar?.didAddTab(at: newIndex)
 		tabToolbar?.tabDidUpdate(at: newIndex)
 		tabToolbar?.tabDidUpdate(at: selectedTabIndex)
+		setNeedsSaveSession()
+	}
+
+	func splitLayoutDidChange() {
 		setNeedsSaveSession()
 	}
 

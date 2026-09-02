@@ -10,8 +10,12 @@ import UIKit
 public struct AppFont: Codable {
 
 	public static let predefined: [String: AppFont] = {
-		let data = try! Data(contentsOf: Bundle.main.url(forResource: "Fonts", withExtension: "plist")!)
-		return try! PropertyListDecoder().decode([String: AppFont].self, from: data)
+		guard let url = Bundle.main.url(forResource: "Fonts", withExtension: "plist"),
+					let data = try? Data(contentsOf: url),
+					let fonts = try? PropertyListDecoder().decode([String: AppFont].self, from: data) else {
+			return ["SF Mono": AppFont()]
+		}
+		return fonts
 	}()
 
 	public let regular: String?
@@ -24,8 +28,10 @@ public struct AppFont: Codable {
 
 	public var previewFont: UIFont? {
 		if systemMonospaceFont ?? false {
-			let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
-				.withDesign(.monospaced)!
+			guard let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+				.withDesign(.monospaced) else {
+				return UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+			}
 			return UIFont(descriptor: descriptor, size: 0)
 		}
 		if let regular = regular,

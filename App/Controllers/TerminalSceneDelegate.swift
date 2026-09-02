@@ -37,7 +37,12 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 		window = UIWindow(windowScene: scene)
 		window!.tintColor = .tint
 		let restored = SessionStore.shared.load(identifier: session.persistentIdentifier)
-		window!.rootViewController = UINavigationController(rootViewController: RootViewController(restoring: restored))
+		let rootViewController = RootViewController(restoring: restored)
+		if let activity = connectionOptions.userActivities.first(where: { $0.activityType == Self.activityType }),
+			 let command = activity.userInfo?["sshCommand"] as? String {
+			rootViewController.initialCommand = command
+		}
+		window!.rootViewController = UINavigationController(rootViewController: rootViewController)
 		window!.makeKeyAndVisible()
 
 		scene.title = .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")
@@ -66,18 +71,11 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 
 	func createWindow(asTab: Bool, openingURL url: URL? = nil) {
 		// Handle SSH URL
-		var sshPayload: String?
+		var sshCommand: String?
 		if let url = url,
 			 let host = url.host,
 			 url.scheme == "ssh" {
-			sshPayload = host
-			if let user = url.user {
-				sshPayload = "\(user)@\(host)"
-			}
-			let port = url.port ?? 22
-			if port != 22 {
-				sshPayload = "\(sshPayload!) -p \(port)"
-			}
+			sshCommand = SSHConfig.connectCommand(user: url.user, host: host, port: url.port)
 		}
 
 		if UIApplication.shared.supportsMultipleScenes {
@@ -92,13 +90,14 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 			#endif
 
 			let activity = NSUserActivity(activityType: Self.activityType)
-			activity.userInfo = [:]
-			activity.userInfo!["sshPayload"] = sshPayload
+			if let sshCommand = sshCommand {
+				activity.userInfo = ["sshCommand": sshCommand]
+			}
 
 			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: options, errorHandler: nil)
 		} else {
-			if let sshPayload = sshPayload {
-				rootViewController.initialCommand = "ssh \(sshPayload)"
+			if let sshCommand = sshCommand {
+				rootViewController.initialCommand = sshCommand
 			}
 			rootViewController.addTerminal()
 		}

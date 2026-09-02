@@ -14,15 +14,37 @@ public struct SSHHost: Hashable, Identifiable {
 	/// doesn't say — `ssh` will use the alias itself.
 	public var hostName: String
 	public var user: String
+	/// Empty for the default, 22.
+	public var port: String
+	/// The key to log in with — `IdentityFile`. Empty leaves `ssh` to try the usual keys in `~/.ssh`,
+	/// which is right whenever there's only one.
+	public var identityFile: String
 
-	/// `user@hostname`, or whichever half the config gave.
+	public init(name: String,
+							hostName: String = "",
+							user: String = "",
+							port: String = "",
+							identityFile: String = "") {
+		self.name = name
+		self.hostName = hostName
+		self.user = user
+		self.port = port
+		self.identityFile = identityFile
+	}
+
+	/// `user@hostname:port`, or whichever parts the config gave.
 	public var detail: String {
+		var text = ""
 		switch (user.isEmpty, hostName.isEmpty) {
-		case (true, true):   return ""
-		case (true, false):  return hostName
-		case (false, true):  return "\(user)@"
-		case (false, false): return "\(user)@\(hostName)"
+		case (true, true):   text = ""
+		case (true, false):  text = hostName
+		case (false, true):  text = "\(user)@"
+		case (false, false): text = "\(user)@\(hostName)"
 		}
+		if !port.isEmpty {
+			text += ":\(port)"
+		}
+		return text
 	}
 }
 
@@ -32,7 +54,24 @@ public struct SSHHost: Hashable, Identifiable {
 /// this file, so anything else would be a second list to keep in step with it. A host added here
 /// with an editor, or on a Mac and synced over, is a host this list offers — and connecting is
 /// `ssh <name>`, exactly what the user would have typed.
+///
+/// Editing splices the lines of one entry rather than rewriting the file. The file is the user's: it
+/// may have comments, includes, `Match` blocks and options this parser doesn't model, and none of
+/// that should be lost to changing a port.
 public enum SSHConfig {
+	public enum Failure: LocalizedError {
+		case invalidHost
+		case alreadyExists(String)
+
+		public var errorDescription: String? {
+			switch self {
+			case .invalidHost:
+				return String.localize("SSH_HOST_INVALID")
+			case .alreadyExists(let name):
+				return String.localize("SSH_HOST_EXISTS").replacingOccurrences(of: "%@", with: name)
+			}
+		}
+	}
 
 	/// Posted after the config is written to, so a visible list re-reads it.
 	public static let didChangeNotification = Notification.Name("ws.hbang.Terminal.sshConfigDidChange")
@@ -44,12 +83,14 @@ public enum SSHConfig {
 			.appendingPathComponent(".ssh/config")
 	}
 
+	/// The path as the user would type it, for telling them — or an agent — where to look.
+	public static var displayPath: String { "~/.ssh/config" }
+
 	public static func hosts() -> [SSHHost] {
-		guard let text = try? String(contentsOf: configURL, encoding: .utf8) else {
-			// No config yet is the normal first-run state, not an error worth surfacing.
+		guard let lines = try? readLines() else {
 			return []
 		}
-		return parse(text)
+		return entries(in: lines).map(\.host)
 	}
 
 	/// The command that connects to a host.
@@ -57,25 +98,48 @@ public enum SSHConfig {
 		"ssh \(shellQuoted(host.name))"
 	}
 
+	/// A command made from an external `ssh://` URL. Every URL field is untrusted shell input, so the
+	/// destination is one quoted argument and options are rendered from typed values only.
+	public static func connectCommand(user: String?, host: String, port: Int?) -> String {
+		let destination = user.map { "\($0)@\(host)" } ?? host
+		let portOption = port.map { $0 == 22 ? "" : " -p \($0)" } ?? ""
+		return "ssh\(portOption) \(shellQuoted(destination))"
+	}
+
 	// MARK: - Parsing
 
+	/// A host, and the lines it occupies.
+	struct Entry {
+		var host: SSHHost
+		/// From its `Host` line to the last line that configures it. Blank lines and comments after
+		/// that are left out: a comment sitting above the next `Host` belongs to that one, and deleting
+		/// this entry shouldn't take it.
+		var range: Range<Int>
+	}
+
 	static func parse(_ text: String) -> [SSHHost] {
-		var hosts = [SSHHost]()
+		entries(in: text.components(separatedBy: "\n")).map(\.host)
+	}
+
+	static func entries(in lines: [String]) -> [Entry] {
+		var entries = [Entry]()
 		// Keywords after a `Host` line belong to it until the next one, so the host being built has to
 		// stay open across lines.
 		var current: SSHHost?
+		var start = 0
+		var end = 0
 
 		var seen = Set<String>()
 		func flush() {
 			// First entry wins, and later ones with the same name are dropped — that's what `ssh` itself
 			// does with a repeated Host, so listing both would offer a choice that doesn't exist.
 			if let host = current, !host.name.isEmpty, seen.insert(host.name).inserted {
-				hosts.append(host)
+				entries.append(Entry(host: host, range: start..<end))
 			}
 			current = nil
 		}
 
-		for rawLine in text.components(separatedBy: .newlines) {
+		for (index, rawLine) in lines.enumerated() {
 			let line = rawLine.trimmingCharacters(in: .whitespaces)
 			guard !line.isEmpty, !line.hasPrefix("#") else {
 				continue
@@ -89,58 +153,190 @@ public enum SSHConfig {
 			}
 			let value = parts.dropFirst().joined(separator: " ")
 
-			switch keyword {
-			case "host":
+			if keyword == "host" {
 				flush()
 				// A `Host` line can name several patterns. Wildcards are defaults applied to other
 				// hosts, not somewhere you can connect to, so they're skipped rather than listed as
 				// hosts named `*`.
-				if let name = parts.dropFirst().first(where: { !$0.contains("*") && !$0.contains("?") }) {
-					current = SSHHost(name: name, hostName: "", user: "")
+				if let name = parts.dropFirst().first(where: {
+					!$0.hasPrefix("!") && !$0.contains("*") && !$0.contains("?")
+				}) {
+					current = SSHHost(name: name)
+					start = index
+					end = index + 1
 				}
+				continue
+			}
+			if keyword == "match" {
+				// Match starts a conditional section that lasts until the next Host/Match. It never belongs
+				// to the Host above it, even when the conditions happen to mention that host.
+				flush()
+				continue
+			}
 
-			case "hostname":
-				current?.hostName = value
+			guard current != nil else {
+				// A `Match` block, or options before the first `Host`. Not ours to claim.
+				continue
+			}
+			end = index + 1
 
-			case "user":
-				current?.user = value
-
-			default:
-				break
+			switch keyword {
+			case "hostname":     current?.hostName = value
+			case "user":         current?.user = value
+			case "port":         current?.port = value
+			case "identityfile": current?.identityFile = value
+			default:             break
 			}
 		}
 		flush()
-		return hosts
+		return entries
+	}
+
+	/// The keywords this parser puts back itself, so an edit replaces them rather than repeating them.
+	private static let modelledKeywords: Set<String> = ["hostname", "user", "port", "identityfile"]
+
+	private static func isModelled(_ line: String) -> Bool {
+		let separators = CharacterSet(charactersIn: " \t=")
+		let keyword = line.trimmingCharacters(in: .whitespaces)
+			.components(separatedBy: separators)
+			.first?
+			.lowercased()
+		return keyword.map(modelledKeywords.contains) ?? false
 	}
 
 	// MARK: - Editing
 
 	/// Appends a host to the config, creating the file if it isn't there.
+	public static func addHost(_ host: SSHHost) throws {
+		try validate(host)
+		var lines = try readLines()
+		guard !entries(in: lines).contains(where: { $0.host.name == host.name }) else {
+			throw Failure.alreadyExists(host.name)
+		}
+		// Trailing blank lines are the only thing normalised, so entries stay one blank line apart
+		// however many times this runs.
+		while lines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+			lines.removeLast()
+		}
+		if !lines.isEmpty {
+			lines.append("")
+		}
+		lines.append("Host \(host.name)")
+		lines += renderedOptions(for: host)
+		// A file that ends with a newline, as every tool that appends to this one expects.
+		lines.append("")
+		try write(lines)
+	}
+
+	/// Replaces one entry in place, leaving everything else in the file exactly as it was.
+	public static func updateHost(_ old: SSHHost, to new: SSHHost) throws {
+		try validate(new)
+		var lines = try readLines()
+		if old.name != new.name,
+			 entries(in: lines).contains(where: { $0.host.name == new.name }) {
+			throw Failure.alreadyExists(new.name)
+		}
+		guard let entry = entries(in: lines).first(where: { $0.host.name == old.name }) else {
+			// Gone from under us — an editor or an agent rewrote the file while this sheet was open.
+			// Adding it is closer to what was asked than silently doing nothing.
+			try addHost(new)
+			return
+		}
+
+		var block = [renamed(lines[entry.range.lowerBound], from: old.name, to: new.name)]
+		block += renderedOptions(for: new)
+		// Anything in the block this parser doesn't model — ProxyJump, ForwardAgent, a comment between
+		// options — is kept. Understanding four keywords is not a reason to drop the rest of someone's
+		// config.
+		block += lines[entry.range].dropFirst().filter { !isModelled($0) }
+
+		lines.replaceSubrange(entry.range, with: block)
+		try write(lines)
+	}
+
+	public static func removeHost(_ host: SSHHost) throws {
+		var lines = try readLines()
+		guard let entry = entries(in: lines).first(where: { $0.host.name == host.name }) else {
+			return
+		}
+		lines.removeSubrange(entry.range)
+		try write(lines)
+	}
+
+	/// Renames one pattern on a `Host` line, leaving any others alone.
 	///
-	/// Append rather than rewrite: the file is the user's, it may have comments, includes and options
-	/// this parser doesn't model, and none of that should be lost to adding one entry.
-	public static func addHost(name: String, hostName: String, user: String, port: String) throws {
-		let directory = configURL.deletingLastPathComponent()
-		try FileManager.default.createDirectory(at: directory,
+	/// `Host web web.old` names the same machine twice; renaming `web` shouldn't lose `web.old`.
+	private static func renamed(_ line: String, from old: String, to new: String) -> String {
+		guard old != new else {
+			return line
+		}
+		let separators = CharacterSet(charactersIn: " \t=")
+		var parts = line.trimmingCharacters(in: .whitespaces)
+			.components(separatedBy: separators)
+			.filter { !$0.isEmpty }
+		guard let index = parts.firstIndex(of: old) else {
+			return "Host \(new)"
+		}
+		parts[index] = new
+		return parts.joined(separator: " ")
+	}
+
+	private static func renderedOptions(for host: SSHHost) -> [String] {
+		var lines = [String]()
+		if !host.hostName.isEmpty {
+			lines.append("  HostName \(host.hostName)")
+		}
+		if !host.user.isEmpty {
+			lines.append("  User \(host.user)")
+		}
+		if !host.port.isEmpty {
+			lines.append("  Port \(host.port)")
+		}
+		if !host.identityFile.isEmpty {
+			lines.append("  IdentityFile \(host.identityFile)")
+		}
+		return lines
+	}
+
+	/// Values written by this editor are single ssh_config tokens. Rejecting invalid syntax here keeps
+	/// every caller safe, including pasted text that a single-line field still hands us verbatim.
+	private static func validate(_ host: SSHHost) throws {
+		let invalidName = CharacterSet.whitespacesAndNewlines
+			.union(CharacterSet(charactersIn: "*?!#="))
+		let invalidToken = CharacterSet.whitespacesAndNewlines
+		guard !host.name.isEmpty,
+				 host.name.rangeOfCharacter(from: invalidName) == nil,
+				 host.hostName.rangeOfCharacter(from: invalidToken) == nil,
+				 host.user.rangeOfCharacter(from: invalidToken) == nil,
+				 !host.identityFile.contains(where: { $0.isNewline }),
+				 host.port.isEmpty || (Int(host.port).map { (1...65_535).contains($0) } == true) else {
+			throw Failure.invalidHost
+		}
+	}
+
+	// MARK: - Disk
+
+	private static func readLines() throws -> [String] {
+		do {
+			let data = try Data(contentsOf: configURL)
+			guard let text = String(data: data, encoding: .utf8) else {
+				throw CocoaError(.fileReadInapplicableStringEncoding)
+			}
+			return text.components(separatedBy: "\n")
+		} catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+			// No config yet is the normal first-run state. Other read failures must reach editing callers
+			// so an unreadable existing file is never mistaken for an empty one and overwritten.
+			return []
+		}
+	}
+
+	private static func write(_ lines: [String]) throws {
+		try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(),
 																						withIntermediateDirectories: true,
 																						// ssh refuses to use a config anyone else can write to.
 																						attributes: [.posixPermissions: 0o700])
-
-		var entry = "\nHost \(name)\n"
-		if !hostName.isEmpty {
-			entry += "  HostName \(hostName)\n"
-		}
-		if !user.isEmpty {
-			entry += "  User \(user)\n"
-		}
-		if !port.isEmpty {
-			entry += "  Port \(port)\n"
-		}
-
-		let existing = (try? Data(contentsOf: configURL)) ?? Data()
-		try (existing + Data(entry.utf8)).write(to: configURL, options: .atomic)
+		try Data(lines.joined(separator: "\n").utf8).write(to: configURL, options: .atomic)
 		try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
-
 		NotificationCenter.default.post(name: didChangeNotification, object: nil)
 	}
 

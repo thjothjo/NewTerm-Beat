@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "CF71BC2022BB61E200AFB1E1"
+               BlueprintIdentifier = "CFBB966022B546DA00585BE6"
                BuildableName = "NewTerm.app"
-               BlueprintName = "NewTerm (macOS)"
+               BlueprintName = "NewTerm (iOS)"
                ReferencedContainer = "container:NewTerm.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,9 +44,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CF71BC2022BB61E200AFB1E1"
+            BlueprintIdentifier = "CFBB966022B546DA00585BE6"
             BuildableName = "NewTerm.app"
-            BlueprintName = "NewTerm (macOS)"
+            BlueprintName = "NewTerm (iOS)"
             ReferencedContainer = "container:NewTerm.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +61,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CF71BC2022BB61E200AFB1E1"
+            BlueprintIdentifier = "CFBB966022B546DA00585BE6"
             BuildableName = "NewTerm.app"
-            BlueprintName = "NewTerm (macOS)"
+            BlueprintName = "NewTerm (iOS)"
             ReferencedContainer = "container:NewTerm.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

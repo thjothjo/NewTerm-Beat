@@ -120,22 +120,21 @@ extension TerminalController {
 			}
 
 			// First, respond with ok to confirm we’re about to send a payload.
-			self.write(Self.preFileUploadMarker)
+			self.writeRaw([UTF8Char](Self.preFileUploadMarker))
 
 			// Now, we need to base64 the contents of this file.
 			let encodedData = data.base64EncodedData(options: [.lineLength76Characters, .endLineWithCarriageReturn])
-			self.write(encodedData)
+			self.writeRaw([UTF8Char](encodedData))
 
 			// Finally, send two ending returns to indicate end of file.
-			self.write(Self.postFileUploadMarker)
+			self.writeRaw([UTF8Char](Self.postFileUploadMarker))
 		}
 	}
 
 	public func cancelUploadRequest() {
 		terminalQueue.async {
-			self.write(Self.abortFileUploadMarker)
+			self.writeRaw([UTF8Char](Self.abortFileUploadMarker))
 		}
 	}
 
 }
-

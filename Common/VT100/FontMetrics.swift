@@ -50,7 +50,7 @@ public struct FontMetrics: Hashable {
 		var lightFont: UIFont?
 		var lightItalicFont: UIFont?
 
-		if font.systemMonospaceFont ?? false {
+		if font.systemMonospaceFont != true {
 			if let name = font.regular {
 				regularFont = UIFont(name: name, size: fontSize)
 			}
@@ -105,7 +105,7 @@ public struct FontMetrics: Hashable {
 		self.italicFont = italicFont ?? regularFont
 		self.boldItalicFont = boldItalicFont ?? boldFont ?? regularFont
 		self.lightFont = lightFont ?? regularFont
-		self.lightItalicFont = lightFont ?? italicFont ?? regularFont
+		self.lightItalicFont = lightItalicFont ?? lightFont ?? italicFont ?? regularFont
 
 		// Determine the bounding box of a single letter in this font. This, of course, assumes all
 		// characters in this font (and its variants) are the same width, but that’s an assumption most

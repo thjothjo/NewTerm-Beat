@@ -5,7 +5,7 @@
 
 import Foundation
 import os.log
-#if canImport(ActivityKit) && os(iOS)
+#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 import ActivityKit
 #endif
 
@@ -37,12 +37,11 @@ public final class TerminalActivityController {
 	private var project: String?
 	private var startedAt = Date()
 	private var lastOutputAt = Date()
-	private var lastDetail = ""
 	private var lastUpdateAt = Date.distantPast
 	private var isForeground = true
 	private var quietTimer: Timer?
 
-	#if canImport(ActivityKit) && os(iOS)
+	#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 	@available(iOS 16.2, *)
 	private var activity: Activity<TerminalActivityAttributes>? {
 		get { _activity as? Activity<TerminalActivityAttributes> }
@@ -65,19 +64,16 @@ public final class TerminalActivityController {
 		self.project = project
 		startedAt = Date()
 		lastOutputAt = Date()
-		lastDetail = ""
 		startIfNeeded()
 	}
 
-	/// Output the terminal produced, for the detail line and to tell working from waiting apart.
-	public func didReceiveOutput(_ text: String) {
+	/// Output timing tells working from waiting apart. The text itself may contain secrets and never
+	/// belongs on the lock screen.
+	public func didReceiveOutput() {
 		guard command != nil else {
 			return
 		}
 		lastOutputAt = Date()
-		if let line = Self.lastMeaningfulLine(in: text) {
-			lastDetail = line
-		}
 		update(state: .running)
 	}
 
@@ -109,7 +105,7 @@ public final class TerminalActivityController {
 		guard !isForeground, let command = command else {
 			return
 		}
-		#if canImport(ActivityKit) && os(iOS)
+		#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 		guard #available(iOS 16.2, *),
 					ActivityAuthorizationInfo().areActivitiesEnabled,
 					activity == nil else {
@@ -117,7 +113,7 @@ public final class TerminalActivityController {
 		}
 		let attributes = TerminalActivityAttributes(command: command, project: project)
 		let state = TerminalActivityAttributes.ContentState(state: .running,
-																												detail: lastDetail,
+																						detail: "",
 																												startedAt: startedAt)
 		do {
 			activity = try Activity.request(attributes: attributes,
@@ -132,7 +128,7 @@ public final class TerminalActivityController {
 	}
 
 	private func update(state: TerminalActivity.State, force: Bool = false) {
-		#if canImport(ActivityKit) && os(iOS)
+		#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 		guard #available(iOS 16.2, *), let activity = activity else {
 			return
 		}
@@ -143,7 +139,7 @@ public final class TerminalActivityController {
 		}
 		lastUpdateAt = Date()
 		let content = TerminalActivityAttributes.ContentState(state: state,
-																													detail: lastDetail,
+																							detail: "",
 																													startedAt: startedAt)
 		Task {
 			await activity.update(using: content)
@@ -165,7 +161,7 @@ public final class TerminalActivityController {
 	}
 
 	private func end(after delay: TimeInterval) {
-		#if canImport(ActivityKit) && os(iOS)
+		#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 		guard #available(iOS 16.2, *), let activity = activity else {
 			return
 		}
@@ -181,7 +177,7 @@ public final class TerminalActivityController {
 	private func endImmediately() {
 		quietTimer?.invalidate()
 		quietTimer = nil
-		#if canImport(ActivityKit) && os(iOS)
+		#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 		guard #available(iOS 16.2, *), let activity = activity else {
 			return
 		}
@@ -211,19 +207,4 @@ public final class TerminalActivityController {
 		return watchedCommands.contains(name) ? name : nil
 	}
 
-	/// The last line worth showing, with the control sequences a TUI paints itself with stripped out.
-	static func lastMeaningfulLine(in text: String) -> String? {
-		let stripped = text.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]",
-																						 with: "",
-																						 options: .regularExpression)
-		let line = stripped
-			.components(separatedBy: .newlines)
-			.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-			.last { !$0.isEmpty }
-		guard let line = line, line.count > 1 else {
-			return nil
-		}
-		// The island has room for one short line; a wrapped paragraph would just be truncated anyway.
-		return line.count > 80 ? String(line.prefix(79)) + "…" : line
-	}
 }

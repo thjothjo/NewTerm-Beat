@@ -11,7 +11,7 @@ protocol TerminalPasswordInputViewDelegate: AnyObject {
 	func passwordInputViewDidComplete(password: String?)
 }
 
-class TerminalPasswordInputView: UITextField {
+class TerminalPasswordInputView: UITextField, UITextFieldDelegate {
 
 	weak var passwordDelegate: TerminalPasswordInputViewDelegate?
 
@@ -20,19 +20,17 @@ class TerminalPasswordInputView: UITextField {
 
 		isSecureTextEntry = true
 		textContentType = .password
-
-		NotificationCenter.default.addObserver(self, selector: #selector(self.textDidChange(_:)), name: UITextField.textDidChangeNotification, object: nil)
+		delegate = self
 	}
 
 	required init?(coder: NSCoder) {
 		fatalError()
 	}
 
-	@objc private func textDidChange(_ notification: Notification) {
-		if let text = text {
-			passwordDelegate?.passwordInputViewDidComplete(password: text)
-			self.text = nil
-		}
+	func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+		passwordDelegate?.passwordInputViewDidComplete(password: textField.text)
+		textField.text = nil
+		return false
 	}
 
 }

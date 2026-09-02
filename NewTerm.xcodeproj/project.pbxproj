@@ -16,7 +16,7 @@
 		4EW2000000000000000002 /* TerminalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW2000000000000000001 /* TerminalActivityAttributes.swift */; };
 		4EW1000000000000000011 /* NewTermWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW100000000000000000E /* NewTermWidgetBundle.swift */; };
 		4EW1000000000000000012 /* TerminalLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EW100000000000000000F /* TerminalLiveActivity.swift */; };
-		4EW100000000000000000D /* NewTermWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 4EW1000000000000000002 /* NewTermWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4EW100000000000000000D /* NewTermWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 4EW1000000000000000002 /* NewTermWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1E4A7332274A0CED00211604 /* KeyboardToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4A7331274A0CED00211604 /* KeyboardToolbarView.swift */; };
 		1E4A7334274A0D5F00211604 /* KeyboardKeyButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4A7333274A0D5F00211604 /* KeyboardKeyButtonStyle.swift */; };
 		1EEB4F66262CF591005E5B79 /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEB4F65262CF591005E5B79 /* SafariView.swift */; };
@@ -71,7 +71,7 @@
 		4EBBCB0D2886C1BE002EAE00 /* Darwin+Additions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBCB0B2886C13B002EAE00 /* Darwin+Additions.swift */; };
 		4EBBCB10288700A9002EAE00 /* URL+Additions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBCB0E28870015002EAE00 /* URL+Additions.swift */; };
 		4EBBCB182889051B002EAE00 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBCB172889051B002EAE00 /* main.c */; };
-		4EBBCB1F28890B42002EAE00 /* NewTermLoginHelper in Copy Executables */ = {isa = PBXBuildFile; fileRef = 4EBBCB152889051B002EAE00 /* NewTermLoginHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		4EBBCB1F28890B42002EAE00 /* NewTermLoginHelper in Copy Executables */ = {isa = PBXBuildFile; fileRef = 4EBBCB152889051B002EAE00 /* NewTermLoginHelper */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		4EBBCB21288AB710002EAE00 /* UnicodeUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBCB20288AB710002EAE00 /* UnicodeUtil.swift */; };
 		4ECEE6ED25F9B87E00FAD26B /* TerminalPasswordInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEE6EC25F9B87E00FAD26B /* TerminalPasswordInputView.swift */; };
 		4ECFC23825FA3D2C007B0F51 /* LayoutGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECFC23725FA3D2C007B0F51 /* LayoutGuide.swift */; };
@@ -973,6 +973,7 @@
 /* Begin PBXTargetDependency section */
 		4EW100000000000000000A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilter = ios;
 			target = 4EW1000000000000000001 /* NewTermWidget */;
 			targetProxy = 4EW100000000000000000B /* PBXContainerItemProxy */;
 		};
@@ -983,6 +984,7 @@
 		};
 		4EBBCB1D28890B29002EAE00 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilter = ios;
 			target = 4EBBCB142889051B002EAE00 /* NewTermLoginHelper */;
 			targetProxy = 4EBBCB1C28890B29002EAE00 /* PBXContainerItemProxy */;
 		};
@@ -1035,7 +1037,7 @@
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGNING_ALLOWED = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Widget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NewTerm;
@@ -1045,7 +1047,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 3.0b1;
 				PRODUCT_BUNDLE_IDENTIFIER = ws.hbang.Terminal.widget;
 				PRODUCT_NAME = NewTermWidget;
 				SKIP_INSTALL = YES;
@@ -1064,7 +1066,7 @@
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGNING_ALLOWED = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Widget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NewTerm;
@@ -1074,7 +1076,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 3.0b1;
 				PRODUCT_BUNDLE_IDENTIFIER = ws.hbang.Terminal.widget;
 				PRODUCT_NAME = NewTermWidget;
 				SKIP_INSTALL = YES;

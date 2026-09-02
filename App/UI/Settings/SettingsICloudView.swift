@@ -102,9 +102,16 @@ struct SettingsICloudView: View {
 			// The system picker rather than a list of our own: it browses iCloud Drive, On My iPhone and
 			// anything else Files can see, which is more than we could enumerate ourselves.
 			.fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
-				if case .success(let url) = result {
-					preferences.iCloudFolderPath = url.path
-					reload()
+				switch result {
+				case .success(let url):
+					do {
+						try ProjectManager.selectICloudFolder(url)
+						reload()
+					} catch {
+						failure = Failure(message: error.localizedDescription)
+					}
+				case .failure(let error):
+					failure = Failure(message: error.localizedDescription)
 				}
 			}
 			.alert(item: $pending) { copy in confirmation(for: copy) }
@@ -159,6 +166,14 @@ struct SettingsICloudView: View {
 	}
 
 	private func perform(_ copy: PendingCopy) {
+		let project = copy.direction == .export
+			? projects.first(where: { $0.name == copy.name })
+			: nil
+		if copy.direction == .export, project == nil {
+			busyName = nil
+			reload()
+			return
+		}
 		busyName = copy.name
 		// Off the main thread: a project is a directory of source, and copying it is not instant.
 		DispatchQueue.global(qos: .userInitiated).async {
@@ -166,10 +181,7 @@ struct SettingsICloudView: View {
 			do {
 				switch copy.direction {
 				case .export:
-					guard let project = projects.first(where: { $0.name == copy.name }) else {
-						return
-					}
-					try ProjectManager.exportToICloud(project)
+					try ProjectManager.exportToICloud(project!)
 				case .importing:
 					try ProjectManager.importFromICloud(named: copy.name)
 				}

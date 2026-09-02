@@ -10,8 +10,12 @@ import Foundation
 public struct AppTheme: Codable {
 
 	public static let predefined: [String: AppTheme] = {
-		let data = try! Data(contentsOf: Bundle.main.url(forResource: "Themes", withExtension: "plist")!)
-		return try! PropertyListDecoder().decode([String: AppTheme].self, from: data)
+		guard let url = Bundle.main.url(forResource: "Themes", withExtension: "plist"),
+					let data = try? Data(contentsOf: url),
+					let themes = try? PropertyListDecoder().decode([String: AppTheme].self, from: data) else {
+			return ["Basic (Dark)": AppTheme()]
+		}
+		return themes
 	}()
 
 	public let background: String

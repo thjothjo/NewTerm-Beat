@@ -80,6 +80,7 @@ public class Preferences: NSObject, ObservableObject {
 		DispatchQueue.main.async {
 			self.fontMetricsChanged()
 			self.colorMapChanged()
+			self.notifyChanged()
 		}
 	}
 
@@ -209,16 +210,19 @@ public class Preferences: NSObject, ObservableObject {
 	@AppStorage("refreshRateOnAC")
 	public var refreshRateOnAC: Int = 60 {
 		willSet { objectWillChange.send() }
+		didSet { notifyChanged() }
 	}
 
 	@AppStorage("refreshRateOnBattery")
 	public var refreshRateOnBattery: Int = 60 {
 		willSet { objectWillChange.send() }
+		didSet { notifyChanged() }
 	}
 
 	@AppStorage("reduceRefreshRateInLPM")
 	public var reduceRefreshRateInLPM: Bool = true {
 		willSet { objectWillChange.send() }
+		didSet { notifyChanged() }
 	}
 
 	@AppStorage("preferencesSyncService")
@@ -252,6 +256,13 @@ public class Preferences: NSObject, ObservableObject {
 	/// name so it can be anywhere the picker can reach, not only the top level of iCloud Drive.
 	@AppStorage("iCloudFolderPath")
 	public var iCloudFolderPath: String = "" {
+		willSet { objectWillChange.send() }
+	}
+
+	/// Persistent permission for a folder chosen through the system file importer. A path alone stops
+	/// being sufficient once the importer's temporary security scope ends.
+	@AppStorage("iCloudFolderBookmark")
+	public var iCloudFolderBookmark: Data = Data() {
 		willSet { objectWillChange.send() }
 	}
 
@@ -308,4 +319,3 @@ public class Preferences: NSObject, ObservableObject {
 	}
 
 }
-

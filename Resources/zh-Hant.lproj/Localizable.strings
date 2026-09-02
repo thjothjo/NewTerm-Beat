@@ -149,5 +149,99 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<string>一句話說明這個快捷鍵是做什麼的。會顯示在名稱下方——按鍵上和這裡都會顯示。</string>
 	<key>EDIT</key>
 	<string>編輯</string>
+	<key>ACKNOWLEDGEMENTS_UNAVAILABLE</key>
+	<string>暫時無法顯示致謝內容。</string>
+	<key>SSH_HOSTS_AND_KEYS</key>
+	<string>主機與金鑰</string>
+	<key>SSH_HOST_INVALID</key>
+	<string>主機名稱不能包含空格或萬用字元，連接埠必須在 1 到 65535 之間。</string>
+	<key>SSH_HOST_EXISTS</key>
+	<string>已經有一個名為 %@ 的 SSH 主機。</string>
+	<key>SSH_KEYS_FOOTER</key>
+	<string>存放在 ~/.ssh，也就是 ssh 尋找金鑰的位置。在上面把某個金鑰指定給主機，再把它的公鑰寫進那台伺服器的 ~/.ssh/authorized_keys。</string>
+	<key>SSH_NO_KEYS</key>
+	<string>~/.ssh 裡還沒有金鑰</string>
+	<key>SSH_GENERATE_KEY</key>
+	<string>產生金鑰</string>
+	<key>SSH_GENERATE</key>
+	<string>產生</string>
+	<key>SSH_GENERATE_FOOTER</key>
+	<string>產生在 ~/.ssh，不設密碼——連線時沒有地方輸入。除非伺服器舊到不認，否則選 Ed25519。名稱是 ssh 對該類型預設會嘗試的那個。</string>
+	<key>SSH_HOST_NAME_FOOTER</key>
+	<string>名稱就是你用來連線的名字：ssh 會帶著它執行，和你自己輸入完全一樣。留空的欄位交給 ssh 用預設值。</string>
+	<key>SSH_HOST_KEY_FOOTER</key>
+	<string>寫入設定的 IdentityFile。不選金鑰時，ssh 會嘗試 ~/.ssh 裡常見的那幾個——只有一個金鑰時這樣就對了。</string>
+	<key>SSH_HOST_NAME</key>
+	<string>主機名稱</string>
+	<key>SSH_USER</key>
+	<string>使用者</string>
+	<key>SSH_PORT</key>
+	<string>連接埠</string>
+	<key>SSH_KEY</key>
+	<string>金鑰</string>
+	<key>SSH_KEY_NONE</key>
+	<string>不指定</string>
+	<key>SSH_KEY_TYPE</key>
+	<string>類型</string>
+	<key>SSH_KEY_FILE</key>
+	<string>檔案</string>
+	<key>SSH_PUBLIC_KEY</key>
+	<string>公鑰</string>
+	<key>SSH_PUBLIC_KEY_FOOTER</key>
+	<string>把這一行加到伺服器的 ~/.ssh/authorized_keys，就能用這個金鑰代替密碼登入。</string>
+	<key>SSH_COPIED</key>
+	<string>已複製</string>
+	<key>SSH_KEYGEN_MISSING</key>
+	<string>找不到 ssh-keygen。請安裝 OpenSSH，或在終端機裡用 ssh-keygen 產生金鑰。</string>
+	<key>SSH_KEY_EXISTS</key>
+	<string>~/.ssh 裡已經有一個叫 %@ 的金鑰。請換個名稱，或先刪掉它。</string>
+	<key>SSH_KEYGEN_FAILED</key>
+	<string>ssh-keygen 沒有產生金鑰。</string>
+	<key>EDIT_SSH_HOST</key>
+	<string>編輯 SSH 主機</string>
+	<key>DELETE_SSH_HOST</key>
+	<string>刪除「%@」？</string>
+	<key>DELETE_SSH_HOST_BODY</key>
+	<string>只從 ~/.ssh/config 裡移除這一條。檔案的其餘內容和所有金鑰都不動。</string>
+	<key>COULDNT_DELETE_HOST</key>
+	<string>無法刪除主機</string>
+	<key>Hosts</key>
+	<string>主機</string>
+	<key>Keys</key>
+	<string>金鑰</string>
+	<key>Name</key>
+	<string>名稱</string>
+	<key>Add</key>
+	<string>新增</string>
+	<key>Save</key>
+	<string>儲存</string>
+	<key>Delete</key>
+	<string>刪除</string>
+	<key>Nothing yet.</key>
+	<string>還沒有內容。</string>
+	<key>Couldn’t save</key>
+	<string>儲存失敗</string>
+	<key>SSH_KEY_NAME_INVALID</key>
+	<string>金鑰名稱必須是普通檔名，不能包含空格或斜線。</string>
+	<key>SSH_IMPORT_KEY</key>
+	<string>從「檔案」匯入…</string>
+	<key>SSH_IMPORT_NONE</key>
+	<string>選中的都不是私鑰。請選金鑰檔案本身，或它所在的資料夾。</string>
+	<key>SSH_KEY_STORAGE_FOOTER</key>
+	<string>公私鑰都存在 ~/.ssh。在列表裡刪除會把兩個檔案一起刪掉；引用它的主機仍保留那一行設定，記得改指向別的金鑰。</string>
+	<key>SSH_KEY_PERMISSIONS</key>
+	<string>權限</string>
+	<key>SSH_KEY_PERMISSIONS_OPEN</key>
+	<string>權限 %@ —— ssh 會拒絕使用</string>
+	<key>SSH_KEY_FIX_PERMISSIONS</key>
+	<string>把權限改回 600</string>
+	<key>SSH_KEY_NO_PUBLIC</key>
+	<string>旁邊沒有對應的公鑰</string>
+	<key>SSH_KEY_RECOVER_PUBLIC</key>
+	<string>從私鑰推算出公鑰</string>
+	<key>SSH_PUBLIC_KEY_FAILED</key>
+	<string>無法從這個私鑰推算出公鑰。帶密碼的金鑰沒有密碼讀不出來。</string>
+	<key>SSH_KEY_COMMENT_FOOTER</key>
+	<string>寫在公鑰結尾。幾個月後在伺服器的 authorized_keys 裡，就靠它認出這個金鑰是哪台裝置的。</string>
 </dict>
 </plist>

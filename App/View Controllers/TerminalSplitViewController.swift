@@ -69,6 +69,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 	private var splitPercentages = [Double]()
 	private var oldSplitPercentages = [Double]()
 	private var constraints = [NSLayoutConstraint]()
+	private var crossAxisConstraints = [NSLayoutConstraint]()
 
 	private var selectedIndex = 0
 
@@ -170,22 +171,44 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 	private func updateViewControllers() {
 		loadViewIfNeeded()
+		let retained = Set(viewControllers.map(ObjectIdentifier.init))
+		for child in children.compactMap({ $0 as? BaseTerminalSplitViewControllerChild })
+			where !retained.contains(ObjectIdentifier(child)) {
+			child.willMove(toParent: nil)
+			child.view.removeFromSuperview()
+			child.removeFromParent()
+			child.delegate = nil
+		}
 
 		for view in stackView.arrangedSubviews {
+			stackView.removeArrangedSubview(view)
 			view.removeFromSuperview()
+		}
+		NSLayoutConstraint.deactivate(constraints + crossAxisConstraints)
+		constraints.removeAll()
+		crossAxisConstraints.removeAll()
+
+		guard !viewControllers.isEmpty else {
+			splitPercentages.removeAll()
+			return
 		}
 
 		for (viewController, i) in zip(viewControllers, viewControllers.indices) {
 			let containerView = UIView()
 			containerView.translatesAutoresizingMaskIntoConstraints = false
 
-			addChild(viewController)
+			let isNewChild = viewController.parent !== self
+			if isNewChild {
+				addChild(viewController)
+			}
 			viewController.delegate = self
 			viewController.view.frame = containerView.bounds
 			viewController.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
 			containerView.addSubview(viewController.view)
 			stackView.addArrangedSubview(containerView)
-			viewController.didMove(toParent: self)
+			if isNewChild {
+				viewController.didMove(toParent: self)
+			}
 
 			if i != viewControllers.count - 1 {
 				let splitGrabberView = SplitGrabberView(axis: axis)
@@ -212,7 +235,6 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		@unknown default: fatalError()
 		}
 
-		NSLayoutConstraint.deactivate(constraints)
 		constraints = viewControllers.map { viewController in
 			NSLayoutConstraint(item: viewController.view.superview!,
 												 attribute: attribute,
@@ -223,7 +245,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 												 constant: 0)
 		}
 		NSLayoutConstraint.activate(constraints)
-		NSLayoutConstraint.activate(viewControllers.map { viewController in
+		crossAxisConstraints = viewControllers.map { viewController in
 			NSLayoutConstraint(item: viewController.view.superview!,
 												 attribute: otherAttribute,
 												 relatedBy: .equal,
@@ -231,7 +253,8 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 												 attribute: otherAttribute,
 												 multiplier: 1,
 												 constant: 0)
-		})
+		}
+		NSLayoutConstraint.activate(crossAxisConstraints)
 	}
 
 	/// Takes a pane out of the split without ending its session, so the caller can put it somewhere
@@ -254,6 +277,10 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 			return
 		}
 
+		if let session = viewController as? TerminalSessionViewController,
+			 let scrollbackID = session.scrollbackID {
+			ScrollbackStore.shared.discard(id: scrollbackID)
+		}
 		viewControllers.remove(at: index)
 
 		if viewControllers.isEmpty {
@@ -263,8 +290,9 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 			} else if let rootViewController = parent as? RootViewController {
 				rootViewController.removeTerminal(viewController: self)
 			}
+		} else {
+			(parent as? RootViewController)?.splitLayoutDidChange()
 		}
-		updateViewControllers()
 	}
 
 	private func updateConstraints() {

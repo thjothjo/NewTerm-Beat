@@ -87,7 +87,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		// sceneDidDisconnect instead would delete the snapshot every time the system merely reclaimed
 		// a backgrounded scene it intends to reconnect — which is exactly the case we exist to survive.
 		for session in sceneSessions {
-			SessionStore.shared.discard(identifier: session.persistentIdentifier)
+			let state = SessionStore.shared.discard(identifier: session.persistentIdentifier)
+			for paneID in state?.tabs.flatMap(\.paneIDs) ?? [] {
+				ScrollbackStore.shared.discard(id: paneID)
+			}
 		}
 	}
 
@@ -111,14 +114,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			builder.remove(menu: .toolbar)
 
 			// Application menu
-			builder.insertSibling(UIMenu(options: .displayInline,
-																	 children: [
-																		UIKeyCommand(title: .localize("SETTINGS", comment: "Title of Settings page."),
-																								 action: #selector(RootViewController.openSettings),
-																								 input: ",",
-																								 modifierFlags: .command)
-																	 ]),
-														afterMenu: .about)
+			let settingsMenu = UIMenu(options: .displayInline,
+													 children: [
+														UIKeyCommand(title: .localize("SETTINGS", comment: "Title of Settings page."),
+																			 action: #selector(RootViewController.openSettings),
+																			 input: ",",
+																			 modifierFlags: .command)
+													 ])
+			if #available(iOS 26, *) {
+				// iOS 26 supplies the standard command itself. Replace it so the shortcut opens our scene;
+				// inserting another one produces a duplicate-key warning and undefined dispatch.
+				builder.replace(menu: .preferences, with: settingsMenu)
+			} else {
+				builder.insertSibling(settingsMenu, afterMenu: .about)
+			}
 			builder.replace(menu: .about,
 											with: UIMenu(options: .displayInline,
 																	 children: [
@@ -197,4 +206,3 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	}
 
 }
-

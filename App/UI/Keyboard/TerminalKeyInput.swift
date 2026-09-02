@@ -77,6 +77,8 @@ class TerminalKeyInput: TextInputBase {
 	var newProjectHandler: (() -> Void)?
 	var connectSSHHostHandler: ((SSHHost) -> Void)?
 	var newSSHHostHandler: (() -> Void)?
+	var editSSHHostHandler: ((SSHHost) -> Void)?
+	var deleteSSHHostHandler: ((SSHHost) -> Void)?
 	var aiCommandHandler: ((AICommand) -> Void)?
 	var deleteProjectHandler: ((Project) -> Void)?
 	var attachImageHandler: (() -> Void)?
@@ -395,8 +397,10 @@ class TerminalKeyInput: TextInputBase {
 	func activatePasswordManager() {
 		// Trigger the iOS password manager button, or cancel the operation.
 		if let passwordInputView = passwordInputView {
-			// We’ll become first responder automatically after removing the view.
+			_ = passwordInputView.resignFirstResponder()
 			passwordInputView.removeFromSuperview()
+			self.passwordInputView = nil
+			_ = becomeFirstResponder()
 		} else {
 			passwordInputView = TerminalPasswordInputView()
 			passwordInputView!.passwordDelegate = self
@@ -482,6 +486,7 @@ class TerminalKeyInput: TextInputBase {
 
 	@discardableResult
 	override func resignFirstResponder() -> Bool {
+		_ = passwordInputView?.resignFirstResponder()
 		return super.resignFirstResponder()
 	}
 
@@ -830,6 +835,14 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 		newSSHHostHandler?()
 	}
 
+	func keyboardToolbarDidRequestEditSSHHost(_ host: SSHHost) {
+		editSSHHostHandler?(host)
+	}
+
+	func keyboardToolbarDidRequestDeleteSSHHost(_ host: SSHHost) {
+		deleteSSHHostHandler?(host)
+	}
+
 	func keyboardToolbarDidSelectAICommand(_ command: AICommand) {
 		if usesSideBar {
 			state.toggledKeys.remove(.ai)
@@ -841,15 +854,8 @@ extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 extension TerminalKeyInput: TerminalPasswordInputViewDelegate {
 
 	func passwordInputViewDidComplete(password: String?) {
-		if let password = password {
-			// User could have typed on the keyboard while it was in password mode, rather than using the
-			// password autofill. Send a return if it seems like a password was actually received,
-			// otherwise just pretend it was typed like normal.
-			if password.count > 2 {
-				terminalInputDelegate!.receiveKeyboardInput(data: password.utf8Array + EscapeSequences.return)
-			} else {
-				insertText(password)
-			}
+		if let password = password, !password.isEmpty {
+			terminalInputDelegate?.receiveKeyboardInput(data: password.utf8Array + EscapeSequences.return)
 		}
 		passwordInputView?.removeFromSuperview()
 		passwordInputView = nil

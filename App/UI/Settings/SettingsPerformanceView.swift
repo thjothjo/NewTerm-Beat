@@ -29,7 +29,6 @@ struct SettingsPerformanceView: View {
 		device.isBatteryMonitoringEnabled = true
 		let percent = device.batteryLevel
 		let state = device.batteryState
-		device.isBatteryMonitoringEnabled = false
 		if state != .unknown {
 			if percent < 0.2 {
 				return .battery0
@@ -105,4 +104,3 @@ struct SettingsPerformanceView_Previews: PreviewProvider {
 		.previewDisplayName("120 Hz device")
 	}
 }
-

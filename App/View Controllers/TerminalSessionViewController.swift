@@ -150,7 +150,9 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		keyInput.newProjectHandler = { [weak self] in self?.rootViewController?.createProject() }
 		keyInput.deleteProjectHandler = { [weak self] in self?.rootViewController?.trashProject($0) }
 		keyInput.connectSSHHostHandler = { [weak self] in self?.connectSSH(to: $0) }
-		keyInput.newSSHHostHandler = { [weak self] in self?.addSSHHost() }
+		keyInput.newSSHHostHandler = { [weak self] in self?.editSSHHost(nil) }
+		keyInput.editSSHHostHandler = { [weak self] in self?.editSSHHost($0) }
+		keyInput.deleteSSHHostHandler = { [weak self] in self?.deleteSSHHost($0) }
 		keyInput.aiCommandHandler = { [weak self] in self?.insertAICommand($0) }
 		keyInput.attachImageHandler = { [weak self] in self?.attachImage() }
 
@@ -838,15 +840,17 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Returns nil when neither reading exists, which is also what throws out the false positives the
 	/// loose path pattern picks up.
 	private static func resolveExistingPath(_ path: String) -> String? {
-		let expanded = path.hasPrefix("~") ? NSString(string: path).expandingTildeInPath : path
-		if FileManager.default.fileExists(atPath: expanded) {
-			return expanded
-		}
+		let expanded = path.hasPrefix("~")
+			? SubProcess.homeDirectory + String(path.dropFirst())
+			: path
 		if let jbRoot = SubProcess.jbRoot {
 			let inJail = (jbRoot as NSString).appendingPathComponent(expanded)
 			if FileManager.default.fileExists(atPath: inJail) {
 				return inJail
 			}
+		}
+		if FileManager.default.fileExists(atPath: expanded) {
+			return expanded
 		}
 		return nil
 	}
@@ -892,43 +896,41 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		terminalController.write(Array(SSHConfig.connectCommand(for: host).utf8) + EscapeSequences.return)
 	}
 
-	/// Adds a host to `~/.ssh/config`.
+	/// Adds a host to `~/.ssh/config`, or changes one that's already there.
 	///
-	/// The fields are the four that decide where a connection goes. Anything else — keys, jump hosts,
-	/// forwarding — is edited in the file itself, which stays the source of truth.
-	private func addSSHHost() {
-		let alertController = UIAlertController(title: .localize("New SSH Host"),
-																						message: .localize("Added to ~/.ssh/config. Connecting runs ssh with the name."),
-																						preferredStyle: .alert)
-		let placeholders = [
-			(String.localize("Name (e.g. server)"), UIKeyboardType.default),
-			(String.localize("Host name or IP"), .URL),
-			(String.localize("User (optional)"), .default),
-			(String.localize("Port (optional)"), .numberPad)
-		]
-		for (placeholder, keyboardType) in placeholders {
-			alertController.addTextField { textField in
-				textField.placeholder = placeholder
-				textField.keyboardType = keyboardType
-				textField.autocapitalizationType = .none
-				textField.autocorrectionType = .no
+	/// The same editor Settings uses, rather than an alert of its own. It used to be four text fields
+	/// in a `UIAlertController`, which left no room for the key picker — so the path most hosts are
+	/// actually added by was the one that couldn't set up a key login.
+	private func editSSHHost(_ host: SSHHost?) {
+		let editor = SSHHostEditor(existing: host, keys: SSHKeys.keys()) { [weak self] edited in
+			do {
+				if let host = host {
+					try SSHConfig.updateHost(host, to: edited)
+				} else {
+					try SSHConfig.addHost(edited)
+				}
+			} catch {
+				// After the editor has gone. It calls back while dismissing, and presenting an alert from
+				// underneath a modal that is still on screen does nothing at all.
+				DispatchQueue.main.asyncAfter(deadline: .now() + SSHHostEditor.dismissalDuration) {
+					self?.presentError(title: .localize("Couldn’t Add Host"), error: error)
+				}
 			}
 		}
+		present(UIHostingController(rootView: editor), animated: true)
+	}
 
+	/// Removes a host from `~/.ssh/config`, leaving the rest of the file as it was.
+	private func deleteSSHHost(_ host: SSHHost) {
+		let alertController = UIAlertController(title: String(format: .localize("DELETE_SSH_HOST"), host.name),
+																						message: .localize("DELETE_SSH_HOST_BODY"),
+																						preferredStyle: .alert)
 		alertController.addAction(UIAlertAction(title: .cancel, style: .cancel))
-		alertController.addAction(UIAlertAction(title: .localize("Add"), style: .default) { [weak self, weak alertController] _ in
-			let fields = alertController?.textFields?.map { $0.text ?? "" } ?? []
-			let name = fields.first?.trimmingCharacters(in: .whitespaces) ?? ""
-			guard !name.isEmpty else {
-				return
-			}
+		alertController.addAction(UIAlertAction(title: .localize("Delete"), style: .destructive) { [weak self] _ in
 			do {
-				try SSHConfig.addHost(name: name,
-															hostName: fields.count > 1 ? fields[1].trimmingCharacters(in: .whitespaces) : "",
-															user: fields.count > 2 ? fields[2].trimmingCharacters(in: .whitespaces) : "",
-															port: fields.count > 3 ? fields[3].trimmingCharacters(in: .whitespaces) : "")
+				try SSHConfig.removeHost(host)
 			} catch {
-				self?.presentError(title: .localize("Couldn’t Add Host"), error: error)
+				self?.presentError(title: .localize("COULDNT_DELETE_HOST"), error: error)
 			}
 		})
 		present(alertController, animated: true)
@@ -1008,23 +1010,12 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	}
 
 	/// Persist this tab's scrollback so it can be replayed after the app is killed.
-	/// Whether this terminal's output is worth bringing back.
 	///
-	/// A project, or a terminal an agent has been run in. A plain shell someone typed `ls` in has no
-	/// conversation to resume, and replaying one only means the tab opens onto a wall of yesterday's
-	/// output above the prompt.
-	private var isWorthRestoring: Bool {
-		(parent as? TerminalSplitViewController)?.projectPath != nil || terminalController.hasRunAgent
-	}
-
+	/// Every tab, not only projects and agent sessions: coming back to a plain shell and still being
+	/// able to read what it printed is the point. Whether any of this is kept at all is the user's
+	/// call, via the Save Scrollback setting that `ScrollbackStore` checks.
 	private func saveScrollback() {
 		guard let scrollbackID = scrollbackID else {
-			return
-		}
-		guard isWorthRestoring else {
-			// Dropped rather than left alone: a tab that used to qualify and no longer does shouldn't
-			// keep restoring the output from back when it did.
-			ScrollbackStore.shared.discard(id: scrollbackID)
 			return
 		}
 		ScrollbackStore.shared.save(terminalController.snapshotScrollback(), id: scrollbackID)

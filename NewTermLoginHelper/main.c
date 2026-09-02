@@ -30,18 +30,33 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Change cwd to the one passed on the command line.
-	chdir(argv[1]);
+	if (chdir(argv[1]) != 0) {
+		perror("chdir()");
+		return 1;
+	}
 
 	// Construct command line to exec by replacing argv[2] with shell basename preceded by "-", which
 	// indicates to the shell that it is being launched by login(1).
-	char *program = malloc(strlen(argv[2]));
-	strcpy(program, argv[2]);
-	asprintf(&argv[2], "-%s", basename(program));
+	char *program = strdup(argv[2]);
+	char *program_for_basename = strdup(argv[2]);
+	char *login_argv0 = NULL;
+	if (program == NULL || program_for_basename == NULL ||
+			asprintf(&login_argv0, "-%s", basename(program_for_basename)) == -1) {
+		perror("malloc()");
+		free(program);
+		free(program_for_basename);
+		free(login_argv0);
+		return 1;
+	}
+	argv[2] = login_argv0;
 
 	// Now exec the shell, using our supplied command line from argv[2] onwards.
 	execvp(program, (char **)&argv[2]);
 
 	// If we got to here, exec failed. Print the error.
 	perror(program);
+	free(program);
+	free(program_for_basename);
+	free(login_argv0);
 	return 1;
 }

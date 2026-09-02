@@ -79,7 +79,7 @@ public struct ColorMap: Hashable {
 		}
 
 		var ansiColors: [AnsiColorCode: UIColor] = [
-			.black:  .label,
+			.black:  .black,
 			.red:    .systemRed,
 			.green:  .systemGreen,
 			.yellow: .systemYellow,
@@ -87,7 +87,7 @@ public struct ColorMap: Hashable {
 			.purple: .systemPurple,
 			.cyan:   cyan,
 			.white:  foreground,
-			.brightBlack:  .label,
+			.brightBlack:  .darkGray,
 			.brightRed:    .systemRed,
 			.brightGreen:  .systemGreen,
 			.brightYellow: .systemYellow,
@@ -136,7 +136,9 @@ public struct ColorMap: Hashable {
 			return isForeground ? background : foreground
 
 		case .ansi256(let ansi):
-			let index = Int(ansi) + (isBold && ansi < 248 ? 8 : 0)
+			// Bold promotes only the original 8 ANSI colours to their bright variants. It must not shift
+			// arbitrary 256-colour palette entries into a different cube/grey value.
+			let index = Int(ansi) + (isBold && ansi < 8 ? 8 : 0)
 			if index < 16 {
 				// ANSI color (0-15)
 				return ansiColors[.allCases[index]]!

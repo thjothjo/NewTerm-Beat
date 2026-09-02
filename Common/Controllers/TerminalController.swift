@@ -73,7 +73,8 @@ public class TerminalController {
 	/// `terminalQueue` only, same as `readBuffer`. Capped by dropping from the front — the tail is what
 	/// survives replay anyway.
 	private static let scrollbackCaptureCap = 256 * 1024
-	private var scrollbackCapture = [UTF8Char]()
+	private var scrollbackCapture = ByteTailBuffer(capacity: scrollbackCaptureCap)
+	private var activityOutputUpdatePending = false
 
 	internal var terminalQueue = DispatchQueue(label: "ws.hbang.Terminal.terminal-queue")
 
@@ -305,15 +306,20 @@ public class TerminalController {
 	// MARK: - Terminal
 
 	public func readInputStream(_ data: [UTF8Char]) {
-		if let text = String(bytes: data, encoding: .utf8) {
-			activityController.didReceiveOutput(text)
-		}
 		terminalQueue.async {
 			self.readBuffer += data
 
-			self.scrollbackCapture += data
-			if self.scrollbackCapture.count > Self.scrollbackCaptureCap {
-				self.scrollbackCapture.removeFirst(self.scrollbackCapture.count - Self.scrollbackCaptureCap)
+			self.scrollbackCapture.append(data)
+			// A busy command can produce hundreds of chunks before the main queue gets a turn. Activity
+			// tracking only needs the most recent time, so keep at most one main-thread update pending.
+			if !self.activityOutputUpdatePending {
+				self.activityOutputUpdatePending = true
+				DispatchQueue.main.async {
+					self.activityController.didReceiveOutput()
+					self.terminalQueue.async {
+						self.activityOutputUpdatePending = false
+					}
+				}
 			}
 
 			// Come back up to speed now rather than waiting up to a frame at the idle rate, so the
@@ -333,12 +339,11 @@ public class TerminalController {
 	/// The captured output tail, for persisting. Synchronous so the caller (going to the background)
 	/// gets a consistent snapshot before it hands off.
 	public func snapshotScrollback() -> Data {
-		terminalQueue.sync { Data(scrollbackCapture) }
+		terminalQueue.sync { scrollbackCapture.data }
 	}
 
 	/// Replay previously-saved output before the live shell starts, reconstructing the last visual
-	/// state, and prime the capture buffer so the next save still carries this history. Feed it through
-	/// the normal input path so it renders and re-captures exactly as live output would.
+	/// state, and prime the capture buffer so the next save still carries this history.
 	/// True while saved output is being fed back, so the emulator's replies go nowhere.
 	private var isSeedingScrollback = false
 
@@ -346,20 +351,35 @@ public class TerminalController {
 		guard !data.isEmpty else {
 			return
 		}
-		isSeedingScrollback = true
-		defer { isSeedingScrollback = false }
 		// Bells stripped before replaying. The saved bytes are a recording of the session, and every
 		// BEL the shell rang during it is in there — feeding them back rang the lot on launch, for
 		// things that happened yesterday. Replaying is reconstructing what the screen looked like, not
 		// making it all happen again.
-		readInputStream([UTF8Char](data).filter { $0 != 0x07 })
-		// A newline so the restored shell's first prompt starts cleanly below the history rather than
-		// merged onto its last line.
-		readInputStream([UInt8]("\r\n".utf8))
+		let replay = [UTF8Char](data).filter { $0 != 0x07 } + [UInt8]("\r\n".utf8)
+		terminalQueue.sync {
+			self.isSeedingScrollback = true
+			defer { self.isSeedingScrollback = false }
+			// Feed synchronously while the guard is active. Enqueuing into readBuffer and clearing the
+			// guard first lets the emulator's cursor/colour replies escape into the new shell.
+			self.terminal?.feed(byteArray: replay)
+			self.scrollbackCapture = ByteTailBuffer(capacity: Self.scrollbackCaptureCap)
+			self.scrollbackCapture.append(replay)
+		}
 	}
 
 	public func write(_ data: [UTF8Char]) {
-		noteTypedInput(data)
+		if Thread.isMainThread {
+			noteTypedInput(data)
+		} else {
+			DispatchQueue.main.async {
+				self.noteTypedInput(data)
+			}
+		}
+		writeRaw(data)
+	}
+
+	/// Device replies and transfer payloads go to the pty without pretending the user typed them.
+	internal func writeRaw(_ data: [UTF8Char]) {
 		subProcess?.write(data: data)
 	}
 
@@ -763,7 +783,7 @@ extension TerminalController: TerminalDelegate {
 			return
 		}
 		terminalQueue.async {
-			self.write([UTF8Char](data))
+			self.writeRaw([UTF8Char](data))
 		}
 	}
 
@@ -837,8 +857,7 @@ extension TerminalController: TerminalInputProtocol {
 	public var applicationCursor: Bool { terminal?.applicationCursor ?? false }
 
 	public func receiveKeyboardInput(data: [UTF8Char]) {
-		// Forward the data from the keyboard directly to the subprocess
-		subProcess!.write(data: data)
+		write(data)
 	}
 
 }

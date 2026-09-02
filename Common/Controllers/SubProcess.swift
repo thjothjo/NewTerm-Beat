@@ -153,24 +153,49 @@ public class SubProcess {
 		"LC_TERMINAL=NewTerm"
 	]
 
-	private static var userPasswd: passwd? {
-		let length = sysconf(_SC_GETPW_R_SIZE_MAX)
-		let buffer = malloc(length)
-		defer { buffer?.deallocate() }
+	private struct UserInfo {
+		var shell: String
+		var homeDirectory: String
+	}
 
-		var pwd = passwd()
-		var result: UnsafeMutablePointer<passwd>? = UnsafeMutablePointer<passwd>.allocate(capacity: 1)
-		guard ie_getpwuid_r(getuid(), &pwd, buffer, length, &result) == 0 else {
-			return nil
+	/// `getpwuid_r` stores every string pointer inside its caller-owned buffer, so copy the values
+	/// before freeing that buffer. Returning `passwd` itself would return dangling pointers.
+	private static var userInfo: UserInfo? {
+		var length = Int(sysconf(_SC_GETPW_R_SIZE_MAX))
+		if length <= 0 {
+			length = 16 * 1024
 		}
-		return pwd
+
+		while length <= 1024 * 1024 {
+			guard let buffer = malloc(length) else {
+				return nil
+			}
+			var pwd = passwd()
+			var result: UnsafeMutablePointer<passwd>?
+			let status = ie_getpwuid_r(getuid(), &pwd, buffer, length, &result)
+			if status == ERANGE {
+				free(buffer)
+				length *= 2
+				continue
+			}
+			guard status == 0, result != nil else {
+				free(buffer)
+				return nil
+			}
+
+			let shell = pwd.pw_shell.map { String(cString: $0) } ?? ""
+			let homeDirectory = pwd.pw_dir.map { String(cString: $0) } ?? ""
+			free(buffer)
+			return UserInfo(shell: shell, homeDirectory: homeDirectory)
+		}
+		return nil
 	}
 
 	static var shell: String {
 		// The shell from the passwd entry is a jailbreak path too — `/usr/bin/zsh` means the one inside
 		// the jailbreak root, not the (nonexistent) system one. The helper execs this, so if it’s wrong
 		// the terminal opens and immediately dies.
-		let fromPasswd = userPasswd?.pw_shell.map { String(cString: $0) } ?? ""
+		let fromPasswd = userInfo?.shell ?? ""
 		#if targetEnvironment(simulator) || targetEnvironment(macCatalyst)
 		return fromPasswd.isEmpty ? "/bin/bash" : fromPasswd
 		#else
@@ -194,8 +219,9 @@ public class SubProcess {
 	/// `/rootfs/private/var/mobile`. Point the shell at the real one and every prompt reads
 	/// `yachohaiki:/rootfs/private/var/mobile mobile%` instead of `yachohaiki:~ mobile%`, and `~`
 	/// stops expanding to anything useful.
-	static var homeDirectory: String {
-		userPasswd?.pw_dir.map { String(cString: $0) } ?? NSHomeDirectory()
+	public static var homeDirectory: String {
+		let homeDirectory = userInfo?.homeDirectory ?? ""
+		return homeDirectory.isEmpty ? NSHomeDirectory() : homeDirectory
 	}
 
 	weak var delegate: SubProcessDelegate?
@@ -204,6 +230,7 @@ public class SubProcess {
 	private var fileDescriptor: Int32?
 
 	private let queue = DispatchQueue(label: "ws.hbang.Terminal.io-queue")
+	private static let spawnLock = NSLock()
 	private var readSource: DispatchSourceRead?
 	private var signalSource: DispatchSourceProcess?
 
@@ -237,12 +264,27 @@ public class SubProcess {
 		posix_spawn_file_actions_adddup2(&actions, fds.replica, STDERR_FILENO)
 		defer { posix_spawn_file_actions_destroy(&actions) }
 
+		// `chdir` is process-wide. Serialise the short spawn window and restore our original directory
+		// immediately afterwards so one terminal can't change where another session or app code starts.
+		Self.spawnLock.lock()
+		let originalDirectory = FileManager.default.currentDirectoryPath
+		defer {
+			if Self.loginIsShell {
+				_ = chdir(originalDirectory)
+			}
+			Self.spawnLock.unlock()
+		}
+
 		// TODO: At some point, come up with some way to keep track of working directory changes.
 		// When opening a new tab, we can switch straight to the previous tab’s working directory.
 		let argv: [UnsafeMutablePointer<CChar>?]
 		if Self.loginIsShell {
 			argv = Self.loginArgv.cStringArray
-			chdir(initialDirectory ?? Self.homeDirectory)
+			let directory = initialDirectory ?? Self.homeDirectory
+			if chdir(directory) != 0 {
+				logger.error("chdir(\(directory, privacy: .private)) failed: \(errno, format: .darwinErrno)")
+				_ = chdir(Self.homeDirectory)
+			}
 		} else {
 			argv = ([Self.helperArgv0, initialDirectory ?? Self.homeDirectory, Self.shell]).cStringArray
 		}
@@ -273,30 +315,13 @@ public class SubProcess {
 			envp.deallocate()
 		}
 
-		// TEMPORARY DIAGNOSTIC — remove once the roothide launch path is confirmed working.
-		let diag = """
-			bundle=\(Bundle.main.bundlePath)
-			jbRoot=\(String(describing: Self.jbRoot))
-			launchPath=\(Self.launchPath)
-			launchExists=\(FileManager.default.fileExists(atPath: Self.launchPath))
-			shell=\(Self.shell)
-			shellExists=\(FileManager.default.fileExists(atPath: Self.shell))
-			home=\(Self.homeDirectory)
-			loginIsShell=\(Self.loginIsShell)
-			argvFull=\([Self.helperArgv0, initialDirectory ?? Self.homeDirectory, Self.shell])
-			uid=\(getuid()) euid=\(geteuid())
-
-			"""
-		try? diag.write(toFile: NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)[0] + "/newterm-diag.txt", atomically: true, encoding: .utf8)
-
 		var pid = pid_t()
 		let result = ie_posix_spawn(&pid, Self.launchPath, &actions, nil, argv, envp)
-		try? (diag + "spawnResult=\(result)\n").write(toFile: NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)[0] + "/newterm-diag.txt",
-																								 atomically: true, encoding: .utf8)
 		close(fds.replica)
 		if result != 0 {
 			// Fork failed.
 			close(fds.primary)
+			fileDescriptor = nil
 			logger.error("posix_spawn() failed: \(result, format: .darwinErrno)")
 			throw SubProcessIllegalStateError.forkFailed(errno: result)
 		}
@@ -404,7 +429,9 @@ public class SubProcess {
 				break
 
 			default:
-				// Something is wrong.
+				// A permanent read error would otherwise leave the dispatch source active and report the
+				// same failure repeatedly.
+				try? stop(fromError: true)
 				DispatchQueue.main.async {
 					self.delegate?.subProcess(didDisconnectWithError: SubProcessIOError.readFailed(errno: code))
 				}
@@ -429,8 +456,10 @@ public class SubProcess {
 			guard let fileDescriptor = self.fileDescriptor else {
 				return
 			}
-			_ = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
-				Darwin.write(fileDescriptor, buffer.baseAddress!, buffer.count)
+			if let code = writeAll(fileDescriptor: fileDescriptor, data: data) {
+				DispatchQueue.main.async {
+					self.delegate?.subProcess(didReceiveError: SubProcessIOError.writeFailed(errno: code))
+				}
 			}
 		}
 	}

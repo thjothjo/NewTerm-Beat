@@ -92,9 +92,9 @@ class TextInputBase: UIView, UIKeyInput, UITextInput, UITextInputTraits {
 		}
 
 		if a.position > b.position {
-			return .orderedAscending
-		} else if a.position < b.position {
 			return .orderedDescending
+		} else if a.position < b.position {
+			return .orderedAscending
 		} else {
 			return .orderedSame
 		}

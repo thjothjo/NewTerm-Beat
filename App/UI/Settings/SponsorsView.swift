@@ -40,12 +40,12 @@ struct SponsorsView: View {
 				Spacer()
 			}
 				.onAppear {
-					Task.detached { await self.fetchSponsors() }
+					Task { await self.fetchSponsors() }
 				}
 		}
 	}
 
-	private func fetchSponsors() async {
+	@MainActor private func fetchSponsors() async {
 		if isError || sponsors != nil {
 			return
 		}
@@ -66,4 +66,3 @@ struct SponsorsView_Previews: PreviewProvider {
 		SponsorsView()
 	}
 }
-

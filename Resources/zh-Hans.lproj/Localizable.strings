@@ -149,5 +149,99 @@ You may need to review startup scripts or reinstall core packages to fix this is
 	<string>一句话说明这个快捷键是干什么的。会显示在名称下方——按键上和这里都显示。</string>
 	<key>EDIT</key>
 	<string>编辑</string>
+	<key>ACKNOWLEDGEMENTS_UNAVAILABLE</key>
+	<string>暂时无法显示致谢内容。</string>
+	<key>SSH_HOSTS_AND_KEYS</key>
+	<string>主机与密钥</string>
+	<key>SSH_HOST_INVALID</key>
+	<string>主机名称不能包含空格或通配符，端口必须在 1 到 65535 之间。</string>
+	<key>SSH_HOST_EXISTS</key>
+	<string>已经有一个名为 %@ 的 SSH 主机。</string>
+	<key>SSH_KEYS_FOOTER</key>
+	<string>存放在 ~/.ssh，也就是 ssh 查找密钥的位置。在上面把某个密钥指定给主机，再把它的公钥写进那台服务器的 ~/.ssh/authorized_keys。</string>
+	<key>SSH_NO_KEYS</key>
+	<string>~/.ssh 里还没有密钥</string>
+	<key>SSH_GENERATE_KEY</key>
+	<string>生成密钥</string>
+	<key>SSH_GENERATE</key>
+	<string>生成</string>
+	<key>SSH_GENERATE_FOOTER</key>
+	<string>生成在 ~/.ssh，不设密码——连接时没有地方输入。除非服务器旧到不认，否则选 Ed25519。名字是 ssh 对该类型默认会尝试的那个。</string>
+	<key>SSH_HOST_NAME_FOOTER</key>
+	<string>名称就是你用来连接的名字：ssh 会带着它运行，和你自己敲进去完全一样。留空的字段交给 ssh 用默认值。</string>
+	<key>SSH_HOST_KEY_FOOTER</key>
+	<string>写入配置的 IdentityFile。不选密钥时，ssh 会尝试 ~/.ssh 里常见的那几个——只有一个密钥时这样就对了。</string>
+	<key>SSH_HOST_NAME</key>
+	<string>主机名</string>
+	<key>SSH_USER</key>
+	<string>用户</string>
+	<key>SSH_PORT</key>
+	<string>端口</string>
+	<key>SSH_KEY</key>
+	<string>密钥</string>
+	<key>SSH_KEY_NONE</key>
+	<string>不指定</string>
+	<key>SSH_KEY_TYPE</key>
+	<string>类型</string>
+	<key>SSH_KEY_FILE</key>
+	<string>文件</string>
+	<key>SSH_PUBLIC_KEY</key>
+	<string>公钥</string>
+	<key>SSH_PUBLIC_KEY_FOOTER</key>
+	<string>把这一行加到服务器的 ~/.ssh/authorized_keys，就能用这个密钥代替密码登录。</string>
+	<key>SSH_COPIED</key>
+	<string>已复制</string>
+	<key>SSH_KEYGEN_MISSING</key>
+	<string>没有找到 ssh-keygen。请安装 OpenSSH，或者在终端里用 ssh-keygen 生成密钥。</string>
+	<key>SSH_KEY_EXISTS</key>
+	<string>~/.ssh 里已经有一个叫 %@ 的密钥。请换个名字，或先删掉它。</string>
+	<key>SSH_KEYGEN_FAILED</key>
+	<string>ssh-keygen 没有生成密钥。</string>
+	<key>EDIT_SSH_HOST</key>
+	<string>编辑 SSH 主机</string>
+	<key>DELETE_SSH_HOST</key>
+	<string>删除“%@”？</string>
+	<key>DELETE_SSH_HOST_BODY</key>
+	<string>只从 ~/.ssh/config 里移除这一条。文件的其余内容和所有密钥都不动。</string>
+	<key>COULDNT_DELETE_HOST</key>
+	<string>无法删除主机</string>
+	<key>Hosts</key>
+	<string>主机</string>
+	<key>Keys</key>
+	<string>密钥</string>
+	<key>Name</key>
+	<string>名称</string>
+	<key>Add</key>
+	<string>添加</string>
+	<key>Save</key>
+	<string>保存</string>
+	<key>Delete</key>
+	<string>删除</string>
+	<key>Nothing yet.</key>
+	<string>还没有内容。</string>
+	<key>Couldn’t save</key>
+	<string>保存失败</string>
+	<key>SSH_KEY_NAME_INVALID</key>
+	<string>密钥名称必须是普通文件名，不能包含空格或斜杠。</string>
+	<key>SSH_IMPORT_KEY</key>
+	<string>从“文件”导入…</string>
+	<key>SSH_IMPORT_NONE</key>
+	<string>选中的都不是私钥。请选密钥文件本身，或它所在的文件夹。</string>
+	<key>SSH_KEY_STORAGE_FOOTER</key>
+	<string>公私钥都存在 ~/.ssh。在列表里删除会把两个文件一起删掉；引用它的主机仍保留那一行配置，记得改指向别的密钥。</string>
+	<key>SSH_KEY_PERMISSIONS</key>
+	<string>权限</string>
+	<key>SSH_KEY_PERMISSIONS_OPEN</key>
+	<string>权限 %@ —— ssh 会拒绝使用</string>
+	<key>SSH_KEY_FIX_PERMISSIONS</key>
+	<string>把权限改回 600</string>
+	<key>SSH_KEY_NO_PUBLIC</key>
+	<string>旁边没有对应的公钥</string>
+	<key>SSH_KEY_RECOVER_PUBLIC</key>
+	<string>从私钥推算出公钥</string>
+	<key>SSH_PUBLIC_KEY_FAILED</key>
+	<string>无法从这个私钥推算出公钥。带密码的密钥没有密码读不出来。</string>
+	<key>SSH_KEY_COMMENT_FOOTER</key>
+	<string>写在公钥末尾。几个月后在服务器的 authorized_keys 里，就靠它认出这个密钥是哪台设备的。</string>
 </dict>
 </plist>

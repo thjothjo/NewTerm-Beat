@@ -92,6 +92,12 @@ public enum ProjectManager {
 
 	@discardableResult
 	public static func createProject(named name: String) throws -> Project {
+		guard !name.isEmpty,
+				name == name.trimmingCharacters(in: .whitespacesAndNewlines),
+				!name.hasPrefix("."),
+				!name.contains("/") else {
+			throw CocoaError(.fileWriteInvalidFileName)
+		}
 		let url = rootURL.appendingPathComponent(name, isDirectory: true)
 		// Intermediate directories covers the root itself not existing yet.
 		try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -130,11 +136,59 @@ public enum ProjectManager {
 
 	public static let defaultICloudFolderName = "NewTerm"
 
+	/// Stores a durable permission for a folder returned by SwiftUI's file importer.
+	public static func selectICloudFolder(_ url: URL) throws {
+		let accessed = url.startAccessingSecurityScopedResource()
+		defer {
+			if accessed {
+				url.stopAccessingSecurityScopedResource()
+			}
+		}
+		let bookmark = try url.bookmarkData(options: .minimalBookmark,
+														 includingResourceValuesForKeys: nil,
+														 relativeTo: nil)
+
+		Preferences.shared.iCloudFolderPath = url.path
+		Preferences.shared.iCloudFolderBookmark = bookmark
+	}
+
+	private static func bookmarkedICloudFolder() -> URL? {
+		let bookmark = Preferences.shared.iCloudFolderBookmark
+		guard !bookmark.isEmpty else {
+			return nil
+		}
+
+		var stale = false
+		guard let url = try? URL(resolvingBookmarkData: bookmark,
+													 options: [],
+													 relativeTo: nil,
+													 bookmarkDataIsStale: &stale),
+				!stale else {
+			return nil
+		}
+		return url
+	}
+
+	/// Balances the directory picker's kernel access grant around each actual filesystem operation.
+	private static func withICloudRootAccess<T>(_ work: (URL) throws -> T) rethrows -> T {
+		let url = iCloudRootURL
+		let accessed = url.startAccessingSecurityScopedResource()
+		defer {
+			if accessed {
+				url.stopAccessingSecurityScopedResource()
+			}
+		}
+		return try work(url)
+	}
+
 	/// Where copies of projects go, so they can be seen from a Mac.
 	///
 	/// Whatever was chosen in the Files picker, or a folder of our own in iCloud Drive until something
 	/// is. Nothing is created until the first copy.
 	public static var iCloudRootURL: URL {
+		if let bookmarked = bookmarkedICloudFolder() {
+			return bookmarked
+		}
 		let path = Preferences.shared.iCloudFolderPath.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !path.isEmpty else {
 			return iCloudContainerURL.appendingPathComponent(defaultICloudFolderName, isDirectory: true)
@@ -152,25 +206,32 @@ public enum ProjectManager {
 	/// Reading the folder rather than asking about the account: the entitlement that gets us in is
 	/// checked by the kernel, so the only answer that means anything is whether the open succeeded.
 	public static func iCloudUnavailableReason() -> String? {
-		// The chosen folder's parent, not the folder itself — the folder is created on the first copy,
-		// so it not being there yet says nothing about whether we can get to it.
-		let container = iCloudRootURL.deletingLastPathComponent()
-		var isDirectory: ObjCBool = false
-		guard FileManager.default.fileExists(atPath: container.path, isDirectory: &isDirectory),
-					isDirectory.boolValue else {
-			return .localize("iCloud Drive isn’t set up on this device.")
+		withICloudRootAccess { root in
+			// A picked folder grants access to that folder, not necessarily its parent. The default folder
+			// is the opposite: it is created on first copy, so probe the container that already exists.
+			let hasSelectedFolder = !Preferences.shared.iCloudFolderPath
+				.trimmingCharacters(in: .whitespacesAndNewlines)
+				.isEmpty
+			let container = hasSelectedFolder ? root : root.deletingLastPathComponent()
+			var isDirectory: ObjCBool = false
+			guard FileManager.default.fileExists(atPath: container.path, isDirectory: &isDirectory),
+						isDirectory.boolValue else {
+				return .localize("iCloud Drive isn’t set up on this device.")
+			}
+			guard (try? FileManager.default.contentsOfDirectory(atPath: container.path)) != nil else {
+				return .localize("This build can’t reach iCloud Drive.")
+			}
+			return nil
 		}
-		guard (try? FileManager.default.contentsOfDirectory(atPath: container.path)) != nil else {
-			return .localize("This build can’t reach iCloud Drive.")
-		}
-		return nil
 	}
 
 	/// Names of the project folders already copied to iCloud Drive.
 	public static func iCloudProjectNames() -> [String] {
-		((try? FileManager.default.contentsOfDirectory(atPath: iCloudRootURL.path)) ?? [])
-			.filter { !$0.hasPrefix(".") }
-			.sorted()
+		withICloudRootAccess { root in
+			((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [])
+				.filter { !$0.hasPrefix(".") }
+				.sorted()
+		}
 	}
 
 	/// Copies a project into iCloud Drive, replacing whatever was there under the same name.
@@ -179,16 +240,20 @@ public enum ProjectManager {
 	/// process and the exemption that lets *us* in isn't inherited across exec — so the working copy
 	/// has to stay where a shell can open it.
 	public static func exportToICloud(_ project: Project) throws {
-		try FileManager.default.createDirectory(at: iCloudRootURL, withIntermediateDirectories: true)
-		let destination = iCloudRootURL.appendingPathComponent(project.name, isDirectory: true)
-		try replaceItem(at: destination, withCopyOf: project.url)
+		try withICloudRootAccess { root in
+			try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+			let destination = root.appendingPathComponent(project.name, isDirectory: true)
+			try replaceItem(at: destination, withCopyOf: project.url)
+		}
 	}
 
 	/// Copies a project back out of iCloud Drive, replacing the local copy of the same name.
 	public static func importFromICloud(named name: String) throws {
-		let source = iCloudRootURL.appendingPathComponent(name, isDirectory: true)
-		try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-		try replaceItem(at: rootURL.appendingPathComponent(name, isDirectory: true), withCopyOf: source)
+		try withICloudRootAccess { root in
+			let source = root.appendingPathComponent(name, isDirectory: true)
+			try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+			try replaceItem(at: rootURL.appendingPathComponent(name, isDirectory: true), withCopyOf: source)
+		}
 		NotificationCenter.default.post(name: didChangeNotification, object: nil)
 	}
 
@@ -197,39 +262,39 @@ public enum ProjectManager {
 	/// Copying one gives a `.icloud` placeholder, not the file — so an import that hit any of these
 	/// would look like it worked and quietly produce a project full of empty markers.
 	public static func evictedFileNames(inICloudProjectNamed name: String) -> [String] {
-		let root = iCloudRootURL.appendingPathComponent(name, isDirectory: true)
-		guard let enumerator = FileManager.default.enumerator(atPath: root.path) else {
-			return []
-		}
-		return enumerator
-			.compactMap { $0 as? String }
-			.filter { ($0 as NSString).pathExtension == "icloud" }
-			.map { path -> String in
-				// `.foo.txt.icloud` is a placeholder for `foo.txt`.
-				let file = (path as NSString).lastPathComponent
-				let stripped = (file as NSString).deletingPathExtension
-				return ((path as NSString).deletingLastPathComponent as NSString)
-					.appendingPathComponent(stripped.hasPrefix(".") ? String(stripped.dropFirst()) : stripped)
+		withICloudRootAccess { iCloudRoot in
+			let root = iCloudRoot.appendingPathComponent(name, isDirectory: true)
+			guard let enumerator = FileManager.default.enumerator(atPath: root.path) else {
+				return []
 			}
+			return enumerator
+				.compactMap { $0 as? String }
+				.filter { ($0 as NSString).pathExtension == "icloud" }
+				.map { path -> String in
+					// `.foo.txt.icloud` is a placeholder for `foo.txt`.
+					let file = (path as NSString).lastPathComponent
+					let stripped = (file as NSString).deletingPathExtension
+					return ((path as NSString).deletingLastPathComponent as NSString)
+						.appendingPathComponent(stripped.hasPrefix(".") ? String(stripped.dropFirst()) : stripped)
+				}
+		}
 	}
 
 	/// Copies `source` over `destination` without leaving a half-written folder behind if it fails.
 	private static func replaceItem(at destination: URL, withCopyOf source: URL) throws {
+		let manager = FileManager.default
 		let staging = destination.deletingLastPathComponent()
-			.appendingPathComponent(".\(destination.lastPathComponent).incoming", isDirectory: true)
-		try? FileManager.default.removeItem(at: staging)
-		try FileManager.default.copyItem(at: source, to: staging)
+			.appendingPathComponent(".\(destination.lastPathComponent).incoming-\(UUID().uuidString)",
+														isDirectory: true)
+		defer { try? manager.removeItem(at: staging) }
+		try manager.copyItem(at: source, to: staging)
 
-		do {
-			// Swapped in only once the copy is complete, so an interrupted copy can't be mistaken for
-			// the real thing.
-			if FileManager.default.fileExists(atPath: destination.path) {
-				try FileManager.default.removeItem(at: destination)
-			}
-			try FileManager.default.moveItem(at: staging, to: destination)
-		} catch {
-			try? FileManager.default.removeItem(at: staging)
-			throw error
+		// Foundation performs the replacement as one filesystem operation: if it fails, the old item
+		// remains. Deleting the destination first creates a window where a failed move loses both copies.
+		if manager.fileExists(atPath: destination.path) {
+			_ = try manager.replaceItemAt(destination, withItemAt: staging)
+		} else {
+			try manager.moveItem(at: staging, to: destination)
 		}
 	}
 

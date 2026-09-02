@@ -21,7 +21,7 @@ extension UIDevice {
 
 	var isPortable: Bool {
 		switch userInterfaceIdiom {
-		case .phone, .pad, .carPlay, .unspecified:
+		case .phone, .pad, .carPlay, .vision, .unspecified:
 			return true
 		case .tv:
 			return false

@@ -4,7 +4,7 @@
 //
 
 import Foundation
-#if canImport(ActivityKit) && os(iOS)
+#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 import ActivityKit
 #endif
 
@@ -26,7 +26,7 @@ public enum TerminalActivity {
 	}
 }
 
-#if canImport(ActivityKit) && os(iOS)
+#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 @available(iOS 16.2, *)
 public struct TerminalActivityAttributes: ActivityAttributes {
 

@@ -6,6 +6,38 @@
 import Foundation
 import os.log
 
+/// An amortised O(1) bounded byte tail. Old bytes are skipped immediately and compacted in batches,
+/// instead of shifting the full 256 KB array on every terminal output chunk.
+struct ByteTailBuffer {
+	let capacity: Int
+	private var storage = [UInt8]()
+	private var startIndex = 0
+
+	init(capacity: Int) {
+		precondition(capacity > 0)
+		self.capacity = capacity
+	}
+
+	mutating func append(_ bytes: [UInt8]) {
+		guard !bytes.isEmpty else { return }
+		if bytes.count >= capacity {
+			storage = Array(bytes.suffix(capacity))
+			startIndex = 0
+			return
+		}
+		storage.append(contentsOf: bytes)
+		startIndex += max(0, storage.count - startIndex - capacity)
+		if startIndex >= capacity {
+			storage.removeFirst(startIndex)
+			startIndex = 0
+		}
+	}
+
+	var data: Data {
+		Data(storage[startIndex...])
+	}
+}
+
 /// Persists a tab's recent terminal output so it survives the app being killed.
 ///
 /// Stores the raw pty bytes, not rendered lines: replaying the exact byte stream back through the
@@ -84,7 +116,7 @@ public final class ScrollbackStore {
 	}
 
 	public func discard(id: String) {
-		queue.async {
+		queue.sync {
 			try? FileManager.default.removeItem(at: Self.url(for: id))
 		}
 	}

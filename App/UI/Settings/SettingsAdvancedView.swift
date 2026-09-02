@@ -28,9 +28,9 @@ struct SettingsAdvancedView: View {
 
 	private let locales: [LocaleItem] = {
 		let mainLocale = Locale.autoupdatingCurrent
-		let items = try! FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: "/usr/share/locale"),
-																														 includingPropertiesForKeys: [],
-																														 options: .skipsSubdirectoryDescendants)
+		let items = (try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: "/usr/share/locale"),
+																								 includingPropertiesForKeys: [],
+																								 options: .skipsSubdirectoryDescendants)) ?? []
 		return items
 			.compactMap { item in
 				guard let code = item.pathComponents.last,

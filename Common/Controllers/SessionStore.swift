@@ -13,11 +13,17 @@ public struct SessionTabState: Codable, Equatable {
 	public var id: String
 	public var projectPath: String?
 	public var title: String?
+	/// One scrollback id per pane. Older snapshots have one pane whose id is the tab id.
+	public var paneIDs: [String]
 
-	public init(id: String = UUID().uuidString, projectPath: String?, title: String?) {
+	public init(id: String = UUID().uuidString,
+						projectPath: String?,
+						title: String?,
+						paneIDs: [String]? = nil) {
 		self.id = id
 		self.projectPath = projectPath
 		self.title = title
+		self.paneIDs = paneIDs?.isEmpty == false ? paneIDs! : [id]
 	}
 
 	// Snapshots written before tabs had ids still decode: a missing id becomes a fresh one, which just
@@ -27,6 +33,8 @@ public struct SessionTabState: Codable, Equatable {
 		self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
 		self.projectPath = try container.decodeIfPresent(String.self, forKey: .projectPath)
 		self.title = try container.decodeIfPresent(String.self, forKey: .title)
+		let decodedPaneIDs = try container.decodeIfPresent([String].self, forKey: .paneIDs) ?? []
+		self.paneIDs = decodedPaneIDs.isEmpty ? [self.id] : decodedPaneIDs
 	}
 }
 
@@ -63,8 +71,15 @@ public final class SessionStore {
 		var state: SessionState
 	}
 
+	private struct PendingSave {
+		var token: UUID
+		var work: DispatchWorkItem
+	}
+
 	private let queue = DispatchQueue(label: "ws.hbang.Terminal.session-store", qos: .utility)
-	private var pendingWork: DispatchWorkItem?
+	/// Debouncing is per scene. A single slot makes activity in one window cancel another window's
+	/// snapshot, even though those windows write different files.
+	private var pendingWork = [String: PendingSave]()
 	private let logger = Logger(subsystem: "ws.hbang.Terminal", category: "SessionStore")
 
 	private init() {}
@@ -99,21 +114,28 @@ public final class SessionStore {
 
 	/// Coalesced save, for the frequent low-stakes changes — a tab added, a different tab selected.
 	public func setNeedsSave(_ state: SessionState, identifier: String) {
-		pendingWork?.cancel()
-
-		let work = DispatchWorkItem { [weak self] in
-			self?.write(state, identifier: identifier)
+		queue.async {
+			self.pendingWork[identifier]?.work.cancel()
+			let token = UUID()
+			let work = DispatchWorkItem { [weak self] in
+				guard let self = self,
+						self.pendingWork[identifier]?.token == token else {
+					return
+				}
+				self.pendingWork[identifier] = nil
+				self.write(state, identifier: identifier)
+			}
+			self.pendingWork[identifier] = PendingSave(token: token, work: work)
+			self.queue.asyncAfter(deadline: .now() + Self.debounceInterval, execute: work)
 		}
-		pendingWork = work
-		queue.asyncAfter(deadline: .now() + Self.debounceInterval, execute: work)
 	}
 
 	/// Immediate save, for the things that must not be lost: closing a tab (it must not come back from
 	/// the dead) and going to the background (jetsam gives no warning).
 	public func saveImmediately(_ state: SessionState, identifier: String) {
-		pendingWork?.cancel()
-		pendingWork = nil
 		queue.sync {
+			self.pendingWork[identifier]?.work.cancel()
+			self.pendingWork[identifier] = nil
 			self.write(state, identifier: identifier)
 		}
 	}
@@ -185,10 +207,17 @@ public final class SessionStore {
 	}
 
 	/// Called when the user actually closes a window, as opposed to the system reclaiming it.
-	public func discard(identifier: String) {
-		let url = Self.url(for: identifier)
-		try? FileManager.default.removeItem(at: url)
-		try? FileManager.default.removeItem(at: url.appendingPathExtension("bak"))
+	@discardableResult
+	public func discard(identifier: String) -> SessionState? {
+		queue.sync {
+			self.pendingWork[identifier]?.work.cancel()
+			self.pendingWork[identifier] = nil
+			let url = Self.url(for: identifier)
+			let envelope = Self.read(url) ?? Self.read(url.appendingPathExtension("bak"))
+			try? FileManager.default.removeItem(at: url)
+			try? FileManager.default.removeItem(at: url.appendingPathExtension("bak"))
+			return envelope?.schemaVersion == Self.schemaVersion ? envelope?.state : nil
+		}
 	}
 
 }

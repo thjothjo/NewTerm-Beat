@@ -92,6 +92,11 @@ struct SettingsView: View {
 											 label: { SettingsRow(icon: "icloud.fill", tint: .blue) { Text("iCloud Drive") } })
 			}
 
+			PreferencesGroup(header: Text("SSH")) {
+				NavigationLink(destination: SettingsSSHView(),
+											 label: { SettingsRow(icon: "network", tint: .appTeal) { Text("SSH_HOSTS_AND_KEYS") } })
+			}
+
 			PreferencesGroup(header: Text("AI")) {
 				NavigationLink(destination: SettingsAIShortcutsView(),
 											 label: { SettingsRow(icon: "sparkles", tint: .purple) { Text("AI Shortcuts") } })
