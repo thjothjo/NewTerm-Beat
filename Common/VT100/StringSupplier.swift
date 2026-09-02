@@ -30,6 +30,9 @@ open class StringSupplier {
 	open var colorMap: ColorMap!
 	open var fontMetrics: FontMetrics!
 	open var cursorVisible = true
+	/// Explicit colours already confirmed as a theme-relative full-row fill keep inheriting after the
+	/// theme changes. ponytail: Session-scoped; cap it only if real terminals produce unbounded fills.
+	private var inheritedRowBackgrounds = Set<Attribute.Color>()
 
 	public init() {
 		#if DEBUG
@@ -37,6 +40,15 @@ open class StringSupplier {
 		assert(Self.isSubtleVariant(.white, of: UIColor(white: 244 / 255, alpha: 1)))
 		assert(Self.isSubtleVariant(UIColor(white: 57 / 255, alpha: 1), of: UIColor(white: 30 / 255, alpha: 1)))
 		assert(!Self.isSubtleVariant(UIColor(red: 0, green: 120 / 255, blue: 1, alpha: 1), of: .white))
+		var remembered = Set<Attribute.Color>()
+		let lightFill = Attribute.Color.trueColor(red: 244, green: 244, blue: 244)
+		assert(Self.shouldInherit(lightFill, renderedBackground: UIColor(white: 244 / 255, alpha: 1),
+											 themeBackground: .white, remembered: &remembered))
+		assert(Self.shouldInherit(lightFill, renderedBackground: UIColor(white: 244 / 255, alpha: 1),
+											 themeBackground: UIColor(white: 30 / 255, alpha: 1), remembered: &remembered))
+		assert(!Self.shouldInherit(.trueColor(red: 0, green: 120, blue: 255),
+												renderedBackground: UIColor(red: 0, green: 120 / 255, blue: 1, alpha: 1),
+												themeBackground: .white, remembered: &remembered))
 		#endif
 	}
 
@@ -52,6 +64,20 @@ open class StringSupplier {
 			&& abs(green - backgroundGreen) <= difference
 			&& abs(blue - backgroundBlue) <= difference
 			&& abs(alpha - backgroundAlpha) <= difference
+	}
+
+	private static func shouldInherit(_ background: Attribute.Color,
+														 renderedBackground: UIColor,
+														 themeBackground: UIColor,
+														 remembered: inout Set<Attribute.Color>) -> Bool {
+		if remembered.contains(background) {
+			return true
+		}
+		guard Self.isSubtleVariant(renderedBackground, of: themeBackground) else {
+			return false
+		}
+		remembered.insert(background)
+		return true
 	}
 
 	/// Whether a row holds nothing worth drawing.
@@ -110,7 +136,10 @@ open class StringSupplier {
 				return false
 			}
 			let renderedBackground = colorMap.color(for: background, isForeground: false)
-			return Self.isSubtleVariant(renderedBackground, of: colorMap.background)
+			return Self.shouldInherit(background,
+														 renderedBackground: renderedBackground,
+														 themeBackground: colorMap.background,
+														 remembered: &inheritedRowBackgrounds)
 		}()
 
 		var lastAttribute = Attribute.empty
