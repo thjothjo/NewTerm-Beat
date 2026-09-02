@@ -65,6 +65,7 @@ class TerminalKeyInput: TextInputBase {
 
 	private var previousFloatingCursorPoint: CGPoint? = nil
 	private var repeatTimer: Timer?
+	private var isAccessorySuppressed = false
 
 	/// Set by the view controller so the system Copy command can reach the terminal’s selection. This
 	/// view is the first responder, but the selection itself lives with the terminal.
@@ -144,9 +145,9 @@ class TerminalKeyInput: TextInputBase {
 																					name: UITextInputMode.currentInputModeDidChangeNotification,
 																					object: nil)
 		NotificationCenter.default.addObserver(self,
-																					selector: #selector(self.keyboardDidHide(_:)),
-																					name: UIResponder.keyboardWillHideNotification,
-																					object: nil)
+																		selector: #selector(self.keyboardDidHide(_:)),
+																		name: UIResponder.keyboardWillHideNotification,
+																		object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -353,6 +354,18 @@ class TerminalKeyInput: TextInputBase {
 		}
 	}
 
+	/// Removes the terminal's keyboard UI while another screen is in front. A sheet does not make the
+	/// terminal disappear, so its normal view lifecycle cannot do this for us.
+	func suppressAccessory() {
+		isAccessorySuppressed = true
+		_ = resignFirstResponder()
+		#if DEBUG
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+			guard let self, self.isAccessorySuppressed else { return }
+			assert(self.toolbar.window == nil, "Terminal accessory remained visible over another screen")
+		}
+		#endif
+	}
 
 	@objc private func keyboardDidHide(_ notification: Notification) {
 		// Only when this terminal is the thing on screen. Settings is presented over it and leaves the
@@ -360,6 +373,7 @@ class TerminalKeyInput: TextInputBase {
 		// on top of the Settings sheet. And only once — the stand-in has no height, so iOS reports its
 		// arrival as the keyboard hiding too.
 		guard !isRaisingKeyboard,
+					!isAccessorySuppressed,
 					wantsDockedBar,
 					isOnScreen,
 					!isKeyboardHidden,
@@ -476,6 +490,7 @@ class TerminalKeyInput: TextInputBase {
 
 	@discardableResult
 	override func becomeFirstResponder() -> Bool {
+		isAccessorySuppressed = false
 		if let passwordInputView = passwordInputView {
 			return passwordInputView.becomeFirstResponder()
 		} else {

@@ -15,6 +15,17 @@ import NewTermCommon
 
 class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
+	override func present(_ viewControllerToPresent: UIViewController,
+									 animated flag: Bool,
+									 completion: (() -> Void)? = nil) {
+		keyInput.suppressAccessory()
+		super.present(viewControllerToPresent, animated: flag, completion: completion)
+	}
+
+	func suppressAccessory() {
+		keyInput.suppressAccessory()
+	}
+
 	override var isSplitViewResizing: Bool {
 		didSet { updateIsSplitViewResizing() }
 	}

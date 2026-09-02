@@ -20,6 +20,14 @@ class RootViewController: UIViewController {
 	private var selectedTabIndex = 0
 
 	private var tabToolbar: TabToolbarViewController?
+	private var activeTerminal: TerminalSessionViewController? {
+		guard terminals.indices.contains(selectedTabIndex) else { return nil }
+		switch terminals[selectedTabIndex] {
+		case let terminal as TerminalSessionViewController: return terminal
+		case let split as TerminalSplitViewController: return split.activeLeaf
+		default: return nil
+		}
+	}
 
 	/// Snapshot handed over by the scene delegate, consumed once in viewDidLoad.
 	private var pendingRestore: SessionState?
@@ -30,6 +38,13 @@ class RootViewController: UIViewController {
 	convenience init(restoring state: SessionState?) {
 		self.init(nibName: nil, bundle: nil)
 		pendingRestore = state
+	}
+
+	override func present(_ viewControllerToPresent: UIViewController,
+									 animated flag: Bool,
+									 completion: (() -> Void)? = nil) {
+		activeTerminal?.suppressAccessory()
+		super.present(viewControllerToPresent, animated: flag, completion: completion)
 	}
 
 	override func viewDidLoad() {
@@ -825,6 +840,7 @@ extension RootViewController: TabToolbarDelegate {
 
 
 	@objc func openSettings() {
+		activeTerminal?.suppressAccessory()
 		if UIApplication.shared.supportsMultipleScenes {
 			UIApplication.shared.activateScene(userActivity: .settingsScene,
 																				 requestedByScene: view.window?.windowScene,
