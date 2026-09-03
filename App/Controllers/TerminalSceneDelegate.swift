@@ -26,6 +26,15 @@ class TerminalSceneDelegate: UIResponder, UIWindowSceneDelegate, IdentifiableSce
 	override init() {
 		super.init()
 
+		#if DEBUG
+		// What an `ssh://` link is allowed to turn into. The two refused ones are option injection —
+		// `-oProxyCommand=` runs a shell command — reached through either the user or the host field.
+		assert(SSHConfig.connectCommand(user: nil, host: "-oProxyCommand=evil", port: nil) == nil)
+		assert(SSHConfig.connectCommand(user: "-oProxyCommand=x", host: "h", port: nil) == nil)
+		assert(SSHConfig.connectCommand(user: "me", host: "h", port: 2222) == "ssh -p 2222 -- 'me@h'")
+		assert(SSHConfig.connectCommand(user: nil, host: "it's", port: 22) == "ssh -- 'it'\\''s'")
+		#endif
+
 		NotificationCenter.default.addObserver(self, selector: #selector(preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
 	}
 

@@ -85,7 +85,7 @@ class TextInputBase: UIView, UIKeyInput, UITextInput, UITextInputTraits {
 
 	func compare(_ position: UITextPosition, to other: UITextPosition) -> ComparisonResult {
 		guard let a = position as? TextPosition,
-					let b = position as? TextPosition else {
+					let b = other as? TextPosition else {
 			// orderedSame is 0, which is what the original implementation of this method would have
 			// returned if both objects were nil and we attempted to call NSNumber.compare(_:)
 			return .orderedSame

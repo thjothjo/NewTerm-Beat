@@ -43,8 +43,21 @@ class RootViewController: UIViewController {
 	override func present(_ viewControllerToPresent: UIViewController,
 									 animated flag: Bool,
 									 completion: (() -> Void)? = nil) {
-		activeTerminal?.suppressAccessory()
+		suppressAccessories()
 		super.present(viewControllerToPresent, animated: flag, completion: completion)
+	}
+
+	/// Takes the key bar away from every terminal, not just the one in front.
+	///
+	/// The bar belongs to whichever terminal holds the first responder, and that is not always the
+	/// selected tab's — a tab left holding it keeps the bar on screen, and the bar lives in the
+	/// keyboard's own window, which draws over anything presented on top of the app.
+	private func suppressAccessories() {
+		for terminal in terminals {
+			for session in terminal.sessions {
+				session.suppressAccessory()
+			}
+		}
 	}
 
 	override func viewDidLoad() {
@@ -160,6 +173,27 @@ class RootViewController: UIViewController {
 		#endif
 
 		updateSplitAxes()
+		restoreAccessoryIfUncovered()
+	}
+
+	/// Gives the terminal its keys back once nothing is in front of it any more.
+	///
+	/// A card sheet doesn't take the terminal off screen, so it gets no appearance callback when the
+	/// sheet goes — and there is no single dismissal to hook either: a Done button, a swipe down and an
+	/// alert's own button all end differently. Layout runs after every one of them, and the check
+	/// itself is one comparison.
+	func restoreAccessoryIfUncovered() {
+		guard view.window?.rootViewController?.presentedViewController == nil else {
+			return
+		}
+		// Cleared on every terminal, so a tab that isn't in front doesn't stay suppressed forever and
+		// find itself unable to take the keyboard when it is selected again. Only the one in front
+		// actually takes it back — see `restoreAccessory()`.
+		for terminal in terminals {
+			for session in terminal.sessions {
+				session.restoreAccessory()
+			}
+		}
 	}
 
 	/// Keeps every split laid out the way the screen is shaped.
@@ -385,6 +419,7 @@ class RootViewController: UIViewController {
 		viewController.view.removeFromSuperview()
 		viewController.removeFromParent()
 
+		let wasSelected = index == selectedTabIndex
 		terminals.remove(at: index)
 		tabToolbar?.didRemoveTab(at: index)
 
@@ -396,8 +431,18 @@ class RootViewController: UIViewController {
 			} else {
 				addTerminal()
 			}
+		} else if wasSelected {
+			// Nothing to hide: the tab that was showing is the one just taken out of the hierarchy.
+			selectTerminal(at: min(index, terminals.count - 1), hiding: nil)
 		} else {
-			selectTerminal(at: index >= terminals.count ? index - 1 : index)
+			// The user's tab stays the user's tab. Edit mode closes any tab, and treating the closed
+			// one as the selected one switched them to a neighbour of it — and when it sat before the
+			// selected tab, left that still-visible tab on screen on top of the one now recorded as
+			// selected, with the keys going to the one underneath.
+			if index < selectedTabIndex {
+				selectedTabIndex -= 1
+			}
+			tabToolbar?.didSelectTab(at: selectedTabIndex)
 		}
 
 		// Immediate, not debounced: a tab the user closed must never come back because we crashed
@@ -425,27 +470,44 @@ class RootViewController: UIViewController {
 	}
 
 	func selectTerminal(at index: Int) {
-		let oldSelectedTabIndex = selectedTabIndex < terminals.count ? selectedTabIndex : nil
+		selectTerminal(at: index,
+									 hiding: terminals.indices.contains(selectedTabIndex) ? terminals[selectedTabIndex] : nil)
+	}
 
-		// If the previous index is now out of bounds, just use nil as our previous. The tab and view
-		// controller were removed so we don’t need to do anything
-		let previousViewController = oldSelectedTabIndex == nil ? nil : terminals[oldSelectedTabIndex!]
+	/// Shows the tab at `index` in place of `previous`, which is named rather than looked up: once a
+	/// tab has been removed, the selected index points at whatever slid into its slot, and hiding that
+	/// is hiding the wrong tab.
+	private func selectTerminal(at index: Int, hiding previous: BaseTerminalSplitViewControllerChild?) {
 		let newViewController = terminals[index]
 
 		selectedTabIndex = index
 		tabToolbar?.didSelectTab(at: index)
 		handleTitleChange(at: index)
+		setNeedsSaveSession()
+
+		// Already showing. Running it through disappear-and-appear again only takes the keyboard away
+		// and brings it straight back.
+		guard previous !== newViewController else {
+			return
+		}
 
 		// Call the appropriate view controller lifecycle methods on the previous and new view controllers
-		previousViewController?.beginAppearanceTransition(false, animated: false)
-		previousViewController?.view.isHidden = true
-		previousViewController?.endAppearanceTransition()
+		previous?.beginAppearanceTransition(false, animated: false)
+		previous?.view.isHidden = true
+		previous?.endAppearanceTransition()
 
 		newViewController.beginAppearanceTransition(true, animated: false)
 		newViewController.view.isHidden = false
 		newViewController.endAppearanceTransition()
 
-		setNeedsSaveSession()
+		// Said outright rather than left to the appearance callbacks. Tabs are hidden rather than
+		// removed, so UIKit doesn't always treat a selection as an appearance at all — and when it
+		// doesn't, the keyboard stayed with the tab that had it and the newly selected one could not
+		// be typed into.
+		for session in previous?.sessions ?? [] {
+			session.relinquishKeyboard()
+		}
+		activeTerminal?.activate()
 	}
 
 	private func handleTitleChange(at index: Int) {
@@ -653,16 +715,21 @@ class RootViewController: UIViewController {
 		let newIndex = selectedTabIndex + 1
 		let newTab = TerminalSplitViewController()
 		newTab.projectPath = container.projectPath
-		// Scrollback is filed under the tab's id, and this pane's history was written under the tab it
-		// came from. Naming the new tab after it keeps the two together — otherwise the pane goes on
-		// writing to an id nothing restores from, and its history is gone at the next launch.
-		if let session = detached as? TerminalSessionViewController,
-			 let scrollbackID = session.scrollbackID {
-			newTab.tabID = scrollbackID
-		}
+		// The pane's history stays filed under its own scrollback id, which the snapshot records per
+		// pane, so the new tab keeps the fresh id it was made with — reusing the pane's put two tabs
+		// under one id.
 		newTab.view.autoresizingMask = [ .flexibleWidth, .flexibleHeight ]
 		newTab.view.frame = view.bounds
 		newTab.delegate = self
+		// The user stays where they are, so the tab this pane moved into starts out of sight. Only the
+		// tab being switched away from gets hidden on selection, and this one is neither that nor the
+		// one being switched to — left visible it sat on top of whatever tab was selected afterwards,
+		// which is what made an unsplit tab still look split.
+		//
+		// Hidden before the pane goes in, not after: the pane's appearance callbacks fire as it is
+		// added, and a pane that finds itself visible at that moment takes the keyboard — into a tab
+		// that was about to be hidden.
+		newTab.view.isHidden = true
 
 		addChild(newTab)
 		if let tabToolbar = tabToolbar {
@@ -672,11 +739,6 @@ class RootViewController: UIViewController {
 		}
 		newTab.didMove(toParent: self)
 		newTab.viewControllers = [detached]
-		// The user stays where they are, so the tab this pane moved into starts out of sight. Only the
-		// tab being switched away from gets hidden on selection, and this one is neither that nor the
-		// one being switched to — left visible it sat on top of whatever tab was selected afterwards,
-		// which is what made an unsplit tab still look split.
-		newTab.view.isHidden = true
 
 		terminals.insert(newTab, at: newIndex)
 		tabToolbar?.didAddTab(at: newIndex)
@@ -849,17 +911,30 @@ extension RootViewController: TabToolbarDelegate {
 			if presentedViewController == nil {
 				let viewController = UIHostingController(rootView: SettingsView())
 				viewController.modalPresentationStyle = .formSheet
+				// A sheet can also be swiped away, which goes through neither the Done button nor any
+				// appearance callback of ours.
+				viewController.presentationController?.delegate = self
 				navigationController?.present(viewController, animated: true, completion: nil)
 			}
 		}
 	}
 
 	@objc private func dismissSettings() {
-		presentedViewController?.dismiss(animated: true, completion: nil)
+		presentedViewController?.dismiss(animated: true) { [weak self] in
+			self?.restoreAccessoryIfUncovered()
+		}
 	}
 
 	func openPasswordManager() {
 		UIApplication.shared.sendAction(#selector(TerminalSessionViewController.activatePasswordManager), to: nil, from: self, for: nil)
+	}
+
+}
+
+extension RootViewController: UIAdaptivePresentationControllerDelegate {
+
+	func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+		restoreAccessoryIfUncovered()
 	}
 
 }

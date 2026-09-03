@@ -94,16 +94,26 @@ public enum SSHConfig {
 	}
 
 	/// The command that connects to a host.
+	///
+	/// `--` ends option parsing, so a destination that begins with `-` — `Host -foo` in someone's
+	/// config, or a hostile `ssh://` link — is a hostname to resolve and not an option to obey.
 	public static func connectCommand(for host: SSHHost) -> String {
-		"ssh \(shellQuoted(host.name))"
+		"ssh -- \(shellQuoted(host.name))"
 	}
 
-	/// A command made from an external `ssh://` URL. Every URL field is untrusted shell input, so the
-	/// destination is one quoted argument and options are rendered from typed values only.
-	public static func connectCommand(user: String?, host: String, port: Int?) -> String {
+	/// A command made from an external `ssh://` URL, or nil when the URL names nothing connectable.
+	///
+	/// Every URL field is untrusted: it arrived from a web page or a message. Quoting keeps it out of
+	/// the shell, `--` keeps it out of ssh's own option parser, and a destination that still begins
+	/// with `-` is refused outright rather than passed along to see what ssh makes of it —
+	/// `-oProxyCommand=…` is a command ssh runs before connecting to anything.
+	public static func connectCommand(user: String?, host: String, port: Int?) -> String? {
 		let destination = user.map { "\($0)@\(host)" } ?? host
+		guard !host.isEmpty, !destination.hasPrefix("-") else {
+			return nil
+		}
 		let portOption = port.map { $0 == 22 ? "" : " -p \($0)" } ?? ""
-		return "ssh\(portOption) \(shellQuoted(destination))"
+		return "ssh\(portOption) -- \(shellQuoted(destination))"
 	}
 
 	// MARK: - Parsing

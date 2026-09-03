@@ -30,6 +30,25 @@ class BaseTerminalSplitViewControllerChild: UIViewController {
 	var showsTitleView = false
 }
 
+extension BaseTerminalSplitViewControllerChild {
+	/// Every terminal under this tab, however it is split.
+	///
+	/// Anything that has to reach "all of them" — taking the keyboard away because another screen is
+	/// in front, say — has to walk this rather than the one pane the tab happens to have selected.
+	/// Reaching only the selected one is what left the key bar on screen, owned by a pane nobody had
+	/// asked to give it up.
+	var sessions: [TerminalSessionViewController] {
+		switch self {
+		case let session as TerminalSessionViewController:
+			return [session]
+		case let split as TerminalSplitViewController:
+			return (split.viewControllers ?? []).flatMap { $0.sessions }
+		default:
+			return []
+		}
+	}
+}
+
 class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 
 	private static let splitSnapPoints: [Double] = [
@@ -268,7 +287,19 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 		viewController.view.removeFromSuperview()
 		viewController.removeFromParent()
 		viewControllers.remove(at: index)
+		adjustSelection(afterRemovingAt: index)
 		return viewController
+	}
+
+	/// Keeps `selectedIndex` on the pane it was on, or on the nearest one left.
+	///
+	/// Left alone it kept the old number: after the first pane went, the remaining pane's title and
+	/// size reports were thrown out by the "is this the selected pane" check until it was tapped.
+	private func adjustSelection(afterRemovingAt index: Int) {
+		if index < selectedIndex {
+			selectedIndex -= 1
+		}
+		selectedIndex = max(0, min(selectedIndex, viewControllers.count - 1))
 	}
 
 	func remove(viewController: UIViewController) {
@@ -282,6 +313,7 @@ class TerminalSplitViewController: BaseTerminalSplitViewControllerChild {
 			ScrollbackStore.shared.discard(id: scrollbackID)
 		}
 		viewControllers.remove(at: index)
+		adjustSelection(afterRemovingAt: index)
 
 		if viewControllers.isEmpty {
 			// All view controllers in the split have been removed, so remove ourselves.

@@ -13,4 +13,8 @@ public protocol TerminalInputProtocol: AnyObject {
 
 	var applicationCursor: Bool { get }
 
+	/// Whether the program asked (mode 2004) for pasted text to arrive wrapped in `ESC[200~` and
+	/// `ESC[201~`, so it can tell a paste from typing.
+	var bracketedPasteMode: Bool { get }
+
 }

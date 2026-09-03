@@ -234,6 +234,17 @@ public class SubProcess {
 	private var readSource: DispatchSourceRead?
 	private var signalSource: DispatchSourceProcess?
 
+	/// How much is taken off the pty per wakeup.
+	///
+	/// This was `BUFSIZ`, which is 1KB on Darwin: a 10MB burst was ten thousand wakeups, each with its
+	/// own allocation, its own copy and its own hop to the terminal queue. 64KB is what the pty's own
+	/// buffer holds, so one wakeup drains whatever is there.
+	private static let readChunkSize = 64 * 1024
+	/// Owned by the io queue, which is the only place `handleRead` runs. Allocated once rather than
+	/// per read, because the per-read allocation was most of what each read did.
+	private let readChunk = UnsafeMutableRawPointer.allocate(byteCount: readChunkSize,
+																														alignment: MemoryLayout<CChar>.alignment)
+
 	private let logger = Logger(subsystem: "ws.hbang.Terminal", category: "SubProcess")
 
 	var screenSize = ScreenSize.default {
@@ -346,12 +357,22 @@ public class SubProcess {
 	///
 	/// Both the foreground job and the shell get it. A job-control shell puts each job in its own
 	/// process group, so signalling only the shell's group misses whatever is actually running.
-	private func hangUp(childPID: pid_t) {
-		if let fileDescriptor = fileDescriptor {
+	private static func hangUp(childPID: pid_t, fileDescriptor: Int32?, logger: Logger) {
+		// Signalling a whole process group is only safe once we know the shell is in a group of its
+		// own. It has one wherever the login helper runs, because that puts the child in a new session
+		// — but the simulator spawns a shell directly, and a shell that can't take the terminal leaves
+		// itself in the group it was spawned from, which is ours. Group-signalling there sends SIGHUP
+		// to this app: measured on the simulator, closing a tab took the whole app down with it, with
+		// no crash report because a signal isn't a crash.
+		let ownGroup = getpgrp()
+		let childGroup = getpgid(childPID)
+		if let fileDescriptor = fileDescriptor,
+			 childGroup > 0,
+			 childGroup != ownGroup {
 			let foreground = tcgetpgrp(fileDescriptor)
 			// Not our own group, and not the shell's own — that one is covered below, and `-1` would
 			// mean every process we're allowed to signal.
-			if foreground > 1 && foreground != getpgrp() {
+			if foreground > 1 && foreground != ownGroup {
 				kill(-foreground, SIGHUP)
 			}
 		}
@@ -372,19 +393,45 @@ public class SubProcess {
 
 	private static let hangUpGracePeriod: TimeInterval = 0.5
 
+	/// Ends the shell if it's still running, and reaps it either way. Blocks for up to the grace
+	/// period, so it belongs on a background queue.
+	///
+	/// Static, and handed the pid and descriptor rather than reading them off `self`, so `deinit` can
+	/// run it after the instance is gone.
+	///
+	/// The reap comes first: a shell that has already exited is a zombie until it's waited for, and
+	/// `kill(pid, 0)` says a zombie is alive. Hanging up on one of those meant every ordinary `exit`
+	/// sat through the whole grace period before being reported.
+	private static func terminate(childPID: pid_t, fileDescriptor: Int32?, logger: Logger) {
+		var status = Int32()
+		if waitpid(childPID, &status, WNOHANG) == childPID {
+			logger.debug("Process exited with code: \(WEXITSTATUS(status))")
+			return
+		}
+		hangUp(childPID: childPID, fileDescriptor: fileDescriptor, logger: logger)
+		waitpid(childPID, &status, 0)
+		logger.debug("Process stopped with exit code: \(WEXITSTATUS(status))")
+	}
+
+	/// Whether the shell itself, rather than something it's running, has the terminal.
+	///
+	/// The shell is the session leader, so its process group is its own pid. Anything else in the
+	/// foreground — an editor, an agent — is a job of its own, and typing into it is not typing at a
+	/// prompt.
+	var isShellInForeground: Bool {
+		guard let fileDescriptor = fileDescriptor,
+					let childPID = childPID else {
+			return false
+		}
+		return tcgetpgrp(fileDescriptor) == childPID
+	}
+
 	func stop(fromError: Bool = false) throws {
 		guard let childPID = childPID else {
 			throw SubProcessIllegalStateError.notStarted
 		}
 
-		if kill(childPID, 0) == 0 {
-			hangUp(childPID: childPID)
-
-			var status = Int32()
-			waitpid(childPID, &status, WUNTRACED)
-
-			logger.debug("Process stopped with exit code: \(WEXITSTATUS(status))")
-		}
+		Self.terminate(childPID: childPID, fileDescriptor: fileDescriptor, logger: logger)
 
 		if let fileDescriptor = fileDescriptor {
 			close(fileDescriptor)
@@ -410,8 +457,8 @@ public class SubProcess {
 			return
 		}
 
-		let buffer = UnsafeMutableRawPointer.allocate(byteCount: Int(BUFSIZ), alignment: MemoryLayout<CChar>.alignment)
-		let bytesRead = read(fileDescriptor, buffer, Int(BUFSIZ))
+		let buffer = readChunk
+		let bytesRead = read(fileDescriptor, buffer, Self.readChunkSize)
 		switch bytesRead {
 		case -1:
 			let code = errno
@@ -440,7 +487,6 @@ public class SubProcess {
 			let data = Array(UnsafeBufferPointer(start: bytes, count: bytesRead))
 			delegate?.subProcess(didReceiveData: data)
 		}
-		buffer.deallocate()
 	}
 
 	func write(data: [UTF8Char]) {
@@ -515,12 +561,25 @@ public class SubProcess {
 		}
 	}
 
+	/// Closing a tab lets go of the controller, which lets go of this — and that is the moment the shell
+	/// gets hung up. Off the main thread: the hang-up waits for the shell to exit, and this runs on
+	/// whichever thread dropped the last reference, which for a closed tab is the main one.
 	deinit {
-		if childPID != nil {
-			logger.error("Illegal state - SubProcess deallocated while still running")
+		readChunk.deallocate()
+		guard let childPID = childPID else {
+			return
 		}
-
-		try? stop(fromError: true)
+		logger.debug("Hanging up shell \(childPID) on release")
+		readSource?.cancel()
+		signalSource?.cancel()
+		let fileDescriptor = self.fileDescriptor
+		let logger = self.logger
+		DispatchQueue.global(qos: .utility).async {
+			Self.terminate(childPID: childPID, fileDescriptor: fileDescriptor, logger: logger)
+			if let fileDescriptor = fileDescriptor {
+				close(fileDescriptor)
+			}
+		}
 	}
 
 }

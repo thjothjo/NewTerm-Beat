@@ -11,8 +11,27 @@ import SwiftUI
 import SwiftTerm
 import os.log
 
+/// One row, as drawn. A class so that a row has an identity: the same line handed over again is the
+/// same object, and whoever is showing it can tell without looking inside.
+public final class TerminalLine {
+	public let view: AnyView
+
+	public init(view: AnyView) {
+		self.view = view
+	}
+}
+
+/// One row that has changed since the last frame, and what it now looks like.
+public struct TerminalLineChange {
+	public let row: Int
+	public let line: TerminalLine
+}
+
 public protocol TerminalControllerDelegate: AnyObject {
-	func refresh(lines: [AnyView])
+	/// A frame's worth of change. `droppedFromTop` rows have fallen off the start of the scrollback and
+	/// go first; then there are `lineCount` rows, and `changes` are the ones that differ from last time,
+	/// in ascending row order. Rows past the delegate's current count are always among them.
+	func refresh(droppedFromTop: Int, lineCount: Int, changes: [TerminalLineChange])
 	func activateBell()
 	func titleDidChange(_ title: String?, isDirty: Bool, hasBell: Bool)
 	func currentFileDidChange(_ url: URL?, inWorkingDirectory workingDirectoryURL: URL?)
@@ -47,7 +66,66 @@ public class TerminalController {
 	private var subProcess: SubProcess?
 	private var subProcessFailureError: Error?
 	private let stringSupplier = StringSupplier()
-	private var lines = [AnyView]()
+	/// Every row, as last drawn. Owned by `terminalQueue`, and never handed out whole.
+	///
+	/// It used to be copied to the main thread every frame. At full scrollback that is ten thousand
+	/// type-erased views retained on this queue and released on the main one, per frame — and the
+	/// profile of an agent streaming one line at a time was mostly that: reference counting, on rows
+	/// that had not changed. Now only the rows that did change cross over, and each side keeps its
+	/// own array.
+	private var lines = [TerminalLine]()
+	/// `StringSupplier.contentHash` of each row as last built, kept in step with `lines`.
+	private var lineHashes = [Int]()
+	/// How many rows the delegate holds, so the next frame knows which ones it has never seen.
+	/// `terminalQueue` only.
+	private var sentLineCount = 0
+
+	/// The difference between the rows this controller counts and the rows SwiftTerm hands out.
+	///
+	/// SwiftTerm numbers rows two ways. Its update range and its top visible row count from the start
+	/// of the buffer. `getScrollInvariantLine` counts from the first line the terminal ever scrolled,
+	/// so once the scrollback is full and old lines are being dropped, its numbers run ahead of the
+	/// buffer's by one per dropped line. Nothing exposes the difference, and asking by the buffer's
+	/// count returns nil for every row — after ten thousand lines of output the whole screen went
+	/// blank, and stayed blank.
+	///
+	/// So it is found by probing: rows below the offset come back nil, rows from it on do not. Kept
+	/// from frame to frame and checked each time against the row at the offset and the one before it,
+	/// which is two lookups when nothing has moved. `terminalQueue` only.
+	private var rowOffset = 0
+
+	private func updateRowOffset(_ terminal: Terminal) {
+		let isValid = terminal.getScrollInvariantLine(row: rowOffset) != nil
+			&& (rowOffset == 0 || terminal.getScrollInvariantLine(row: rowOffset - 1) == nil)
+		if isValid {
+			return
+		}
+		// The rows that exist form one run at least a screen tall, so stepping by half a screen can't
+		// jump over it. From zero rather than from the old offset: a reset puts the numbering back to
+		// the start, and the old offset is then past everything.
+		let step = max(1, terminal.rows / 2)
+		var probe = 0
+		while terminal.getScrollInvariantLine(row: probe) == nil {
+			probe += step
+			guard probe < 1 << 40 else {
+				// No rows at all. Leave the offset alone rather than spin.
+				return
+			}
+		}
+		// The first row that exists is in (probe - step, probe].
+		var low = max(0, probe - step)
+		var high = probe
+		while low < high {
+			let mid = (low + high) / 2
+			if terminal.getScrollInvariantLine(row: mid) == nil {
+				low = mid + 1
+			} else {
+				high = mid
+			}
+		}
+		rowOffset = low
+		stringSupplier.rowOffset = low
+	}
 
 	private var processLaunchDate: Date?
 	private var updateTimer: CADisplayLink?
@@ -107,6 +185,16 @@ public class TerminalController {
 			TextRow(text: "prompt", usedColumns: 6)
 		], columns: 8)
 		assert(joinCheck.text == "12345678next\nprompt" && joinCheck.starts == [0, 8, 13])
+
+		// Dragging a selection handle: the fixed end stays put and the cell under the finger is always
+		// inside, on whichever side of the fixed end the finger has gone.
+		typealias Point = TerminalSelection.Point
+		let fixedEnd = Point(row: 2, col: 5)
+		let before = TerminalSelection.dragging(anchor: fixedEnd, to: Point(row: 2, col: 2))
+		assert(before.start == Point(row: 2, col: 2) && before.end == fixedEnd)
+		let after = TerminalSelection.dragging(anchor: fixedEnd, to: Point(row: 3, col: 1))
+		assert(after.start == fixedEnd && after.end == Point(row: 3, col: 2))
+		assert(!TerminalSelection.dragging(anchor: fixedEnd, to: fixedEnd).isEmpty)
 		#endif
 
 		let options = TerminalOptions(termName: "xterm-256color",
@@ -114,6 +202,16 @@ public class TerminalController {
 		terminal = Terminal(delegate: self, options: options)
 
 		stringSupplier.terminal = terminal
+
+		// Synchronous onto the terminal queue from the main thread. Safe in that direction only: nothing
+		// on the terminal queue ever waits on the main thread, so this can't deadlock, and the island
+		// asks at most once every couple of seconds.
+		activityController.lastLineProvider = { [weak self] in
+			guard let self = self else {
+				return nil
+			}
+			return self.terminalQueue.sync { self.lastPrintedLine() }
+		}
 
 		NotificationCenter.default.addObserver(self, selector: #selector(self.preferencesUpdated), name: Preferences.didChangeNotification, object: nil)
 		preferencesUpdated()
@@ -145,7 +243,11 @@ public class TerminalController {
 		terminal?.backgroundColor = colorMap.terminalBackground
 
 		powerStateChanged()
-		terminal?.refresh(startRow: 0, endRow: terminal?.rows ?? 0)
+		terminalQueue.async {
+			// Rows are only rebuilt when their content hash moves. The look changed, not the content.
+			self.stringSupplier.hashSalt &+= 1
+			self.terminal?.refresh(startRow: 0, endRow: self.terminal?.rows ?? 0)
+		}
 	}
 
 	@objc private func powerStateChanged() {
@@ -212,10 +314,30 @@ public class TerminalController {
 		setUpdateTimer(fps: fps)
 	}
 
+	/// Stands between the display link and the controller, so the link doesn't keep it alive.
+	///
+	/// `CADisplayLink` retains its target, and this controller's `deinit` is what invalidates the
+	/// link — which it can never do while the link is holding it. With the target retained, closing a
+	/// tab released the view controller and nothing else: the shell went on running, and the link went
+	/// on firing at full rate for a terminal nobody could see, until the app happened to go inactive.
+	private final class DisplayLinkTarget: NSObject {
+		weak var controller: TerminalController?
+
+		@objc func fire() {
+			controller?.updateTimerFired()
+		}
+	}
+
+	private lazy var displayLinkTarget: DisplayLinkTarget = {
+		let target = DisplayLinkTarget()
+		target.controller = self
+		return target
+	}()
+
 	private func setUpdateTimer(fps: TimeInterval) {
 		appliedRefreshRate = fps
 		updateTimer?.invalidate()
-		updateTimer = CADisplayLink(target: self, selector: #selector(self.updateTimerFired))
+		updateTimer = CADisplayLink(target: displayLinkTarget, selector: #selector(DisplayLinkTarget.fire))
 		updateTimer?.preferredFramesPerSecond = Int(fps)
 		updateTimer?.add(to: .main, forMode: .default)
 	}
@@ -303,11 +425,55 @@ public class TerminalController {
 		stopUpdatingTimer()
 	}
 
+	/// Whether the shell is at its prompt, as opposed to running something that has the terminal.
+	public var isShellInForeground: Bool {
+		subProcess?.isShellInForeground ?? false
+	}
+
+	/// The last line the terminal has anything on, for the island to report.
+	///
+	/// Read from the buffer rather than from the bytes that just arrived: output turns up in chunks
+	/// that cut across lines, and half a line is not something worth putting on a lock screen. Called
+	/// on `terminalQueue`, which is the only queue allowed to touch the buffer.
+	private func lastPrintedLine() -> String? {
+		guard let terminal = terminal else {
+			return nil
+		}
+		let bottom = terminal.getTopVisibleRow() + terminal.rows - 1
+		for row in stride(from: bottom, through: max(0, bottom - 40), by: -1) {
+			guard let line = stringSupplier.line(atRow: row) else {
+				continue
+			}
+			var text = ""
+			for column in 0..<terminal.cols {
+				let character = line[column].getCharacter()
+				text.append(character == "\0" ? " " : character)
+			}
+			let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+			if !trimmed.isEmpty {
+				return trimmed
+			}
+		}
+		return nil
+	}
+
 	// MARK: - Terminal
+
+	/// Past this much unfed output the buffer is fed at once rather than at the next frame.
+	///
+	/// The frame is what normally feeds it, and a hidden tab draws one frame a second. A program that
+	/// prints as fast as the pty allows could put tens of megabytes into the buffer between two of
+	/// those, all of it held in memory and all of it parsed in one go when the frame came. Feeding
+	/// early bounds both.
+	private static let readBufferFeedThreshold = 1024 * 1024
 
 	public func readInputStream(_ data: [UTF8Char]) {
 		terminalQueue.async {
 			self.readBuffer += data
+			if self.readBuffer.count >= Self.readBufferFeedThreshold {
+				self.terminal?.feed(byteArray: self.readBuffer)
+				self.readBuffer.removeAll(keepingCapacity: true)
+			}
 
 			self.scrollbackCapture.append(data)
 			// A busy command can produce hundreds of chunks before the main queue gets a turn. Activity
@@ -424,19 +590,26 @@ public class TerminalController {
 		terminalQueue.async {
 			if !self.readBuffer.isEmpty {
 				self.terminal?.feed(byteArray: self.readBuffer)
-				self.readBuffer.removeAll()
+				// Keeping the capacity: the next frame's output is about the same size as this one's, and
+				// giving the storage back only to ask for it again is a free allocation per frame.
+				self.readBuffer.removeAll(keepingCapacity: true)
 			}
 
 			guard let terminal = self.terminal else {
 				return
 			}
+			// Positive: that many lines fell off the top of a full scrollback since last frame, and every
+			// buffer row now holds what the row after it held. Negative: the terminal was reset.
+			let previousOffset = self.rowOffset
+			self.updateRowOffset(terminal)
+			let droppedRows = self.rowOffset - previousOffset
 
 			let scrollbackRows = terminal.getTopVisibleRow()
 			var cursorLocation = terminal.getCursorLocation()
 			cursorLocation.y += scrollbackRows
 
 			let updateRange = terminal.getScrollInvariantUpdateRange() ?? (0, 0)
-			if updateRange == (0, 0) && cursorLocation == self.lastCursorLocation {
+			if updateRange == (0, 0) && cursorLocation == self.lastCursorLocation && droppedRows == 0 {
 				// Nothing changed, nothing to do. Once we’ve been idle long enough, throttle the display
 				// link — an idle terminal has no reason to wake the CPU 60 times a second.
 				self.idleFrames += 1
@@ -472,15 +645,35 @@ public class TerminalController {
 			// — later frames only rewrite rows that changed, so nothing ever puts it back. Growing to
 			// fit the update range as well costs a few rows that may turn out to be empty; getting the
 			// trim wrong costs the user their screen.
+			// Rows are kept lined up with the buffer. When lines fall off the top, the same number come off
+			// the front here — the rows that survive keep their content, only their index moves — and the
+			// delegate is told to do the same. A reset starts over.
+			var droppedFromTop = 0
+			if droppedRows < 0 {
+				self.lines.removeAll(keepingCapacity: true)
+				self.lineHashes.removeAll(keepingCapacity: true)
+				self.sentLineCount = 0
+			} else if droppedRows > 0 {
+				droppedFromTop = min(droppedRows, self.lines.count)
+				self.lines.removeFirst(droppedFromTop)
+				self.lineHashes.removeFirst(droppedFromTop)
+				self.sentLineCount = max(0, self.sentLineCount - droppedFromTop)
+			}
+
 			let neededCount = max(scrollInvariantRows, updateRange.endY + 1)
 			if self.lines.count > neededCount {
 				self.lines.removeSubrange(neededCount...)
+				self.lineHashes.removeSubrange(neededCount...)
 			}
 			// Filled from the terminal as they're added rather than left as placeholders. A row that
 			// was appended blank only gets drawn if some later frame happens to name it as changed, and
 			// a line that has finished changing never is — which is what left gaps in the output.
+			var changedRows = Set<Int>()
 			while self.lines.count < neededCount {
-				self.lines.append(self.stringSupplier.attributedString(forScrollInvariantRow: self.lines.count))
+				let row = self.lines.count
+				changedRows.insert(row)
+				self.lineHashes.append(self.stringSupplier.contentHash(scrollInvariantRow: row))
+				self.lines.append(TerminalLine(view: self.stringSupplier.attributedString(forScrollInvariantRow: row)))
 			}
 
 			// Update lines that changed, clamped to the rows that still exist. Built by intersection
@@ -498,18 +691,33 @@ public class TerminalController {
 					linesToUpdate.insert(self.lastCursorLocation.y)
 				}
 			}
+			if droppedRows > 0 {
+				// The update range was recorded in buffer rows as they were at the time, and every line
+				// dropped since then has moved that content up a row. Widening it downwards by the drop
+				// covers wherever it ended up; redrawing the screen covers the rows the scroll itself moved
+				// into view.
+				if updateRange != (0, 0) {
+					let widenedStart = max(0, updateRange.startY - droppedRows)
+					linesToUpdate.formUnion((widenedStart..<updateRange.startY).filter(existingRows.contains))
+				}
+				linesToUpdate.formUnion((scrollbackRows..<min(neededCount, scrollbackRows + terminal.rows)))
+			}
 
 			for i in linesToUpdate {
-				self.lines[i] = self.stringSupplier.attributedString(forScrollInvariantRow: i)
+				// Only if it would come out different. The terminal's own idea of what changed is coarse —
+				// after a scroll it is the whole screen — and a row rebuilt to look the same still costs a
+				// cell on the main thread.
+				let hash = self.stringSupplier.contentHash(scrollInvariantRow: i)
+				guard hash != self.lineHashes[i] else {
+					continue
+				}
+				self.lineHashes[i] = hash
+				changedRows.insert(i)
+				self.lines[i] = TerminalLine(view: self.stringSupplier.attributedString(forScrollInvariantRow: i))
 			}
 
 			self.lastCursorLocation = cursorLocation
 
-			// Snapshotted here, on the queue that owns `lines`. Handing `&self.lines` to the main queue
-			// instead let the next frame mutate the array from this queue while the main thread was
-			// still reading it — a data race on the array’s storage, with no bound on what it corrupts.
-			// The copy is free in practice: the delegate keeps a reference either way, so the write
-			// after this already triggered COW.
 			// Trailing blank rows aren't handed over. The array is sized to the whole buffer — a full
 			// screen, plus whatever the update range asked for — so a terminal showing one line still
 			// produced a screen's worth of empty rows below it. That made the content taller than the
@@ -519,14 +727,38 @@ public class TerminalController {
 			while visibleCount > 0, self.stringSupplier.isBlank(scrollInvariantRow: visibleCount - 1) {
 				visibleCount -= 1
 			}
-			let snapshot = Array(self.lines[0..<visibleCount])
+
+			// What crosses to the main thread: the rows that changed and are still visible, plus every
+			// row the delegate has never had. The second set is what makes this safe — a row can only
+			// go from beyond the visible count to inside it when a later row fills in, and by then it is
+			// past what was last sent, so it goes over whether or not it changed this frame.
+			if visibleCount > self.sentLineCount {
+				changedRows.formUnion(self.sentLineCount..<visibleCount)
+			}
+			let changes = changedRows.filter { $0 < visibleCount }.sorted().map {
+				TerminalLineChange(row: $0, line: self.lines[$0])
+			}
+			self.sentLineCount = visibleCount
 			DispatchQueue.main.async {
-				self.delegate?.refresh(lines: snapshot)
+				self.delegate?.refresh(droppedFromTop: droppedFromTop, lineCount: visibleCount, changes: changes)
 
 				if !self.isVisible && !self.isDirty {
 					self.isDirty = true
 				}
 			}
+		}
+	}
+
+	/// Sends every row again on the next frame.
+	///
+	/// For a delegate that finds itself holding fewer rows than a change is addressed to: the only way
+	/// that happens is the two sides having lost step, and the fix is a fresh start rather than a
+	/// guess at which rows are missing.
+	public func resendAllLines() {
+		terminalQueue.async {
+			self.sentLineCount = 0
+			// Marks the screen changed, so a frame goes out even if nothing else is happening.
+			self.terminal?.refresh(startRow: 0, endRow: self.terminal?.rows ?? 0)
 		}
 	}
 
@@ -536,6 +768,9 @@ public class TerminalController {
 		// below provokes arrives after it.
 		terminalQueue.async {
 			self.terminal?.resetToInitialState()
+			// The saved tail goes with it. Clearing is often done to get something off the screen, and
+			// a capture that still held it would put it straight back at the next launch.
+			self.scrollbackCapture = ByteTailBuffer(capacity: Self.scrollbackCaptureCap)
 		}
 
 		// To trigger a redraw, update the screen size, then update it back — on the main thread, which
@@ -765,6 +1000,8 @@ public class TerminalController {
 
 	deinit {
 		updateTimer?.invalidate()
+		// Whatever the island was showing for this terminal is over: the tab it belonged to is gone.
+		activityController.commandDidFinish()
 	}
 
 }
@@ -855,6 +1092,8 @@ extension TerminalController: TerminalDelegate {
 extension TerminalController: TerminalInputProtocol {
 
 	public var applicationCursor: Bool { terminal?.applicationCursor ?? false }
+
+	public var bracketedPasteMode: Bool { terminal?.bracketedPasteMode ?? false }
 
 	public func receiveKeyboardInput(data: [UTF8Char]) {
 		write(data)

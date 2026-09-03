@@ -69,6 +69,18 @@ public struct TerminalSelection: Equatable {
 	public var end: Point { Swift.max(anchor, head) }
 	public var isEmpty: Bool { anchor == head }
 
+	/// The selection from a fixed end to the cell under a finger, with that cell inside it.
+	///
+	/// `head` is exclusive, so a finger past the anchor selects up to and including its cell, and a
+	/// finger before it selects from its cell. Computed from the fixed end every time rather than from
+	/// the previous selection: taking the anchor off the last selection meant that once the finger
+	/// crossed the other handle, the anchor became wherever the finger was a moment ago, and the
+	/// selection shrank to the cells between two consecutive touches.
+	public static func dragging(anchor: Point, to cell: Point) -> TerminalSelection {
+		let head = cell < anchor ? cell : Point(row: cell.row, col: cell.col + 1)
+		return TerminalSelection(anchor: anchor, head: head)
+	}
+
 	/// Half-open range of columns covered on `row`, or nil if the row isn’t in the selection.
 	/// Rows in the middle of a multi-line selection run the full width.
 	public func columnRange(forRow row: Int, cols: Int) -> Range<Int>? {
@@ -93,6 +105,9 @@ public struct EscapeSequences {
 	/// Shift-Tab. Claude Code binds it to cycling permission modes.
 	public static let backTab   = "\u{1b}[Z".utf8Array
 	public static let `return`  = "\r".utf8Array
+	/// Around a paste, when the program has turned bracketed paste mode on.
+	public static let bracketedPasteStart = "\u{1b}[200~".utf8Array
+	public static let bracketedPasteEnd   = "\u{1b}[201~".utf8Array
 
 	public static let up        = "\u{1b}[A".utf8Array
 	public static let upApp     = "\u{1b}OA".utf8Array
