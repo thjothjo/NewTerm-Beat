@@ -113,11 +113,21 @@ do {
 } catch {}
 check(try config() == original, "a duplicate rename changed the config")
 
-// URL fields are untrusted shell input. They must each stay inside one argument, and options must
-// precede the destination so ssh doesn't treat them as a remote command.
+// URL fields are untrusted shell input. They must each stay inside one argument, options must
+// precede the destination so ssh doesn't treat them as a remote command, and `--` must close the
+// option list so a destination can never be read as one.
 let safeURLCommand = SSHConfig.connectCommand(user: "x; touch /tmp/pwned", host: "example.com", port: 2200)
-check(safeURLCommand == "ssh -p 2200 'x; touch /tmp/pwned@example.com'",
-			"unsafe URL command: \(safeURLCommand)")
+check(safeURLCommand == "ssh -p 2200 -- 'x; touch /tmp/pwned@example.com'",
+			"unsafe URL command: \(String(describing: safeURLCommand))")
+
+// A destination that would still look like an option is refused rather than handed to ssh.
+check(SSHConfig.connectCommand(user: nil, host: "-oProxyCommand=touch /tmp/pwned", port: nil) == nil,
+			"an option-shaped host was turned into a command")
+check(SSHConfig.connectCommand(user: nil, host: "", port: nil) == nil, "an empty host made a command")
+
+// The saved-host form quotes and closes the option list the same way.
+check(SSHConfig.connectCommand(for: SSHHost(name: "web; touch /tmp/pwned")) == "ssh -- 'web; touch /tmp/pwned'",
+			"unsafe saved-host command")
 
 // An edit keeps what it doesn't model, and the comment belonging to the next entry.
 var web = hosts[0]

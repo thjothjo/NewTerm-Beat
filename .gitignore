@@ -15,3 +15,7 @@ Carthage/
 .theos
 packages/
 build/
+
+# Local Claude Code settings and editor backups
+.claude/
+*.swift.bak
