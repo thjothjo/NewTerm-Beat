@@ -41,27 +41,30 @@ struct KeyboardKeyButtonStyle: ButtonStyle {
 			.animation(nil)
 	}
 
-	/// An outline, with nothing behind it.
+	/// A solid key, and nothing around it.
 	///
-	/// The keys used to be frosted. Against a light terminal that fill is a pale grey, and with 5pt
-	/// between keys the row read as one continuous band across the bottom of the screen rather than as
-	/// separate buttons. Without it each key is just its outline over whatever the terminal is showing.
+	/// Opaque rather than an outline over the terminal: these rows float above the output, and with
+	/// nothing behind them the text ran straight through the labels. The fill stops at the key's own
+	/// edge, so what sits between the keys is still the terminal — no slab, no band, each key its own
+	/// block.
+	///
+	/// No border, either. An outline on every key put a line around every side of every one of them,
+	/// and a row of bordered boxes reads as a grid rather than as separate buttons. What separates one
+	/// key from the next is the gap between two solid shapes, and a soft shadow to lift each off
+	/// whatever it is sitting on.
 	@ViewBuilder
 	private func background<S: InsettableShape>(shape: S, isPressed: Bool) -> some View {
 		if selected {
 			shape
 				.fill(Color.accentColor)
-				.overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: Design.stroke))
+				.shadow(color: .black.opacity(0.18), radius: 2.5, x: 0, y: 1)
 		} else {
 			shape
+				.fill(Color(.secondarySystemBackground))
 				// Pressed lightens on a dark keyboard and darkens on a light one, because it is the label
 				// colour that inverts between them.
-				.fill(Color.primary.opacity(isPressed ? 0.18 : 0))
-				.overlay(shape.strokeBorder(Color.primary.opacity(0.22), lineWidth: Design.stroke))
-				.shadow(color: shadow ? .black.opacity(0.25) : .clear,
-								radius: shadow ? 1.5 : 0,
-								x: 0,
-								y: shadow ? 1 : 0)
+				.overlay(shape.fill(Color.primary.opacity(isPressed ? 0.18 : 0)))
+				.shadow(color: .black.opacity(0.18), radius: 2.5, x: 0, y: 1)
 		}
 	}
 

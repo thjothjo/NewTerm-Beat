@@ -148,6 +148,12 @@ class TerminalKeyInput: TextInputBase {
 																		selector: #selector(self.keyboardDidHide(_:)),
 																		name: UIResponder.keyboardWillHideNotification,
 																		object: nil)
+		// The docked bar needs an owner, and UIKit will not hand the responder over while the keyboard
+		// is still animating out. `didHide` is the first moment it will.
+		NotificationCenter.default.addObserver(self,
+																		selector: #selector(self.keyboardDidFinishHiding(_:)),
+																		name: UIResponder.keyboardDidHideNotification,
+																		object: nil)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -221,8 +227,9 @@ class TerminalKeyInput: TextInputBase {
 		guard let window = toolbar.window else {
 			return
 		}
-		// The whole bar, and the whole bar floats: keys sit over the terminal rather than taking rows
-		// from it. Only the keyboard below them is allowed to make the terminal smaller.
+		// Only the rows a toggle opened float. The row that is always there takes its space from the
+		// terminal, the same as the keyboard under it does — reporting the whole bar as floating left
+		// the last lines of output, prompt included, drawn underneath the keys.
 		let barFrame = toolbar.convert(toolbar.bounds, to: nil)
 		let top = barFrame.minY
 		let keyboardFrame = CGRect(x: barFrame.minX,
@@ -232,7 +239,7 @@ class TerminalKeyInput: TextInputBase {
 		NotificationCenter.default.post(name: Self.accessoryFrameDidChangeNotification,
 																		object: self,
 																		userInfo: [Self.accessoryFrameKey: keyboardFrame,
-																							 Self.accessoryFloatingKey: barFrame.height])
+																							 Self.accessoryFloatingKey: toolbar.floatingHeight])
 	}
 
 	static let accessoryHeightDidChangeNotification = Notification.Name("ws.hbang.Terminal.accessoryHeightDidChange")
@@ -255,7 +262,11 @@ class TerminalKeyInput: TextInputBase {
 
 	var usesSideBar: Bool { Self.usesSideBar(for: traitCollection) }
 
-	override var inputAccessoryView: UIView? { usesSideBar ? nil : toolbar }
+	/// Nil while suppressed, which is what actually takes the bar off screen — see
+	/// `suppressAccessory()`.
+	override var inputAccessoryView: UIView? {
+		(isAccessorySuppressed || usesSideBar) ? nil : toolbar
+	}
 
 	/// A stand-in for the keyboard, so putting the keyboard away doesn't take the bar with it.
 	///
@@ -275,6 +286,9 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Set by the view controller: whether this terminal is the one on screen.
 	var wantsDockedBar = false
+
+	/// Leaves tab edit mode. Set by the view controller, which is the one that can reach the tab bar.
+	var endTabEditing: (() -> Void)?
 
 	/// Whether this terminal really is the one on screen.
 	///
@@ -320,14 +334,27 @@ class TerminalKeyInput: TextInputBase {
 
 	/// Brings the real keyboard back, from wherever it went.
 	func showKeyboard() {
+		raiseKeyboard()
+		// UIKit refuses the responder while an earlier dismissal is still winding down, and a sheet
+		// closing is exactly that. One more turn is enough. Every way of asking needs this, not just
+		// the last one: with the bar docked the ask is a plain `becomeFirstResponder`, and when that
+		// was refused nothing asked again — which is the tap that appeared to do nothing at all.
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self, !self.isFirstResponder, self.wantsDockedBar, self.isOnScreen else {
+				return
+			}
+			_ = self.becomeFirstResponder()
+		}
+	}
+
+	private func raiseKeyboard() {
+		// Cancels a docking waiting on the last hide animation: the keyboard is wanted again.
+		dockGeneration &+= 1
 		if isKeyboardHidden {
-			// Standing down behind the docked bar: swapping the stand-in back out is enough.
+			// Standing down behind the docked bar: put the stand-in away, so asking for the keyboard
+			// below gets the real one.
 			isKeyboardHidden = false
 			reloadInputViews()
-			if !isFirstResponder {
-				_ = becomeFirstResponder()
-			}
-			return
 		}
 
 		guard !isKeyboardOnScreen else {
@@ -343,28 +370,67 @@ class TerminalKeyInput: TextInputBase {
 		isRaisingKeyboard = true
 		_ = super.resignFirstResponder()
 		_ = becomeFirstResponder()
-		isRaisingKeyboard = false
-		// UIKit refuses the responder while a dismissal is still winding down. One more turn is enough,
-		// and without it that refusal is the end of the road — nothing else asks again.
+		// Lowered a turn later, not here. The resign above posts its keyboard notifications
+		// asynchronously, and with the flag already down by the time the hide arrives it reads as the
+		// user putting the keyboard away — so the bar docked itself again and the keyboard never came
+		// up. Measured: one tap in six did nothing at all.
 		DispatchQueue.main.async { [weak self] in
-			guard let self = self, !self.isFirstResponder, self.wantsDockedBar, self.isOnScreen else {
-				return
-			}
-			_ = self.becomeFirstResponder()
+			self?.isRaisingKeyboard = false
 		}
 	}
 
 	/// Removes the terminal's keyboard UI while another screen is in front. A sheet does not make the
 	/// terminal disappear, so its normal view lifecycle cannot do this for us.
 	func suppressAccessory() {
-		isAccessorySuppressed = true
-		_ = resignFirstResponder()
-		#if DEBUG
-		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-			guard let self, self.isAccessorySuppressed else { return }
-			assert(self.toolbar.window == nil, "Terminal accessory remained visible over another screen")
+		guard !isAccessorySuppressed else {
+			return
 		}
-		#endif
+		isAccessorySuppressed = true
+		// The bar can be on screen while we are not the first responder at all. Putting the keyboard
+		// away resigns it, and the attempt to take it straight back is refused while the keyboard is
+		// still animating out — which leaves the bar up with nobody owning it. Resigning something we
+		// don't hold does nothing, so the bar stayed exactly where it was, over whatever was presented
+		// on top of the app. Taking the responder back first is what makes the bar ours to remove:
+		// `inputAccessoryView` now answers nil, so the reload takes it away.
+		//
+		// `super`, deliberately: this class's own `becomeFirstResponder` clears the flag that makes
+		// the accessory nil, which is the one thing this must not undo.
+		if !isFirstResponder {
+			_ = super.becomeFirstResponder()
+		}
+		if isFirstResponder {
+			UIView.performWithoutAnimation {
+				reloadInputViews()
+			}
+		}
+		_ = resignFirstResponder()
+	}
+
+	/// Gives the bar back once whatever was in front of the terminal has gone.
+	///
+	/// Deliberately leaves `isKeyboardHidden` alone: the keyboard was down before the sheet appeared,
+	/// and it should still be down afterwards — only the docked bar comes back.
+	func restoreAccessory() {
+		guard isAccessorySuppressed else {
+			return
+		}
+		isAccessorySuppressed = false
+		guard wantsDockedBar, isOnScreen else {
+			return
+		}
+		// Never taken during the layout pass that noticed the sheet had gone. Changing the first
+		// responder from inside layout re-enters UIKit's keyboard machinery mid-pass, and what that
+		// produced was a keyboard that could not be brought back up at all.
+		DispatchQueue.main.async { [weak self] in
+			guard let self, !self.isAccessorySuppressed, self.wantsDockedBar, self.isOnScreen else {
+				return
+			}
+			if self.isFirstResponder {
+				self.reloadInputViews()
+			} else {
+				_ = self.becomeFirstResponder()
+			}
+		}
 	}
 
 	@objc private func keyboardDidHide(_ notification: Notification) {
@@ -381,15 +447,60 @@ class TerminalKeyInput: TextInputBase {
 					window.rootViewController?.presentedViewController == nil else {
 			return
 		}
-		// Swapped while the keyboard is still on its way down, so the bar rides it to the bottom and
-		// stays. Waiting for it to have gone meant the bar left with the keyboard and popped back half
-		// a second later — measured on the phone, 594ms of no bar at all.
-		isKeyboardHidden = true
-		if isFirstResponder {
-			reloadInputViews()
-		} else {
-			_ = becomeFirstResponder()
+		// Held until the keyboard has finished leaving. Swapping the input view when the animation
+		// starts moves the bar to the bottom at once while the keyboard is still on its way down —
+		// caught on a 15fps capture, the bar sat detached halfway up the screen with a band of white
+		// between it and the keyboard still sliding away underneath. Waiting for `keyboardDidHide`
+		// instead is too late: the bar goes with the keyboard and has to be animated back, which is
+		// the half-second of no bar this used to have. Matching the keyboard's own duration lands the
+		// swap at the moment it arrives at the bottom, where the bar already is.
+		let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval
+		dockGeneration &+= 1
+		let generation = dockGeneration
+		DispatchQueue.main.asyncAfter(deadline: .now() + max(0, duration ?? 0.25)) { [weak self] in
+			guard let self = self,
+						self.dockGeneration == generation,
+						!self.isRaisingKeyboard,
+						!self.isAccessorySuppressed,
+						self.wantsDockedBar,
+						self.isOnScreen,
+						!self.isKeyboardHidden,
+						!self.isKeyboardOnScreen,
+						let window = self.window,
+						window.rootViewController?.presentedViewController == nil else {
+				return
+			}
+			self.isKeyboardHidden = true
+			if self.isFirstResponder {
+				UIView.performWithoutAnimation { self.reloadInputViews() }
+			} else {
+				_ = self.becomeFirstResponder()
+			}
 		}
+	}
+
+	/// Bumped whenever something changes what the keyboard is doing, so a docking that was scheduled
+	/// for the end of an animation doesn't fire after the keyboard has been asked back.
+	private var dockGeneration = 0
+
+	/// Takes the responder back once the keyboard has actually gone.
+	///
+	/// The bar is the first responder's, and docking it means holding the responder with the keyboard
+	/// down. UIKit refuses to hand it over while the keyboard is still animating out, and the refusal
+	/// left the bar on screen owned by nobody: nothing could type into it, nothing could take it away,
+	/// and asking for the keyboard back did nothing because there was no responder to give it to.
+	@objc private func keyboardDidFinishHiding(_ notification: Notification) {
+		guard !isRaisingKeyboard,
+					!isAccessorySuppressed,
+					wantsDockedBar,
+					isOnScreen,
+					isKeyboardHidden,
+					!isFirstResponder,
+					let window = window,
+					window.rootViewController?.presentedViewController == nil else {
+			return
+		}
+		_ = becomeFirstResponder()
 	}
 
 	override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -531,17 +642,82 @@ class TerminalKeyInput: TextInputBase {
 	}
 
 	override func paste(_ sender: Any?) {
-		if let string = UIPasteboard.general.string {
-			terminalInputDelegate!.receiveKeyboardInput(data: string.utf8Array)
+		guard let string = UIPasteboard.general.string,
+					let terminalInputDelegate = terminalInputDelegate else {
+			return
 		}
+		// Line endings become the terminal's Enter, the same as typing them — `insertText` does this
+		// for the keyboard, and a bare `\n` is a byte many raw-mode programs simply ignore.
+		var data = string.replacingOccurrences(of: "\r\n", with: "\r")
+			.replacingOccurrences(of: "\n", with: "\r")
+			.utf8Array
+		// Wrapped when the program asked for it, so a shell or an agent takes a multi-line paste as one
+		// thing rather than running every line as it lands.
+		if terminalInputDelegate.bracketedPasteMode {
+			data = EscapeSequences.bracketedPasteStart + data + EscapeSequences.bracketedPasteEnd
+		}
+		terminalInputDelegate.receiveKeyboardInput(data: data)
+		clearAttachments(ifSending: data)
 	}
 
 	// MARK: - Hardware keyboard
+
+	/// Keys that mean something to a terminal in themselves, whatever keyboard is in front.
+	///
+	/// Everything else is a character, and characters are left to the text input system — see
+	/// `pressesBegan`.
+	private static let handledKeyCodes: Set<UIKeyboardHIDUsage> = {
+		var codes: Set<UIKeyboardHIDUsage> = [
+			.keyboardReturnOrEnter, .keyboardEscape, .keyboardDeleteOrBackspace, .keyboardDeleteForward,
+			.keyboardTab,
+			.keyboardHome, .keyboardEnd, .keyboardPageUp, .keyboardPageDown,
+			.keyboardUpArrow, .keyboardDownArrow, .keyboardLeftArrow, .keyboardRightArrow
+		]
+		for raw in UIKeyboardHIDUsage.keyboardF1.rawValue...UIKeyboardHIDUsage.keyboardF12.rawValue {
+			if let code = UIKeyboardHIDUsage(rawValue: raw) {
+				codes.insert(code)
+			}
+		}
+		return codes
+	}()
+
+	/// Whether this key means something to a terminal in itself, rather than being a character.
+	///
+	/// Control and Option are terminal keys whatever keyboard is in front, and no input method wants
+	/// them.
+	private func isTerminalKey(_ key: UIKey) -> Bool {
+		if key.modifierFlags.contains(.control) || key.modifierFlags.contains(.alternate) {
+			return true
+		}
+		return Self.handledKeyCodes.contains(key.keyCode)
+	}
+
+	/// Whether the keyboard in use composes characters rather than producing them directly.
+	///
+	/// Only then do plain keys have to be left to the text input system. An input method builds its
+	/// candidates from the keystrokes that system receives, and with a hardware keyboard attached it
+	/// received none — every letter had already been turned into ASCII and sent to the shell, so there
+	/// was nothing to compose from and no candidate list to choose from. Latin keyboards keep the
+	/// direct path, which is the one every other key in this file is built around.
+	private var usesInputMethod: Bool {
+		if markedTextRange != nil {
+			return true
+		}
+		guard let language = textInputMode?.primaryLanguage else {
+			return false
+		}
+		return ["zh", "ja", "ko", "yue"].contains { language.hasPrefix($0) }
+	}
 
 	@discardableResult
 	private func handleKey(_ key: UIKey) -> Bool {
 		// We don‘t want to handle cmd, let UIKit handle that.
 		if key.modifierFlags.contains(.command) {
+			return false
+		}
+		// Characters go to the input method when there is one; see `usesInputMethod`. It hands back
+		// what it composed through `insertText`, the same way the software keyboard does.
+		if usesInputMethod && !isTerminalKey(key) {
 			return false
 		}
 
@@ -699,6 +875,11 @@ class TerminalKeyInput: TextInputBase {
 
 extension TerminalKeyInput: KeyboardToolbarViewDelegate {
 	func keyboardToolbarDidPressKey(_ key: ToolbarKey) {
+		// Tab edit mode's only way out is a tap somewhere that isn't a tab, and the bar isn't somewhere
+		// that tap can land: it lives in the keyboard's own window, not in the view the dismiss gesture
+		// is on. Pressing a key is as clear a "done with the tabs" as tapping the terminal.
+		endTabEditing?()
+
 		guard let terminalInputDelegate = terminalInputDelegate else {
 			return
 		}

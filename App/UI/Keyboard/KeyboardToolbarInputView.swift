@@ -17,7 +17,7 @@ class KeyboardToolbarInputView: UIInputView {
 	private var contentHeight: NSLayoutConstraint!
 	/// What SwiftUI reports the rows need, padding included.
 	private var measuredRowsHeight: CGFloat = 50
-	/// The always-present row's height, which is the part the terminal has to clear.
+	/// The always-present row's height on its own, without the strip under it.
 	private var measuredBaseHeight: CGFloat = 50
 	/// Whether a height has been settled on once already.
 	///
@@ -118,10 +118,16 @@ class KeyboardToolbarInputView: UIInputView {
 	}
 
 	/// The height of the part the terminal clears, for whoever needs to place themselves above it.
-	var baseHeight: CGFloat { measuredBaseHeight }
+	/// The row that is always there, plus the strip under it when the bar is docked.
+	var baseHeight: CGFloat { measuredBaseHeight + state.bottomInset }
 
 	/// The rows that a toggle opened, which float over the terminal rather than shrinking it.
-	var floatingHeight: CGFloat { max(0, measuredRowsHeight - measuredBaseHeight) }
+	///
+	/// Both measurements have the home indicator's strip taken out before they are compared. The base
+	/// row is measured on its own, the rows as a whole are measured with the strip's padding under
+	/// them, and comparing the two as they came left the strip counted as a floating row — 34pt the
+	/// terminal was told it could keep, and the keys sat on its last line and a half.
+	var floatingHeight: CGFloat { max(0, measuredRowsHeight - state.bottomInset - measuredBaseHeight) }
 
 	private var hasSettledBase = false
 
@@ -211,7 +217,17 @@ class KeyboardToolbarInputView: UIInputView {
 	/// overlaps the home indicator changes as it resizes — 34pt at one height, 9pt at another. The
 	/// window's inset is the one that is always the same.
 	private func updateHeight() {
-		let inset = window?.safeAreaInsets.bottom ?? safeAreaInsets.bottom
+		// Only when the bar is the thing sitting on the bottom of the screen. There the strip is the
+		// home indicator's and the keys have to clear it. With the keyboard up the indicator belongs to
+		// the keyboard, and reserving it again is a blank band wedged between the keys and the keys
+		// below them.
+		let inset: CGFloat
+		if let window = window {
+			let isDockedToBottom = convert(bounds, to: nil).maxY >= window.bounds.maxY - 1
+			inset = isDockedToBottom ? window.safeAreaInsets.bottom : 0
+		} else {
+			inset = safeAreaInsets.bottom
+		}
 		if abs(state.bottomInset - inset) > 0.5 {
 			state.bottomInset = inset
 		}
@@ -260,11 +276,13 @@ class KeyboardSideBarView: UIInputView {
 	private var hostingView: UIHostingView<AnyView>!
 
 	init(delegate: KeyboardToolbarViewDelegate?, state: KeyboardToolbarViewState) {
-		super.init(frame: .zero, inputViewStyle: .keyboard)
+		// No slab of its own: the keys carry their own background, and a strip behind them is a long
+		// bar covering the terminal in every gap between keys for no reason.
+		super.init(frame: .zero, inputViewStyle: .default)
 
 		translatesAutoresizingMaskIntoConstraints = false
-		layer.cornerRadius = 12
-		layer.cornerCurve = .continuous
+		backgroundColor = .clear
+		isOpaque = false
 		clipsToBounds = true
 
 		hostingView = UIHostingView(rootView: AnyView(
@@ -329,11 +347,12 @@ class KeyboardSidePanelView: UIInputView {
 	private var toggleObserver: AnyCancellable?
 
 	init(delegate: KeyboardToolbarViewDelegate?, state: KeyboardToolbarViewState) {
-		super.init(frame: .zero, inputViewStyle: .keyboard)
+		// Transparent, for the same reason as the strip: only the keys should cover anything.
+		super.init(frame: .zero, inputViewStyle: .default)
 
 		translatesAutoresizingMaskIntoConstraints = false
-		layer.cornerRadius = 12
-		layer.cornerCurve = .continuous
+		backgroundColor = .clear
+		isOpaque = false
 		clipsToBounds = true
 		isHidden = true
 

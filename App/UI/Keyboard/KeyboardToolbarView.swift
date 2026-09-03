@@ -512,10 +512,16 @@ class KeyboardToolbarViewState: ObservableObject {
 	/// The strip of screen the home indicator sits in, handed down from UIKit.
 	///
 	/// SwiftUI's own safe-area handling is switched off for this view. The bar is placed by the
+	/// keyboard, and how much of it overlaps the home indicator changes as it resizes — measured, the
+	/// same bar reported a 34pt inset at one height and 9pt at another, so the rows were laid out
+	/// against one number while the bar was sized from the other and ended up 25pt too low.
+	@Published var bottomInset: CGFloat = 0
+	/// The strip of screen the home indicator sits in, handed down from UIKit.
+	///
+	/// SwiftUI's own safe-area handling is switched off for this view. The bar is placed by the
 	/// keyboard, and how much of it overlaps the indicator changes as it resizes — measured, the same
 	/// bar reported a 34pt inset at one height and 9pt at another, so the rows were laid out against
 	/// one number while the bar was sized from the other and ended up 25pt too low.
-	@Published var bottomInset: CGFloat = 0
 
 
 	/// Numbers of the images attached since the last return, newest last. Cleared on return, because
@@ -545,7 +551,7 @@ struct KeyboardToolbarKeyStack: View {
 			// The ten of them want 411pt at the horizontal spacing; landscape leaves 376pt between the
 			// tab bar and the home indicator, so the last key — the right arrow — never made it on
 			// screen and there was nothing to say it was there.
-			VStack(alignment: .center, spacing: 2) { keys }
+			VStack(alignment: .center, spacing: 4) { keys }
 		}
 	}
 
@@ -629,9 +635,9 @@ struct KeyboardToolbarKeyStack: View {
 	var arrowsView: some View {
 		switch arrowsStyle ?? preferences.keyboardArrowsStyle {
 		case .butterfly:
-			HStack(spacing: isBigDevice ? 5 : 2) {
+			HStack(spacing: isBigDevice ? 5 : 4) {
 				button(for: .left)
-				VStack(spacing: 2) {
+				VStack(spacing: 4) {
 					button(for: .up, halfHeight: true)
 					button(for: .down, halfHeight: true)
 				}
@@ -639,16 +645,16 @@ struct KeyboardToolbarKeyStack: View {
 			}
 
 		case .scissor:
-			HStack(spacing: isBigDevice ? 5 : 2) {
-				VStack(alignment: .trailing, spacing: 2) {
+			HStack(spacing: isBigDevice ? 5 : 4) {
+				VStack(alignment: .trailing, spacing: 4) {
 					Spacer()
 					button(for: .left, halfHeight: true)
 				}
-				VStack(alignment: .trailing, spacing: 2) {
+				VStack(alignment: .trailing, spacing: 4) {
 					button(for: .up, halfHeight: true)
 					button(for: .down, halfHeight: true)
 				}
-				VStack(alignment: .trailing, spacing: 2) {
+				VStack(alignment: .trailing, spacing: 4) {
 					Spacer()
 					button(for: .right, halfHeight: true)
 				}
@@ -943,11 +949,11 @@ struct KeyboardToolbarView: View {
 				}
 			}
 		}
+			// Its own height, not the one it is offered. Without this the stack is stretched to fill the
+			// bar and there is nothing left to measure.
 			// Included in what gets measured below, so the height the bar is given already accounts for
 			// it and there is no second number to keep in step.
 			.padding(.bottom, state.bottomInset)
-			// Its own height, not the one it is offered. Without this the stack is stretched to fill the
-			// bar and there is nothing left to measure.
 			.fixedSize(horizontal: false, vertical: true)
 			.background(GeometryReader { proxy in
 				Color.clear.preference(key: KeyboardBarHeightKey.self, value: proxy.size.height)
@@ -960,7 +966,7 @@ struct KeyboardToolbarView: View {
 				onHeightMeasured?(height)
 			}
 			.onPreferenceChange(KeyboardBarBaseHeightKey.self) { height in
-				onBaseHeightMeasured?(height + state.bottomInset)
+				onBaseHeightMeasured?(height)
 			}
 	}
 
