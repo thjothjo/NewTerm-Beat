@@ -48,15 +48,40 @@ class TextInputBase: UIView, UIKeyInput, UITextInput, UITextInputTraits {
 	func insertText(_ text: String) {}
 	func deleteBackward() {}
 
-	func text(in range: UITextRange) -> String? { nil }
+	/// The composition, which is the only text this view has. An input method reads back what it set
+	/// while it works out what to offer.
+	func text(in range: UITextRange) -> String? { markedText.isEmpty ? nil : markedText }
 	func replace(_ range: UITextRange, withText text: String) {}
 
 	var selectedTextRange: UITextRange?
 	var markedTextRange: UITextRange?
 	var markedTextStyle: [NSAttributedString.Key: Any]?
 
-	func setMarkedText(_ markedText: String?, selectedRange: NSRange) {}
-	func unmarkText() {}
+	/// What an input method is composing right now, before it has settled on anything.
+	///
+	/// Tracked rather than ignored. These were empty, so an input method's first keystroke went into
+	/// nothing: it set the marked text, we dropped it, `markedTextRange` stayed nil, and the letter
+	/// was neither composed nor typed. With a hardware keyboard that is every letter — the numbers
+	/// went through because an input method commits those straight away.
+	private(set) var markedText = ""
+
+	func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+		self.markedText = markedText ?? ""
+		markedTextRange = self.markedText.isEmpty
+			? nil
+			: TextRange(start: TextPosition(position: 0),
+									end: TextPosition(position: self.markedText.count))
+		markedTextDidChange()
+	}
+
+	func unmarkText() {
+		markedText = ""
+		markedTextRange = nil
+		markedTextDidChange()
+	}
+
+	/// Told when the composition changed, for subclasses that show it.
+	func markedTextDidChange() {}
 
 	var beginningOfDocument: UITextPosition { TextPosition(position: 0) }
 	var endOfDocument: UITextPosition { TextPosition(position: 0) }

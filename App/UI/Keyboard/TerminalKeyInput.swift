@@ -85,7 +85,13 @@ class TerminalKeyInput: TextInputBase {
 	var attachImageHandler: (() -> Void)?
 
 	private var state = KeyboardToolbarViewState()
-	private var pressedHardwareKeys = Set<UIKey>()
+	/// Keys held down, by the key on the keyboard rather than by the event object.
+	///
+	/// This was a `Set<UIKey>`, which compares by identity: the press that reports a key going up
+	/// carries a different `UIKey` than the one that reported it going down, so the release didn't
+	/// match, the key stayed in the set, and the repeat timer typed it forever. A key code is the
+	/// same value both times.
+	private var pressedHardwareKeys = [UIKeyboardHIDUsage: UIKey]()
 	private var pressedToolbarKeys = Set<ToolbarKey>()
 
 	override init(frame: CGRect) {
@@ -539,7 +545,9 @@ class TerminalKeyInput: TextInputBase {
 	override var hasText: Bool { true }
 
 	override func insertText(_ text: String) {
-		// Used by the software keyboard only. See pressesBegan(_:with:) below for hardware keyboard.
+		// The software keyboard, and whatever an input method settles on. See `pressesBegan` for the
+		// keys a hardware keyboard sends straight through.
+		inputMethodTookTheKey = true
 		let isCtrlDown = state.toggledKeys.contains(.control)
 		let data = text.utf8.map { character -> UTF8Char in
 			// Convert newline to carriage return
@@ -692,21 +700,45 @@ class TerminalKeyInput: TextInputBase {
 		return Self.handledKeyCodes.contains(key.keyCode)
 	}
 
-	/// Whether the keyboard in use composes characters rather than producing them directly.
+	/// Whether an input method is part-way through composing something.
 	///
-	/// Only then do plain keys have to be left to the text input system. An input method builds its
-	/// candidates from the keystrokes that system receives, and with a hardware keyboard attached it
-	/// received none — every letter had already been turned into ASCII and sent to the shell, so there
-	/// was nothing to compose from and no candidate list to choose from. Latin keyboards keep the
-	/// direct path, which is the one every other key in this file is built around.
-	private var usesInputMethod: Bool {
-		if markedTextRange != nil {
-			return true
-		}
-		guard let language = textInputMode?.primaryLanguage else {
-			return false
-		}
-		return ["zh", "ja", "ko", "yue"].contains { language.hasPrefix($0) }
+	/// Only then are keys left to the text input system: it is the one holding the composition, and a
+	/// key typed straight past it would land in the middle of what is being composed.
+	///
+	/// Deliberately not "is the keyboard a Chinese one". Offering every letter to the input method
+	/// because of its language loses them: a terminal has nowhere to show a composition, so the
+	/// letters went into one that was never displayed and never committed — typing `plain` produced
+	/// `plan`, and on a keyboard whose Latin mode still reports itself as Chinese, nothing at all.
+	/// Composing with a hardware keyboard needs the composition drawn somewhere the user can see it,
+	/// which this doesn't do yet; until it does, keys are typed.
+	private var usesInputMethod: Bool { markedTextRange != nil }
+
+	/// Whether this key is one to offer to the input method rather than type.
+	private func defersToInputMethod(_ key: UIKey) -> Bool {
+		!key.modifierFlags.contains(.command) && usesInputMethod && !isTerminalKey(key)
+	}
+
+	/// Set when the input method does something with a key we handed it — composes with it, or
+	/// commits something. Cleared before each batch of presses.
+	private var inputMethodTookTheKey = false
+
+	override func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+		inputMethodTookTheKey = true
+		super.setMarkedText(markedText, selectedRange: selectedRange)
+	}
+
+	/// Where a composition should appear, which is where the cursor is.
+	///
+	/// Zero here put the candidate window in the corner of the screen, a long way from what is being
+	/// typed. The view controller knows where the terminal's cursor is; this asks it.
+	var cursorRectProvider: (() -> CGRect)?
+
+	override func caretRect(for position: UITextPosition) -> CGRect {
+		cursorRectProvider?() ?? CGRect(x: 0, y: bounds.height, width: 1, height: 1)
+	}
+
+	override func firstRect(for range: UITextRange) -> CGRect {
+		caretRect(for: range.start)
 	}
 
 	@discardableResult
@@ -715,9 +747,9 @@ class TerminalKeyInput: TextInputBase {
 		if key.modifierFlags.contains(.command) {
 			return false
 		}
-		// Characters go to the input method when there is one; see `usesInputMethod`. It hands back
-		// what it composed through `insertText`, the same way the software keyboard does.
-		if usesInputMethod && !isTerminalKey(key) {
+		// Characters go to the input method when there is one; see `defersToInputMethod`, and
+		// `pressesBegan` for what happens when it turns out not to want them.
+		if defersToInputMethod(key) {
 			return false
 		}
 
@@ -798,11 +830,20 @@ class TerminalKeyInput: TextInputBase {
 
 	override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
 		var isHandled = false
+		// Keys an input method might want. Which it is decides how they are sent, but not until it has
+		// had its look at them.
+		var offered = [UIKey]()
 		for press in presses {
-			if let key = press.key,
-				 handleKey(key) {
+			guard let key = press.key else {
+				continue
+			}
+			if defersToInputMethod(key) {
+				offered.append(key)
+				continue
+			}
+			if handleKey(key) {
 				isHandled = true
-				pressedHardwareKeys.insert(key)
+				pressedHardwareKeys[key.keyCode] = key
 			}
 		}
 
@@ -810,15 +851,45 @@ class TerminalKeyInput: TextInputBase {
 			beginKeyRepeat()
 		}
 
+		if !offered.isEmpty {
+			// Offered, then checked. An input method's language is not the same thing as an input method
+			// wanting the key: a Chinese keyboard switched to its Latin mode reports itself as Chinese
+			// and composes nothing, so every letter went to a system that did nothing with it and never
+			// reached the shell. The text input system works through this synchronously, so by the time
+			// it returns we know whether the key was taken.
+			inputMethodTookTheKey = false
+			super.pressesBegan(presses, with: event)
+			if !inputMethodTookTheKey {
+				// Not added to the held keys: on a repeat these would be offered to the input method again
+				// and declined again, and a key that types nothing has no business keeping the timer alive.
+				for key in offered {
+					typeDirectly(key)
+				}
+			}
+			return
+		}
+
 		if !isHandled {
 			super.pressesBegan(presses, with: event)
 		}
 	}
 
+	/// Sends a key's characters to the shell, for a key the input method turned out not to want.
+	@discardableResult
+	private func typeDirectly(_ key: UIKey) -> Bool {
+		let data = key.characters.utf8Array
+		guard !data.isEmpty else {
+			return false
+		}
+		terminalInputDelegate?.receiveKeyboardInput(data: data)
+		clearAttachments(ifSending: data)
+		return true
+	}
+
 	private func handlePressesEnded(_ presses: Set<UIPress>) {
 		for press in presses {
 			if let key = press.key {
-				pressedHardwareKeys.remove(key)
+				pressedHardwareKeys.removeValue(forKey: key.keyCode)
 			}
 		}
 	}
@@ -848,7 +919,7 @@ class TerminalKeyInput: TextInputBase {
 	}
 
 	@objc private func handleKeyRepeat(_ timer: Timer) {
-		for key in pressedHardwareKeys {
+		for key in pressedHardwareKeys.values {
 			handleKey(key)
 		}
 
