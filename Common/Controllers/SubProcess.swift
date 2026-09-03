@@ -303,11 +303,28 @@ public class SubProcess {
 		// its environment believes them over the pty, so whatever size our own process happened to be
 		// launched with would override the real terminal — leaving zsh wrapping at the wrong column
 		// and printing its `%` end-of-line marker before every prompt.
+		// The locale variables go too, so the ones set below are the only ones the shell sees. `LC_ALL`
+		// outranks everything else, and an inherited copy of it would quietly undo the character
+		// handling set up here.
+		let dropped: Set<String> = ["COLUMNS", "LINES", "LANG", "LC_ALL", "LC_CTYPE"]
 		let inherited = ProcessInfo.processInfo.environment
-			.filter { $0.key != "COLUMNS" && $0.key != "LINES" }
+			.filter { !dropped.contains($0.key) }
 			.map { "\($0)=\($1)" }
 		let envp = (inherited + Self.baseEnvp + [
 			"LANG=\(localeCode)",
+			// What decides whether a byte over 0x7F is a character or a mistake.
+			//
+			// `LANG` alone isn't enough, and on a jailbroken phone it does nothing at all. Measured on
+			// the device: `zsh` puts the length of 你好 at 6 under `LANG=zh_CN.UTF-8`, under
+			// `LC_ALL=en_US.UTF-8`, and with the lot unset — libc can't load those locales, so the
+			// character type stays ASCII and zsh's line editor draws every byte of typed Chinese as an
+			// escape. That is the mojibake.
+			//
+			// `UTF-8` is Darwin's ctype-only locale, and `/usr/share/locale/UTF-8` holds exactly one
+			// file: `LC_CTYPE`. Nothing else has to load for it to work, which is why it does when the
+			// full locales don't — the same measurement gives 2. Anything a user prefers can still be
+			// set in their shell's own startup files.
+			"LC_CTYPE=UTF-8",
 			// Inherited by everything the shell starts, which is what lets a later launch recognise
 			// what this one left behind. See OrphanReaper.
 			OrphanReaper.environmentEntry
