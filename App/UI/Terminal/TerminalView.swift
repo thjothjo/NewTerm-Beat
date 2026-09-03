@@ -11,7 +11,10 @@ import SwiftTerm
 import NewTermCommon
 
 class TerminalState: ObservableObject {
-	@Published var lines = [AnyView]()
+	/// Every row on screen and in the scrollback. Deliberately not `@Published`: it is edited in place,
+	/// a few rows per frame, and a published array is copied whole on every write — ten thousand rows
+	/// at full scrollback. `revision` is what tells SwiftUI a frame landed.
+	var lines = [TerminalLine]()
 	/// Bumped on every refresh from the terminal. `lines` holds `AnyView`s, which can’t be compared,
 	/// so this is what SwiftUI watches to know that new output landed.
 	@Published var revision = 0
@@ -45,6 +48,8 @@ fileprivate struct TerminalContentMetrics: Equatable {
 	var distanceFromBottom: CGFloat { originY + contentHeight - viewportHeight }
 }
 
+/// The rows as a SwiftUI stack. Only the settings preview draws them this way now; the terminal
+/// itself uses `TerminalRowsView`, which holds up at ten thousand rows where this doesn't.
 struct TerminalView: View {
 	static let horizontalSpacing: CGFloat = isBigDevice ? 3 : 0
 	static let verticalSpacing: CGFloat = isBigDevice ? 2 : 0
@@ -67,8 +72,10 @@ struct TerminalView: View {
 			ScrollViewReader { scrollView in
 				ScrollView(.vertical, showsIndicators: true) {
 					LazyVStack(alignment: .leading, spacing: 0) {
-						ForEach(Array(zip(state.lines, state.lines.indices)), id: \.1) { line, i in
-							line
+						// Indexed directly. Zipping the lines with their indices built a new array of pairs —
+						// one per line, ten thousand at full scrollback — on every frame that had output.
+						ForEach(state.lines.indices, id: \.self) { i in
+							state.lines[i].view
 								.id(i)
 						}
 					}
@@ -260,22 +267,6 @@ struct TerminalView: View {
 	}
 }
 
-class TerminalHostingView: UIHostingView<AnyView> {
-	init(state: TerminalState) {
-		let view = TerminalView()
-			.environmentObject(state)
-		super.init(rootView: AnyView(view))
-	}
-
-	required init?(coder: NSCoder) {
-		fatalError("init(coder:) has not been implemented")
-	}
-
-	required init(rootView: AnyView) {
-		fatalError("init(rootView:) has not been implemented")
-	}
-}
-
 struct TerminalSampleView: View {
 
 	/// The preview’s terminal, kept alive across redraws.
@@ -319,7 +310,8 @@ struct TerminalSampleView: View {
 
 		func redraw() {
 			state.lines = Array(0...(terminal.rows + terminal.getTopVisibleRow()))
-				.map { stringSupplier.attributedString(forScrollInvariantRow: $0) }
+				.map { TerminalLine(view: stringSupplier.attributedString(forScrollInvariantRow: $0)) }
+			state.revision &+= 1
 		}
 	}
 

@@ -26,6 +26,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		keyInput.suppressAccessory()
 	}
 
+	func restoreAccessory() {
+		keyInput.restoreAccessory()
+	}
+
 	override var isSplitViewResizing: Bool {
 		didSet { updateIsSplitViewResizing() }
 	}
@@ -39,7 +43,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 	private var terminalController = TerminalController()
 	private var keyInput = TerminalKeyInput(frame: .zero)
-	private var textView: TerminalHostingView!
+	private var textView: TerminalRowsView!
 	private var textViewTapGestureRecognizer: UITapGestureRecognizer!
 	private var textViewLongPressGestureRecognizer: UILongPressGestureRecognizer!
 	private var selectionHandlePanGestureRecognizer: UIPanGestureRecognizer!
@@ -83,6 +87,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	private var selectionBase: TerminalSelection?
 	/// Which handle the current pan is moving, if it started on one.
 	private var draggingHandle: SelectionHandle?
+	/// The other end of the selection, fixed for as long as the handle is held.
+	private var handleDragAnchor: TerminalSelection.Point?
 
 	/// How close a touch has to land to a handle to grab it. Sized for a fingertip, not the knob.
 	private static let handleGrabRadius: CGFloat = 22
@@ -153,9 +159,10 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		title = .localize("TERMINAL", comment: "Generic title displayed before the terminal sets a proper title.")
 
 		preferencesUpdated()
-		textView = TerminalHostingView(state: state)
+		textView = TerminalRowsView(state: state)
 
 		keyInput.canCopy = { [weak self] in self?.state.selection != nil }
+		keyInput.endTabEditing = { [weak self] in self?.rootViewController?.endTabEditing() }
 		keyInput.copyHandler = { [weak self] in self?.copySelection() }
 		keyInput.openProjectHandler = { [weak self] in self?.openProject($0) }
 		keyInput.newProjectHandler = { [weak self] in self?.rootViewController?.createProject() }
@@ -226,6 +233,11 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		if UIApplication.shared.supportsMultipleScenes {
 			NotificationCenter.default.addObserver(self, selector: #selector(self.sceneDidEnterBackground), name: UIWindowScene.didEnterBackgroundNotification, object: nil)
 			NotificationCenter.default.addObserver(self, selector: #selector(self.sceneWillEnterForeground), name: UIWindowScene.willEnterForegroundNotification, object: nil)
+		} else {
+			// One scene, and the scene notifications never fire for it. Everything the terminal does on
+			// backgrounding — throttling, and putting a running agent on the Dynamic Island — hung off
+			// them, so on the one device that has an island, none of it ever happened.
+			NotificationCenter.default.addObserver(self, selector: #selector(self.appWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
 		}
 
 		// The scene notifications above only register on multi-scene devices (iPad/Mac). Scrollback has
@@ -261,10 +273,17 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		super.viewWillAppear(animated)
 
 		keyInput.wantsDockedBar = true
-		keyInput.becomeFirstResponder()
-		terminalController.terminalWillAppear()
 	}
 
+	/// Focus follows what can be seen, decided here rather than in `viewWillAppear`.
+	///
+	/// Appearance callbacks fire for every terminal whose view enters the hierarchy, seen or not: the
+	/// tabs behind the selected one when the window first appears, a pane being moved into a tab that
+	/// is about to be hidden, both panes of a split as its stack is rebuilt. Taking the keyboard in
+	/// `viewWillAppear` handed it to whichever of those came last — a terminal nobody could see, so the
+	/// keys went there and the pane header and key strip said otherwise. By `viewDidAppear` the view
+	/// is unhidden and in its window, so `isOnScreen` can answer, and a terminal off screen is
+	/// throttled the way a tab switched away from is.
 	override func viewDidAppear(_ animated: Bool) {
 		super.viewDidAppear(animated)
 
@@ -272,11 +291,32 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		// back on screen. No-ops when the size already matches.
 		updateScreenSize()
 
+		if isOnScreen {
+			terminalController.terminalWillAppear()
+			activate()
+		} else {
+			terminalController.terminalWillDisappear()
+		}
+
 		hasAppeared = true
 
 		if let error = failureError {
 			didReceiveError(error: error)
 		}
+	}
+
+	/// Gives the keyboard up, for a tab that is no longer the one in front.
+	func relinquishKeyboard() {
+		keyInput.wantsDockedBar = false
+		_ = keyInput.resignFirstResponder()
+	}
+
+	/// Takes the keyboard, and tells the container this is the pane it's typing into — one call, so
+	/// the two can't come apart.
+	func activate() {
+		keyInput.wantsDockedBar = true
+		keyInput.becomeFirstResponder()
+		delegate?.terminalDidBecomeActive(viewController: self)
 	}
 
 	override func viewWillDisappear(_ animated: Bool) {
@@ -607,23 +647,26 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		}
 
 		// Whichever way the keyboard went away — docked behind the bar, dismissed by dragging the
-		// terminal down — tapping asks for it back.
-		let wasFirstResponder = keyInput.isFirstResponder
+		// terminal down — tapping asks for it back. And the tap names this pane as the active one
+		// every time, not only when it also took the keyboard: focus can already be here while the
+		// container still marks the other pane, and this is the one thing that puts them back in step.
 		keyInput.showKeyboard()
-		if !wasFirstResponder {
-			delegate?.terminalDidBecomeActive(viewController: self)
-		}
+		delegate?.terminalDidBecomeActive(viewController: self)
 	}
 
 	// MARK: - Selection
 
 	@objc private func handleTextViewLongPress(_ gestureRecognizer: UILongPressGestureRecognizer) {
-		guard let cell = cell(at: gestureRecognizer.location(in: textView)) else {
-			return
-		}
+		// Nil below the last line, and above the first. Only the states that place a selection need a
+		// cell: the release must go through regardless, or lifting the finger in the blank space under
+		// a short screen — the natural end of a downward drag — showed no menu for what was selected.
+		let cell = self.cell(at: gestureRecognizer.location(in: textView))
 
 		switch gestureRecognizer.state {
 		case .began:
+			guard let cell = cell else {
+				return
+			}
 			let selection: TerminalSelection
 			if let range = terminalController.wordRange(atScrollInvariantRow: cell.row, column: cell.col) {
 				selection = TerminalSelection(row: cell.row, columns: range)
@@ -641,7 +684,8 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 			// Extend from the edges of what `.began` selected rather than from the touch point. Moving
 			// the head to the finger collapsed the word back to wherever inside it the press landed —
 			// and a finger never holds perfectly still, so the word selection never survived to be used.
-			guard let base = selectionBase else {
+			guard let base = selectionBase,
+						let cell = cell else {
 				break
 			}
 			if cell < base.start {
@@ -684,21 +728,19 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	@objc private func handleSelectionHandlePan(_ gestureRecognizer: UIPanGestureRecognizer) {
 		switch gestureRecognizer.state {
 		case .changed:
-			guard let handle = draggingHandle,
-						let selection = state.selection,
+			// From the end that isn't moving, captured when the handle was grabbed. Read off the current
+			// selection instead, the moment the finger crossed the other handle the two ends swapped
+			// roles, and the "fixed" end became wherever the finger had just been.
+			guard draggingHandle != nil,
+						let anchor = handleDragAnchor,
 						let cell = cell(at: gestureRecognizer.location(in: textView)) else {
 				return
 			}
-			switch handle {
-			case .start:
-				state.selection = TerminalSelection(anchor: selection.end, head: cell)
-			case .end:
-				state.selection = TerminalSelection(anchor: selection.start,
-																						head: TerminalSelection.Point(row: cell.row, col: cell.col + 1))
-			}
+			state.selection = TerminalSelection.dragging(anchor: anchor, to: cell)
 
 		case .ended, .cancelled:
 			draggingHandle = nil
+			handleDragAnchor = nil
 			if let selection = state.selection,
 				 !selection.isEmpty {
 				showEditMenu(at: selectionRect(for: selection))
@@ -741,6 +783,7 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 		state.selection = nil
 		selectionBase = nil
 		draggingHandle = nil
+		handleDragAnchor = nil
 	}
 
 	private func copySelection() {
@@ -811,6 +854,12 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	/// Fallback for a tapped path when nothing could open it: cd the shell into it (or its parent, if
 	/// it's a file). Types it as if the user had, so it lands in their history and they see it happen.
 	private func changeDirectory(into path: String) {
+		// Only at a prompt. Typed into whatever else has the terminal — an editor, an agent waiting on
+		// its own input line — `cd '…'` and a return are a stray command handed to a program that
+		// never asked for one.
+		guard terminalController.isShellInForeground else {
+			return
+		}
 		// Existence is checked against the resolved path (which may live inside the jbroot), but what
 		// gets typed is the path as written — the shell is already in that root and would not find the
 		// resolved form.
@@ -1018,6 +1067,13 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 	@objc private func appDidEnterBackground(_ notification: Notification) {
 		// Fires on every device when the app backgrounds — the last guaranteed point before jetsam.
 		saveScrollback()
+		if !UIApplication.shared.supportsMultipleScenes {
+			terminalController.windowDidEnterBackground()
+		}
+	}
+
+	@objc private func appWillEnterForeground(_ notification: Notification) {
+		terminalController.windowWillEnterForeground()
 	}
 
 	/// Persist this tab's scrollback so it can be replayed after the app is killed.
@@ -1047,9 +1103,36 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 extension TerminalSessionViewController: TerminalControllerDelegate {
 
-	func refresh(lines: [AnyView]) {
-		state.lines = lines
-		state.revision &+= 1
+	func refresh(droppedFromTop: Int, lineCount: Int, changes: [TerminalLineChange]) {
+		let countBefore = state.lines.count
+		let removedAtTop = min(droppedFromTop, countBefore)
+		if removedAtTop > 0 {
+			state.lines.removeFirst(removedAtTop)
+		}
+		let removedAtEnd = max(0, state.lines.count - lineCount)
+		if removedAtEnd > 0 {
+			state.lines.removeSubrange(lineCount...)
+		}
+		let countAfterRemovals = state.lines.count
+		var changedRows = [Int]()
+		for change in changes {
+			if change.row < state.lines.count {
+				state.lines[change.row] = change.line
+				changedRows.append(change.row)
+			} else if change.row == state.lines.count {
+				state.lines.append(change.line)
+			} else {
+				// A row past the end that nothing filled in before it. The two sides have lost step —
+				// draw what fits and ask for the lot again.
+				assertionFailure("row \(change.row) sent to a delegate holding \(state.lines.count) rows")
+				terminalController.resendAllLines()
+				break
+			}
+		}
+		textView.apply(removedAtTop: removedAtTop,
+									 removedAtEnd: removedAtEnd,
+									 appended: state.lines.count - countAfterRemovals,
+									 changedRows: changedRows)
 	}
 
 	func activateBell() {
@@ -1129,8 +1212,13 @@ extension TerminalSessionViewController: UIGestureRecognizerDelegate {
 	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
 		// This allows the tap-to-activate-keyboard gesture to work without conflicting with UIKit’s
 		// internal text view/scroll view gestures… as much as we can avoid conflicting, at least.
-		return gestureRecognizer == textViewTapGestureRecognizer
-			&& (!(otherGestureRecognizer is UITapGestureRecognizer) || keyInput.isFirstResponder)
+		//
+		// Whether the keyboard is up, not whether we hold the responder. The two used to mean the same
+		// thing, and once the bar could stay docked with the responder still ours they came apart: the
+		// keyboard was down, this tap was the only thing that could raise it, and it was standing aside
+		// for another tap that never failed. Measured on the phone — the handler was never called once.
+		let isTapWeStillNeed = otherGestureRecognizer is UITapGestureRecognizer && !keyInput.isKeyboardOnScreen
+		return gestureRecognizer == textViewTapGestureRecognizer && !isTapWeStillNeed
 	}
 
 	func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -1147,10 +1235,12 @@ extension TerminalSessionViewController: UIGestureRecognizerDelegate {
 		let centres = handleCentres(for: selection)
 		if hypot(location.x - centres.start.x, location.y - centres.start.y) <= Self.handleGrabRadius {
 			draggingHandle = .start
+			handleDragAnchor = selection.end
 			return true
 		}
 		if hypot(location.x - centres.end.x, location.y - centres.end.y) <= Self.handleGrabRadius {
 			draggingHandle = .end
+			handleDragAnchor = selection.start
 			return true
 		}
 		return false

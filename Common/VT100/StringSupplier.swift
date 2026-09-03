@@ -9,12 +9,6 @@ import Foundation
 import SwiftTerm
 import SwiftUI
 
-fileprivate extension View {
-	static func + (lhs: Self, rhs: some View) -> AnyView {
-		AnyView(ViewBuilder.buildBlock(lhs, AnyView(rhs)))
-	}
-}
-
 open class StringSupplier {
 
 	/// Glyphs that don’t fit the cell width we allocated for them are scaled down rather than
@@ -27,6 +21,12 @@ open class StringSupplier {
 	private static let subtleBackgroundDifference: CGFloat = 32 / 255
 
 	open var terminal: Terminal!
+	/// Added to every row before the terminal is asked for it. See
+	/// `TerminalController.updateRowOffset(_:)` for why there is one.
+	open var rowOffset = 0
+	/// Mixed into every row's hash. Bumped when the font or theme changes, so rows that would hash
+	/// the same — same characters, same attributes — are rebuilt anyway, in the new look.
+	open var hashSalt = 0
 	open var colorMap: ColorMap!
 	open var fontMetrics: FontMetrics!
 	open var cursorVisible = true
@@ -80,6 +80,36 @@ open class StringSupplier {
 		return true
 	}
 
+	/// The terminal's line for a row counted from the top of the buffer.
+	public func line(atRow row: Int) -> BufferLine? {
+		terminal?.getScrollInvariantLine(row: row + rowOffset)
+	}
+
+	/// A number that changes when the row would draw differently.
+	///
+	/// Cheaper than drawing it: every cell's character and attributes, and where the cursor is if it
+	/// is on this row. Used to skip rebuilding rows the terminal reported as changed but that came
+	/// out the same — which, once the scrollback is full, is most of the screen every frame.
+	public func contentHash(scrollInvariantRow row: Int) -> Int {
+		guard let terminal = terminal, let line = line(atRow: row) else {
+			return 0
+		}
+		var hasher = Hasher()
+		hasher.combine(hashSalt)
+		for column in 0..<terminal.cols {
+			let data = line[column]
+			hasher.combine(data.getCharacter())
+			hasher.combine(data.attribute)
+			hasher.combine(data.width)
+		}
+		if cursorVisible && row - terminal.getTopVisibleRow() == terminal.getCursorLocation().y {
+			hasher.combine(terminal.getCursorLocation().x)
+		} else {
+			hasher.combine(-1)
+		}
+		return hasher.finalize()
+	}
+
 	/// Whether a row holds nothing worth drawing.
 	///
 	/// The buffer always carries a full screen of rows, so a terminal showing one line of output still
@@ -87,7 +117,7 @@ open class StringSupplier {
 	/// which lets it scroll, which puts the line that mattered above the top edge.
 	public func isBlank(scrollInvariantRow row: Int) -> Bool {
 		guard let terminal = terminal,
-					let line = terminal.getScrollInvariantLine(row: row) else {
+					let line = line(atRow: row) else {
 			return true
 		}
 
@@ -117,7 +147,7 @@ open class StringSupplier {
 			fatalError()
 		}
 
-		guard let line = terminal.getScrollInvariantLine(row: row) else {
+		guard let line = line(atRow: row) else {
 			return AnyView(EmptyView())
 		}
 
@@ -206,8 +236,11 @@ open class StringSupplier {
 		views.append(text(buffer, cols: bufferCols, attribute: lastAttribute,
 								 inheritsBackground: inheritsSubtleRowBackground))
 
+		// Flat. The runs used to be folded into one another — each wrapped with the next in a fresh
+		// `AnyView`, so a row with thirty colour changes was thirty type-erased views deep, and SwiftUI
+		// walked every level of that to lay out each one. A row is a list of runs, and is drawn as one.
 		return AnyView(HStack(alignment: .firstTextBaseline, spacing: 0) {
-			views.reduce(AnyView(EmptyView()), { $0 + $1 })
+			ForEach(views.indices, id: \.self) { views[$0] }
 		})
 	}
 
