@@ -40,6 +40,8 @@ public final class TerminalActivityController {
 	private var lastUpdateAt = Date.distantPast
 	private var isForeground = true
 	private var quietTimer: Timer?
+	/// Steps on every update, so the island has something to draw motion from.
+	private var tick = 0
 
 	#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
 	@available(iOS 16.2, *)
@@ -62,19 +64,48 @@ public final class TerminalActivityController {
 		}
 		command = name
 		self.project = project
+		detail = ""
 		startedAt = Date()
 		lastOutputAt = Date()
 		startIfNeeded()
 	}
 
-	/// Output timing tells working from waiting apart. The text itself may contain secrets and never
-	/// belongs on the lock screen.
+	/// Output timing tells working from waiting apart, and the last line says what it is doing.
+	///
+	/// The line does reach the lock screen, which is a deliberate trade: it is the whole point of
+	/// glancing at the phone, and it is why the island can be switched off in Settings. Anything a
+	/// program prints back — a token, a password it echoed — would go with it.
 	public func didReceiveOutput() {
 		guard command != nil else {
 			return
 		}
 		lastOutputAt = Date()
 		update(state: .running)
+	}
+
+	/// Asked for the last line the terminal shows, at the moment one is about to be drawn.
+	///
+	/// Pulled rather than pushed: pushing it meant the terminal built the line on every chunk of
+	/// output whether or not there was an island to put it on — which, in the foreground with nothing
+	/// being watched, was every time. Now it is built only when an update is really going out, which
+	/// the rate limit holds to one every couple of seconds.
+	public var lastLineProvider: (() -> String?)?
+
+	/// What the agent last printed, cut down to something that fits a lock screen row.
+	private var detail = ""
+
+	private func refreshDetail() {
+		if let line = lastLineProvider?() {
+			detail = Self.summarised(line)
+		}
+	}
+
+	private static func summarised(_ line: String) -> String {
+		let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard trimmed.count > 60 else {
+			return trimmed
+		}
+		return String(trimmed.prefix(60)) + "…"
 	}
 
 	/// The shell is back at a prompt, or the terminal closed.
@@ -102,7 +133,7 @@ public final class TerminalActivityController {
 	// MARK: - Activity lifecycle
 
 	private func startIfNeeded() {
-		guard !isForeground, let command = command else {
+		guard !isForeground, let command = command, Preferences.shared.liveActivityEnabled else {
 			return
 		}
 		#if canImport(ActivityKit) && os(iOS) && !targetEnvironment(macCatalyst)
@@ -112,9 +143,12 @@ public final class TerminalActivityController {
 			return
 		}
 		let attributes = TerminalActivityAttributes(command: command, project: project)
+		tick = 0
+		refreshDetail()
 		let state = TerminalActivityAttributes.ContentState(state: .running,
-																						detail: "",
-																												startedAt: startedAt)
+																						detail: detail,
+																												startedAt: startedAt,
+																												tick: tick)
 		do {
 			activity = try Activity.request(attributes: attributes,
 																			contentState: state,
@@ -138,9 +172,14 @@ public final class TerminalActivityController {
 			return
 		}
 		lastUpdateAt = Date()
+		tick &+= 1
+		if state == .running {
+			refreshDetail()
+		}
 		let content = TerminalActivityAttributes.ContentState(state: state,
-																							detail: "",
-																													startedAt: startedAt)
+																							detail: detail,
+																													startedAt: startedAt,
+																													tick: tick)
 		Task {
 			await activity.update(using: content)
 		}

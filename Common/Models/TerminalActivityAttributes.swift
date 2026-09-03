@@ -36,11 +36,19 @@ public struct TerminalActivityAttributes: ActivityAttributes {
 		public var detail: String
 		/// When the command started, so the island can count up without us pushing an update a second.
 		public var startedAt: Date
+		/// Counts the updates pushed so far.
+		///
+		/// A Live Activity can't run an animation of its own — the system draws whatever the current
+		/// state says and nothing moves in between. Anything that should look alive has to move because
+		/// the state moved, so the island's ring and the bot's eye are drawn from this: it steps every
+		/// time the agent produces output, and stops dead when the agent does.
+		public var tick: Int
 
-		public init(state: TerminalActivity.State, detail: String, startedAt: Date) {
+		public init(state: TerminalActivity.State, detail: String, startedAt: Date, tick: Int = 0) {
 			self.state = state
 			self.detail = detail
 			self.startedAt = startedAt
+			self.tick = tick
 		}
 	}
 

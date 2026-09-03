@@ -97,9 +97,14 @@ struct SettingsView: View {
 											 label: { SettingsRow(icon: "network", tint: .appTeal) { Text("SSH_HOSTS_AND_KEYS") } })
 			}
 
-			PreferencesGroup(header: Text("AI")) {
+			PreferencesGroup(header: Text("AI"),
+											 footer: Text("The island shows what the agent is doing while the app is in the background, and the last line it printed appears on the lock screen.")) {
 				NavigationLink(destination: SettingsAIShortcutsView(),
 											 label: { SettingsRow(icon: "sparkles", tint: .purple) { Text("AI Shortcuts") } })
+
+				Toggle(isOn: preferences.$liveActivityEnabled) {
+					SettingsRow(icon: "bubbles.and.sparkles.fill", tint: .red) { Text("Dynamic Island") }
+				}
 			}
 
 			PreferencesGroup(header: Text("Privacy"),
