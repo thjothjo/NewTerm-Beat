@@ -104,11 +104,14 @@ public class TerminalController {
 		// jump over it. From zero rather than from the old offset: a reset puts the numbering back to
 		// the start, and the old offset is then past everything.
 		let step = max(1, terminal.rows / 2)
+		// Bounded by what the buffer can hold: a scrollback's worth of lines plus a screen, and some
+		// room over. Past that there is nothing to find, and the loop was free to run for hours.
+		let limit = 10_000 + terminal.rows * 4
 		var probe = 0
 		while terminal.getScrollInvariantLine(row: probe) == nil {
 			probe += step
-			guard probe < 1 << 40 else {
-				// No rows at all. Leave the offset alone rather than spin.
+			guard probe <= limit else {
+				// No rows anywhere in range. Leave the offset alone rather than keep looking.
 				return
 			}
 		}

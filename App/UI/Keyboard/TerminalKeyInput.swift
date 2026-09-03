@@ -727,14 +727,14 @@ class TerminalKeyInput: TextInputBase {
 		super.setMarkedText(markedText, selectedRange: selectedRange)
 	}
 
-	/// Where a composition should appear, which is where the cursor is.
+	/// Where a composition should appear.
 	///
-	/// Zero here put the candidate window in the corner of the screen, a long way from what is being
-	/// typed. The view controller knows where the terminal's cursor is; this asks it.
-	var cursorRectProvider: (() -> CGRect)?
-
+	/// The bottom-left corner, and nothing more. UIKit asks for this while it is laying out, and it
+	/// asks often; an answer that measures other views — converting a point out of the terminal, say —
+	/// is a chance to re-enter layout from inside layout. Zero would put the candidate window in the
+	/// corner of the screen, which is worse than approximate.
 	override func caretRect(for position: UITextPosition) -> CGRect {
-		cursorRectProvider?() ?? CGRect(x: 0, y: bounds.height, width: 1, height: 1)
+		CGRect(x: 0, y: max(0, bounds.height - 20), width: 1, height: 20)
 	}
 
 	override func firstRect(for range: UITextRange) -> CGRect {

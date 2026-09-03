@@ -46,6 +46,10 @@ final class TerminalRowsView: UIView, UIScrollViewDelegate {
 
 	private var rowHeight: CGFloat = 0
 
+	/// The most rows that can be on screen at once. A phone in landscape with the smallest font fits
+	/// well under a hundred.
+	private static let visibleRowCap = 200
+
 	/// Whether new output keeps the newest row on screen. Cleared when the user scrolls up, so
 	/// streaming output doesn't yank them back mid-read, and set again when they scroll back down.
 	private var followsOutput = true
@@ -96,13 +100,36 @@ final class TerminalRowsView: UIView, UIScrollViewDelegate {
 		fatalError("init(coder:) has not been implemented")
 	}
 
+	/// The geometry the last layout settled on, so a pass that changes nothing does nothing.
+	private var settledGeometry: Geometry?
+
+	private struct Geometry: Equatable {
+		var size: CGSize
+		var inset: UIEdgeInsets
+		var rows: Int
+		var rowHeight: CGFloat
+	}
+
 	override func layoutSubviews() {
 		super.layoutSubviews()
 		updateContentSize()
 		placeContainer()
-		// The keyboard arriving or the device rotating changes the viewport. Neither is the user
-		// scrolling, so neither changes whether output is being followed — but the bottom has moved.
-		followOutput()
+
+		// Only when something actually moved. Scrolling to the bottom on every layout pass is a loop:
+		// setting the offset lays the scroll view out again, which lands back here, which sets the
+		// offset again — and with the offset computed from a viewport and an inset that are themselves
+		// mid-animation, the two values never quite agree. On the phone that spun the main thread and
+		// took the app to 1.4GB before the watchdog killed it.
+		let geometry = Geometry(size: bounds.size,
+														inset: scrollView.adjustedContentInset,
+														rows: state.lines.count,
+														rowHeight: rowHeight)
+		if settledGeometry != geometry {
+			settledGeometry = geometry
+			// The keyboard arriving or the device rotating changes the viewport. Neither is the user
+			// scrolling, so neither changes whether output is being followed — but the bottom has moved.
+			followOutput()
+		}
 		layoutRows()
 	}
 
@@ -178,7 +205,10 @@ final class TerminalRowsView: UIView, UIScrollViewDelegate {
 		let top = scrollView.contentOffset.y
 		let bottom = top + scrollView.bounds.height
 		let first = max(0, Int(floor(top / rowHeight)))
-		let last = min(state.lines.count, Int(ceil(bottom / rowHeight)))
+		// Capped. Every row on screen costs a hosted SwiftUI view, and the count comes from a division
+		// by a measured row height — one bad measurement and the cap is the difference between a
+		// screenful of views and tens of thousands of them.
+		let last = min(state.lines.count, min(first + Self.visibleRowCap, Int(ceil(bottom / rowHeight))))
 		return first..<max(first, last)
 	}
 
@@ -272,7 +302,9 @@ final class TerminalRowsView: UIView, UIScrollViewDelegate {
 				.fixedSize(horizontal: false, vertical: true)
 		)
 		let height = probe.sizeThatFits(in: CGSize(width: 1000, height: 1000)).height
-		guard height > 0 else {
+		// A plausible line, not just a positive number. A measurement of half a point would put
+		// thousands of rows on screen, each one a hosted view.
+		guard height >= 4 else {
 			return
 		}
 		state.lineHeight = height
@@ -296,14 +328,21 @@ final class TerminalRowsView: UIView, UIScrollViewDelegate {
 
 	/// Pins the view to the newest output, if the user hasn't scrolled up to read something.
 	@objc private func followOutput() {
-		guard followsOutput else {
+		guard followsOutput, !isFollowingOutput else {
 			return
 		}
 		let bottom = bottomOffset
-		if abs(scrollView.contentOffset.y - bottom) > 0.5 {
-			scrollView.contentOffset.y = bottom
+		guard abs(scrollView.contentOffset.y - bottom) > 0.5 else {
+			return
 		}
+		// Guarded against re-entry: setting the offset calls back through `scrollViewDidScroll`, and
+		// laying the rows out from there can bring the view back here in the same pass.
+		isFollowingOutput = true
+		scrollView.contentOffset.y = bottom
+		isFollowingOutput = false
 	}
+
+	private var isFollowingOutput = false
 
 	/// The offset that shows the last row at the bottom — or the top, while it all fits.
 	private var bottomOffset: CGFloat {

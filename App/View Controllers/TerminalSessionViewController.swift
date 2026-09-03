@@ -163,17 +163,6 @@ class TerminalSessionViewController: BaseTerminalSplitViewControllerChild {
 
 		keyInput.canCopy = { [weak self] in self?.state.selection != nil }
 		keyInput.endTabEditing = { [weak self] in self?.rootViewController?.endTabEditing() }
-		// Where an input method should put its candidates: on the terminal's last line, which is where
-		// what is being typed will land.
-		keyInput.cursorRectProvider = { [weak self] in
-			guard let self = self, self.state.lineHeight > 0 else {
-				return .zero
-			}
-			let origin = self.textView.convert(CGPoint(x: TerminalView.horizontalSpacing,
-																								 y: self.textView.bounds.height - self.state.lineHeight),
-																				 to: self.keyInput)
-			return CGRect(origin: origin, size: CGSize(width: 1, height: self.state.lineHeight))
-		}
 		keyInput.copyHandler = { [weak self] in self?.copySelection() }
 		keyInput.openProjectHandler = { [weak self] in self?.openProject($0) }
 		keyInput.newProjectHandler = { [weak self] in self?.rootViewController?.createProject() }
